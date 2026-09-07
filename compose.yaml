@@ -1,0 +1,45 @@
+services:
+  nestjs-prod:  
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: vemvindo-backend:prod
+    container_name: vemvindo-backend-prod
+    ports:  
+      - "8000:3000"
+
+  nestjs-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: vemvindo-backend:dev
+    container_name: vemvindo-backend-dev
+    ports:
+      - "8000:3000"
+    environment:
+      - WATCHPACK_POLLING=true
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./
+          target: /usr/src/app
+          ignore:
+            - node_modules/
+        - action: rebuild
+          path: package.json
+
+  database:
+    image: postgres:18-alpine
+    container_name: vemvindo-database
+    environment:
+      POSTGRES_DB: vemvindo
+      POSTGRES_USER: vemvindo
+      POSTGRES_PASSWORD: tppe2026.1
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./sql:/docker-entrypoint-initdb.d
+      - pgdata:/var/lib/postgresql
+
+volumes:
+  pgdata:

@@ -25,26 +25,32 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
-## Project setup
-
-```bash
-$ npm install
-```
-
-## Compile and run the project
+## Project setup 
 
 ```bash
 # development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
+$ docker compose watch nestjs-dev database
 
 # production mode
-$ npm run start:prod
+$ docker compose up --build --detach nestjs-prod database
 ```
 
-## Run tests
+## Database Recomendations
+
+You can modify the database values in ./sql and push it to Git and make the data globally available, or you can manipulate it locally with DBeaver or Datagrip for example. 
+
+If you choose modify database values in ./sql, run:
+
+```bash
+$ docker compose down -v
+```
+
+This will remove volumes data.
+
+Then run the project setup step again.
+
+
+<!-- ## Run tests
 
 ```bash
 # unit tests
@@ -55,9 +61,9 @@ $ npm run test:e2e
 
 # test coverage
 $ npm run test:cov
-```
+``` -->
 
-## Deployment
+<!-- ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
 
@@ -66,9 +72,9 @@ If you are looking for a cloud-based platform to deploy your NestJS application,
 ```bash
 $ npm install -g @nestjs/mau
 $ mau deploy
-```
+``` -->
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+<!-- With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure. -->
 
 ## Resources
 
