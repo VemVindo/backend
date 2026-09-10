@@ -16,6 +16,8 @@ services:
     container_name: vemvindo-backend-dev
     ports:
       - "8000:3000"
+    env_file:
+      - .env
     environment:
       - WATCHPACK_POLLING=true
     develop:

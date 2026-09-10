@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Empresa {
+  id_empresa    Int      @id @default(autoincrement())
+  nome_fantasia String
+  email         String
+  telefone      String
+  CNPJ          String
+  cpf           String
+  cep           String
+  logradouro    String
+  numero        Int
+  complemento   String
+  bairro        String
+  cidade        String
+  UF            String
+  razao_social  String
+  senha         String
+
+  pedidos  Pedido[]
+  metricas MetricasPagamento[]
+  contratos Contrato[]
+}
+
+model Entregador {
+  id_entregador Int     @id @default(autoincrement())
+  nome          String
+  cpf           String
+  is_online     Boolean
+  telefone      String
+  tipo_veiculo  String
+  placa         String
+  senha         String
+
+  pedidos Pedido[]
+  contratos Contrato[]
+
+  historicosAntigos HistoricoPedidoEntregadores[] @relation("EntregadorAntigo")
+  historicosNovos   HistoricoPedidoEntregadores[] @relation("EntregadorNovo")
+}
+
+model Pedido {
+  id_pedido           Int       @id @default(autoincrement())
+  nome_reccebedor     String
+  telefone_recebedor  String
+  cep                 String
+  logradouro          String
+  numero              Int
+  complemento         String
+  bairro              String
+  cidade              String
+  uf                  String
+  descricao           String
+  status              String
+  data_criacao        DateTime
+  data_inicio_entrega DateTime?
+  data_finalizacao    DateTime?
+  valor_entrega       Int
+  idEmpresa           Int
+  identregadores      Int
+  distancia           Int
+
+  empresa    Empresa    @relation(fields: [idEmpresa], references: [id_empresa])
+  entregador Entregador @relation(fields: [identregadores], references: [id_entregador])
+
+  avaliacao  Avaliacao?
+  historicos HistoricoPedidoEntregadores[]
+}
+
+model MetricasPagamento {
+  idEmpresa    Int
+  taxa_fixa    Int
+  coeficiente  Int
+  data         DateTime
+
+  empresa Empresa @relation(fields: [idEmpresa], references: [id_empresa])
+
+  @@id([idEmpresa, data])
+}
+
+model Avaliacao {
+  idpedidos         Int    @id
+  avaliacao_entrega Int
+  comentario        String
+
+  pedido Pedido @relation(fields: [idpedidos], references: [id_pedido])
+}
+
+model HistoricoPedidoEntregadores {
+  id_historico        Int      @id @default(autoincrement())
+  id_pedido            Int
+  id_entregador_antigo Int
+  id_entregador_novo   Int
+  data                 DateTime
+
+  pedido Pedido @relation(fields: [id_pedido], references: [id_pedido])
+
+  entregadorAntigo Entregador @relation("EntregadorAntigo", fields: [id_entregador_antigo], references: [id_entregador])
+  entregadorNovo   Entregador @relation("EntregadorNovo", fields: [id_entregador_novo], references: [id_entregador])
+}
+
+model Contrato {
+  id_contrato    Int      @id @default(autoincrement())
+  idEmpresa      Int
+  identregadores Int
+  data_inicio    DateTime
+  data_fim       DateTime
+
+  empresa    Empresa    @relation(fields: [idEmpresa], references: [id_empresa])
+  entregador Entregador @relation(fields: [identregadores], references: [id_entregador])
+}
