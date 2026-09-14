@@ -1,22 +1,17 @@
-    # Use the official Node.js image as the base image
-    FROM node:24.14.0-slim
+FROM node:24.14.0-slim
 
-    RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
-    # Set the working directory inside the container
-    WORKDIR /usr/src/app
+WORKDIR /usr/src/app
 
-    # Copy package.json and package-lock.json to the working directory
-    COPY package*.json ./
+COPY package*.json ./
 
-    # Install the application dependencies
-    RUN npm install
+RUN npm install
 
-    # Copy the rest of the application files
-    COPY . .
+COPY . .
 
-    # Expose the application port
-    EXPOSE 3000
+EXPOSE 3000
 
-    # Command to run the application
-    CMD ["npm", "run", "start:dev"]
+# Gera o Prisma Client e aplica as migrations antes de iniciar o Nest, para que
+# um clone limpo suba com um unico "docker compose up".
+CMD ["sh", "./docker-entrypoint.dev.sh"]
