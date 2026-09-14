@@ -1,0 +1,17 @@
+FROM node:24.14.0-slim
+
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /usr/src/app
+
+COPY package*.json ./
+
+RUN npm install
+
+COPY . .
+
+EXPOSE 3000
+
+# Gera o Prisma Client e aplica as migrations antes de iniciar o Nest, para que
+# um clone limpo suba com um unico "docker compose up".
+CMD ["sh", "./docker-entrypoint.dev.sh"]
