@@ -1,1 +1,0 @@
-INSERT INTO Aluno(name) VALUES ('Adriano'), ('Fabio');

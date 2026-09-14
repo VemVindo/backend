@@ -1,23 +1,42 @@
-    # Use the official Node.js image as the base image
-    FROM node:24.14.0-slim 
+# ============================================
+# Stage 1: build (instala tudo e compila o TypeScript)
+# ============================================
+FROM node:24.14.0-slim AS builder
 
-    # Set the working directory inside the container
-    WORKDIR /usr/src/app
+WORKDIR /usr/src/app
 
-    # Copy package.json and package-lock.json to the working directory
-    COPY package*.json ./
+COPY package*.json ./
+RUN npm ci
 
-    # Install the application dependencies
-    RUN npm install
+COPY . .
+RUN npm run build
 
-    # Copy the rest of the application files
-    COPY . .
+# ============================================
+# Stage 2: dependencias de producao (sem devDependencies)
+# ============================================
+FROM node:24.14.0-slim AS prod-deps
 
-    # Build the NestJS application
-    RUN npm run build
+WORKDIR /usr/src/app
 
-    # Expose the application port
-    EXPOSE 3000
+COPY package*.json ./
+RUN npm ci --omit=dev
 
-    # Command to run the application
-    CMD ["node", "dist/main"]
+# ============================================
+# Stage 3: runner (imagem final minima)
+# ============================================
+FROM node:24.14.0-slim AS runner
+
+WORKDIR /usr/src/app
+
+ENV NODE_ENV=production
+
+COPY --from=prod-deps /usr/src/app/node_modules ./node_modules
+COPY --from=builder /usr/src/app/dist ./dist
+COPY package.json ./
+
+# Usuario nao-root ja existente na imagem oficial do Node
+USER node
+
+EXPOSE 3000
+
+CMD ["node", "dist/main"]

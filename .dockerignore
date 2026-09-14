@@ -3,3 +3,7 @@ dist
 *.log
 *.md
 .git
+
+# Arquivos de ambiente: nunca copiar segredos para dentro da imagem
+.env
+.env.*

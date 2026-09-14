@@ -1,11 +1,17 @@
 services:
-  nestjs-prod:  
+  nestjs-prod:
     build:
       context: .
       dockerfile: Dockerfile
     image: vemvindo-backend:prod
     container_name: vemvindo-backend-prod
-    ports:  
+    # Opt-in: so sobe com --profile prod ou nomeando o servico. Fora do "up" padrao.
+    profiles: ["prod"]
+    # Producao usa o Supabase: as variaveis vem de um .env local (nao commitado).
+    env_file:
+      - path: .env
+        required: false
+    ports:
       - "8000:3000"
 
   nestjs-dev:
@@ -14,12 +20,19 @@ services:
       dockerfile: Dockerfile.dev
     image: vemvindo-backend:dev
     container_name: vemvindo-backend-dev
+    # Desenvolvimento usa o Postgres local do servico "database".
+    # DATABASE_URL: conexao de runtime. DIRECT_URL: migrations do Prisma.
+    environment:
+      DATABASE_URL: postgresql://vemvindo:tppe2026.1@database:5432/vemvindo
+      DIRECT_URL: postgresql://vemvindo:tppe2026.1@database:5432/vemvindo
+      JWT_SECRET: dev-jwt-secret-nao-usar-em-producao
+      JWT_EXPIRES_IN: "1d"
+      WATCHPACK_POLLING: "true"
     ports:
       - "8000:3000"
-    env_file:
-      - .env
-    environment:
-      - WATCHPACK_POLLING=true
+    depends_on:
+      database:
+        condition: service_healthy
     develop:
       watch:
         - action: sync+restart
@@ -40,8 +53,12 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./sql:/docker-entrypoint-initdb.d
       - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vemvindo -d vemvindo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   pgdata:

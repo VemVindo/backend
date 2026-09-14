@@ -10,18 +10,18 @@ datasource db {
 model Empresa {
   id_empresa    Int      @id @default(autoincrement())
   nome_fantasia String
-  email         String
+  email         String   @unique
   telefone      String
-  CNPJ          String
-  cpf           String
+  CNPJ          String?  @unique
+  cpf           String?  @unique
   cep           String
   logradouro    String
   numero        Int
-  complemento   String
+  complemento   String?
   bairro        String
   cidade        String
   UF            String
-  razao_social  String
+  razao_social  String?
   senha         String
 
   pedidos  Pedido[]
@@ -32,7 +32,7 @@ model Empresa {
 model Entregador {
   id_entregador Int     @id @default(autoincrement())
   nome          String
-  cpf           String
+  cpf           String  @unique
   is_online     Boolean
   telefone      String
   tipo_veiculo  String
