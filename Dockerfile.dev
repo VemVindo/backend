@@ -12,6 +12,5 @@ COPY . .
 
 EXPOSE 3000
 
-# Gera o Prisma Client e aplica as migrations antes de iniciar o Nest, para que
-# um clone limpo suba com um unico "docker compose up".
-CMD ["sh", "./docker-entrypoint.dev.sh"]
+# Gera o Prisma Client, Aplica as Migrations e Inicia o NestJS
+CMD ["sh", "-c", "npx prisma generate && npx prisma migrate deploy && exec npm run start:dev"]
