@@ -27,6 +27,10 @@ export class EmpresaRepository {
     return this.prisma.empresa.findUnique({ where: { email } });
   }
 
+  findById(id: number): Promise<Empresa | null> {
+    return this.prisma.empresa.findUnique({ where: { id_empresa: id } });
+  }
+
   async findByDocumento(
     cnpj: string | null,
     cpf: string | null,
