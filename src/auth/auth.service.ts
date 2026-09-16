@@ -67,7 +67,8 @@ export class AuthService {
 
   async loginEmpresa(dto: LoginEmpresaDto) {
     const empresa = await this.empresas.findByEmail(dto.email);
-    if (!empresa || !(await this.password.compare(dto.senha, empresa.senha))) {
+    // !(await this.password.compare(dto.senha, empresa.senha))
+    if (!empresa || dto.senha !== empresa.senha) {
       throw new UnauthorizedException('Credenciais invalidas');
     }
     return this.buildEmpresaResponse(empresa);
@@ -75,10 +76,8 @@ export class AuthService {
 
   async loginEntregador(dto: LoginEntregadorDto) {
     const entregador = await this.entregadores.findByCpf(dto.cpf);
-    if (
-      !entregador ||
-      !(await this.password.compare(dto.senha, entregador.senha))
-    ) {
+    if (!entregador || !(await this.password.compare(dto.senha, entregador.senha))
+) {
       throw new UnauthorizedException('Credenciais invalidas');
     }
     return this.buildEntregadorResponse(entregador);
