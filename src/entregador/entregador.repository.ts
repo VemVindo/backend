@@ -25,7 +25,10 @@ export class EntregadorRepository {
     });
   }
 
-  create(data: CreateEntregadorData): Promise<Entregador> {
+  createComVinculo(
+    data: CreateEntregadorData,
+    idEmpresa: number,
+  ): Promise<Entregador> {
     return this.prisma.entregador.create({
       data: {
         nome: data.nome,
@@ -34,6 +37,7 @@ export class EntregadorRepository {
         tipo_veiculo: data.tipoVeiculo,
         placa: data.placa,
         senha: data.senhaHash,
+        contratos: { create: { idEmpresa, data_inicio: new Date() } },
       },
     });
   }

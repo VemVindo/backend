@@ -26,7 +26,10 @@ export class EntregadorController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: VincularEntregadorDto,
   ) {
-    return this.entregadorService.vincular(Number(user.establishmentId), dto.cpf);
+    return this.entregadorService.vincular(
+      Number(user.establishmentId),
+      dto.cpf,
+    );
   }
 
   @Get()

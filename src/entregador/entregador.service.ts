@@ -7,6 +7,8 @@ import { randomBytes } from 'crypto';
 import { PasswordService } from '../common/security/password.service';
 import { ContratoRepository } from '../contrato/contrato.repository';
 import { Entregador } from '../generated/prisma/client';
+import { TipoVeiculo } from '../common/enums/tipo-veiculo.enum';
+import { violouUnicidade } from '../prisma/prisma-errors';
 import { CadastrarEntregadorDto } from './dto/cadastrar-entregador.dto';
 import { EntregadorRepository } from './entregador.repository';
 
@@ -21,21 +23,32 @@ export class EntregadorService {
   async cadastrar(idEmpresa: number, dto: CadastrarEntregadorDto) {
     const existente = await this.entregadores.findByCpf(dto.cpf);
     if (existente) {
-      throw new ConflictException(
-        'Entregador ja cadastrado na plataforma; use o vinculo pelo CPF',
-      );
+      throw this.cpfJaCadastrado();
     }
     const senhaTemporaria = this.gerarSenhaTemporaria();
     const senhaHash = await this.password.hash(senhaTemporaria);
-    const entregador = await this.entregadores.create({
-      nome: dto.nome,
-      cpf: dto.cpf,
-      telefone: dto.telefone,
-      tipoVeiculo: dto.tipoVeiculo,
-      placa: dto.placa ?? null,
-      senhaHash,
-    });
-    await this.contratos.criarVinculo(idEmpresa, entregador.cpf);
+    let entregador: Entregador;
+    try {
+      entregador = await this.entregadores.createComVinculo(
+        {
+          nome: dto.nome,
+          cpf: dto.cpf,
+          telefone: dto.telefone,
+          tipoVeiculo: dto.tipoVeiculo,
+          placa:
+            dto.tipoVeiculo === TipoVeiculo.BICICLETA
+              ? null
+              : (dto.placa ?? null),
+          senhaHash,
+        },
+        idEmpresa,
+      );
+    } catch (erro) {
+      if (violouUnicidade(erro)) {
+        throw this.cpfJaCadastrado();
+      }
+      throw erro;
+    }
 
     return { entregador: this.toResumo(entregador), senhaTemporaria };
   }
@@ -52,11 +65,16 @@ export class EntregadorService {
       entregador.cpf,
     );
     if (vinculo) {
-      throw new ConflictException(
-        'Entregador ja vinculado a este estabelecimento',
-      );
+      throw this.jaVinculado();
     }
-    await this.contratos.criarVinculo(idEmpresa, entregador.cpf);
+    try {
+      await this.contratos.criarVinculo(idEmpresa, entregador.cpf);
+    } catch (erro) {
+      if (violouUnicidade(erro)) {
+        throw this.jaVinculado();
+      }
+      throw erro;
+    }
     return { entregador: this.toResumo(entregador), vinculado: true };
   }
 
@@ -68,6 +86,18 @@ export class EntregadorService {
       tipoVeiculo: entregador.tipo_veiculo,
       disponivel: entregador.disponivel,
     }));
+  }
+
+  private cpfJaCadastrado() {
+    return new ConflictException(
+      'Entregador ja cadastrado na plataforma; use o vinculo pelo CPF',
+    );
+  }
+
+  private jaVinculado() {
+    return new ConflictException(
+      'Entregador ja vinculado a este estabelecimento',
+    );
   }
 
   private toResumo(entregador: Entregador) {
