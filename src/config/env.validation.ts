@@ -1,31 +1,30 @@
 import { plainToInstance } from 'class-transformer';
 import {
   IsNotEmpty,
+  IsNumberString,
   IsOptional,
   IsString,
+  MinLength,
   validateSync,
 } from 'class-validator';
 
 export class EnvironmentVariables {
-  // Conexao de runtime (pooled no Supabase, Postgres local em dev).
   @IsString()
   @IsNotEmpty()
   DATABASE_URL: string;
 
-  // Conexao direta usada pelas migrations do Prisma.
   @IsString()
   @IsOptional()
   DIRECT_URL?: string;
 
   @IsString()
-  @IsNotEmpty()
+  @MinLength(32)
   JWT_SECRET: string;
 
   @IsString()
   @IsOptional()
   JWT_EXPIRES_IN?: string;
 
-  // Origem permitida para CORS (frontend). Default: http://localhost:3000.
   @IsString()
   @IsOptional()
   CORS_ORIGIN?: string;
@@ -33,6 +32,10 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   PORT?: string;
+
+  @IsNumberString()
+  @IsOptional()
+  TRUST_PROXY?: string;
 }
 
 export function validateEnv(
