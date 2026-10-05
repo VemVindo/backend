@@ -57,6 +57,25 @@ Duas variáveis controlam a conexão:
 Em dev as duas apontam para o serviço `database`. Em produção apontam para o
 Supabase, com credenciais vindas de um `.env` não versionado.
 
+### Dados de teste
+
+Em dev, o `CMD` do `Dockerfile.dev` roda `prisma/seed/dev.sql` depois das
+migrations, a cada subida do container. O script é idempotente e nunca roda
+em produção. Fora do Docker: `npm run db:seed`.
+
+Todos os dados são fictícios.
+
+| Perfil | Login | Senha | Observação |
+|---|---|---|---|
+| Empresa (CNPJ) | `cantina@example.com` | `Vemvindo@123` | frota: Ana e Bruno |
+| Empresa (CPF) | `padaria@example.com` | `Vemvindo@123` | frota: Bruno e Carla |
+| Entregador | `12345678909` (Ana) | `Temp@2026` | senha temporária: cai na troca de senha |
+| Entregador | `98765432100` (Bruno) | `Vemvindo@123` | vinculado às duas empresas |
+| Entregador | `24681357928` (Carla) | `Vemvindo@123` | bicicleta, sem placa |
+
+Para voltar ao estado inicial (por exemplo, refazer o primeiro acesso da Ana):
+`docker compose down -v && docker compose up`.
+
 ## Autenticação
 
 Cadastro apenas para estabelecimentos (`Empresa`); login separado por persona.
@@ -66,9 +85,19 @@ Cadastro apenas para estabelecimentos (`Empresa`); login separado por persona.
 | POST | `/auth/register` | dados do estabelecimento |
 | POST | `/auth/login/empresa` | `email`, `senha` |
 | POST | `/auth/login/entregador` | `cpf`, `senha` |
+| POST | `/auth/entregador/trocar-senha` | `senhaAtual`, `novaSenha` |
+| POST | `/auth/logout` | - |
 
-O login bem-sucedido retorna `accessToken` (JWT com `sub`, `role` e, para
-empresas, `establishmentId`) e os dados do usuário.
+O login grava o JWT (`sub`, `role`, `establishmentId` para empresas e
+`senhaTemporaria` para entregadores) num cookie `httpOnly` chamado
+`vemvindo_token`; o corpo da resposta traz só os dados do usuário. O header
+`Authorization: Bearer` continua aceito para clientes de API.
+
+Todo CPF (cadastro, vínculo e login) deve ter só os 11 dígitos, sem pontos ou
+traço, e dígitos verificadores válidos (`@IsCpf()`).
+
+Enquanto o entregador estiver com senha temporária, todas as rotas respondem
+403, exceto `/auth/me`, `/auth/entregador/trocar-senha` e `/auth/logout`.
 
 ## Healthcheck
 
@@ -90,4 +119,5 @@ npm run start:dev   # dev com watch (fora de container)
 npm run build       # build de producao
 npm run lint        # eslint
 npm test            # testes
+npm run db:seed     # dados de teste no banco de dev
 ```
