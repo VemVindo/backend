@@ -1,6 +1,7 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -48,12 +49,12 @@ model Entregador {
 
 model Pedido {
   id_pedido           Int       @id @default(autoincrement())
-  nome_reccebedor     String
+  nome_recebedor      String
   telefone_recebedor  String
   cep                 String
   logradouro          String
   numero              Int
-  complemento         String
+  complemento         String?
   bairro              String
   cidade              String
   uf                  String
@@ -64,11 +65,11 @@ model Pedido {
   data_finalizacao    DateTime?
   valor_entrega       Int
   idEmpresa           Int
-  cpf_entregador      String
+  cpf_entregador      String?
   distancia           Int
 
-  empresa    Empresa    @relation(fields: [idEmpresa], references: [id_empresa])
-  entregador Entregador @relation(fields: [cpf_entregador], references: [cpf])
+  empresa    Empresa     @relation(fields: [idEmpresa], references: [id_empresa])
+  entregador Entregador? @relation(fields: [cpf_entregador], references: [cpf])
 
   avaliacao  Avaliacao?
   historicos HistoricoPedidoEntregadores[]
@@ -115,4 +116,6 @@ model Contrato {
 
   empresa    Empresa    @relation(fields: [idEmpresa], references: [id_empresa])
   entregador Entregador @relation(fields: [cpf_entregador], references: [cpf])
+
+  @@unique([idEmpresa, cpf_entregador], where: { data_fim: null }, map: "Contrato_vinculo_ativo_key")
 }
