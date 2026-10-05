@@ -1,8 +1,8 @@
 import { IsNotEmpty, IsString } from 'class-validator';
+import { IsCpf } from '../../common/validators/is-cpf.validator';
 
 export class LoginEntregadorDto {
-  @IsString()
-  @IsNotEmpty()
+  @IsCpf()
   cpf: string;
 
   @IsString()

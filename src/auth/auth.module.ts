@@ -10,6 +10,7 @@ import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { JwtStrategy } from './jwt.strategy';
 import { RolesGuard } from './roles.guard';
+import { SenhaTemporariaGuard } from './senha-temporaria.guard';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { RolesGuard } from './roles.guard';
       useFactory: (config: ConfigService) => ({
         secret: config.getOrThrow<string>('JWT_SECRET'),
         signOptions: {
+          algorithm: 'HS256',
           expiresIn: (config.get<string>('JWT_EXPIRES_IN') ??
             '1d') as JwtSignOptions['expiresIn'],
         },
@@ -34,6 +36,7 @@ import { RolesGuard } from './roles.guard';
     JwtStrategy,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: SenhaTemporariaGuard },
   ],
   exports: [AuthService],
 })

@@ -1,4 +1,8 @@
-import { IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  TAMANHO_MAXIMO_SENHA_BCRYPT,
+  TAMANHO_MINIMO_SENHA,
+} from '../../common/security/senha.constants';
 
 export class TrocarSenhaDto {
   @IsString()
@@ -6,6 +10,7 @@ export class TrocarSenhaDto {
   senhaAtual: string;
 
   @IsString()
-  @MinLength(8)
+  @MinLength(TAMANHO_MINIMO_SENHA)
+  @MaxLength(TAMANHO_MAXIMO_SENHA_BCRYPT)
   novaSenha: string;
 }

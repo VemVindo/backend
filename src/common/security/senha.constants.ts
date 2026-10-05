@@ -1,0 +1,2 @@
+export const TAMANHO_MINIMO_SENHA = 8;
+export const TAMANHO_MAXIMO_SENHA_BCRYPT = 72;

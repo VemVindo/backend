@@ -10,7 +10,8 @@ import { UserRole } from '../common/enums/user-role.enum';
 import { EmpresaRepository } from '../empresa/empresa.repository';
 import { EntregadorRepository } from '../entregador/entregador.repository';
 import { Empresa, Entregador } from '../generated/prisma/client';
-import { AuthenticatedUser } from './jwt.strategy';
+import { violouUnicidade } from '../prisma/prisma-errors';
+import { AuthenticatedUser, JwtPayload } from './jwt.strategy';
 import { LoginEmpresaDto } from './dto/login.dto';
 import { LoginEntregadorDto } from './dto/login-entregador.dto';
 import { RegisterEstablishmentDto } from './dto/register-establishment.dto';
@@ -26,8 +27,8 @@ export class AuthService {
   ) {}
 
   async registerEstablishment(dto: RegisterEstablishmentDto) {
-    if (!dto.cnpj && !dto.cpf) {
-      throw new BadRequestException('Informe CNPJ ou CPF');
+    if (!dto.cnpj === !dto.cpf) {
+      throw new BadRequestException('Informe CNPJ ou CPF, apenas um deles');
     }
     if (dto.cnpj && !dto.razaoSocial) {
       throw new BadRequestException('Razao social e obrigatoria para CNPJ');
@@ -45,30 +46,41 @@ export class AuthService {
     }
 
     const senhaHash = await this.password.hash(dto.senha);
-    const empresa = await this.empresas.create({
-      nomeFantasia: dto.nomeFantasia,
-      email: dto.email,
-      telefone: dto.telefone,
-      cnpj: dto.cnpj ?? null,
-      cpf: dto.cpf ?? null,
-      cep: dto.cep,
-      logradouro: dto.logradouro,
-      numero: dto.numero,
-      complemento: dto.complemento ?? null,
-      bairro: dto.bairro,
-      cidade: dto.cidade,
-      uf: dto.uf,
-      razaoSocial: dto.razaoSocial ?? null,
-      senhaHash,
-    });
+    let empresa: Empresa;
+    try {
+      empresa = await this.empresas.create({
+        nomeFantasia: dto.nomeFantasia,
+        email: dto.email,
+        telefone: dto.telefone,
+        cnpj: dto.cnpj ?? null,
+        cpf: dto.cpf ?? null,
+        cep: dto.cep,
+        logradouro: dto.logradouro,
+        numero: dto.numero,
+        complemento: dto.complemento ?? null,
+        bairro: dto.bairro,
+        cidade: dto.cidade,
+        uf: dto.uf,
+        razaoSocial: dto.razaoSocial ?? null,
+        senhaHash,
+      });
+    } catch (erro) {
+      if (violouUnicidade(erro)) {
+        throw new ConflictException('E-mail ou documento ja cadastrado');
+      }
+      throw erro;
+    }
 
     return this.buildEmpresaResponse(empresa);
   }
 
   async loginEmpresa(dto: LoginEmpresaDto) {
     const empresa = await this.empresas.findByEmail(dto.email);
-    // !(await this.password.compare(dto.senha, empresa.senha))
-    if (!empresa || dto.senha !== empresa.senha) {
+    const senhaConfere = await this.password.verificar(
+      dto.senha,
+      empresa?.senha,
+    );
+    if (!empresa || !senhaConfere) {
       throw new UnauthorizedException('Credenciais invalidas');
     }
     return this.buildEmpresaResponse(empresa);
@@ -76,8 +88,11 @@ export class AuthService {
 
   async loginEntregador(dto: LoginEntregadorDto) {
     const entregador = await this.entregadores.findByCpf(dto.cpf);
-    if (!entregador || !(await this.password.compare(dto.senha, entregador.senha))
-) {
+    const senhaConfere = await this.password.verificar(
+      dto.senha,
+      entregador?.senha,
+    );
+    if (!entregador || !senhaConfere) {
       throw new UnauthorizedException('Credenciais invalidas');
     }
     return this.buildEntregadorResponse(entregador);
@@ -121,22 +136,36 @@ export class AuthService {
     if (!senhaConfere) {
       throw new UnauthorizedException('Senha atual invalida');
     }
+    if (dto.novaSenha === dto.senhaAtual) {
+      throw new BadRequestException(
+        'A nova senha precisa ser diferente da atual',
+      );
+    }
 
     const novaHash = await this.password.hash(dto.novaSenha);
     await this.entregadores.updateSenha(entregador.cpf, novaHash);
-    return { senhaAtualizada: true };
+    return this.buildEntregadorResponse({
+      ...entregador,
+      senha_temporaria: false,
+    });
+  }
+
+  private assinar(payload: JwtPayload) {
+    const accessToken = this.jwtService.sign(payload);
+    const { exp } = this.jwtService.decode<{ exp: number }>(accessToken);
+    return { accessToken, expiraEm: new Date(exp * 1000) };
   }
 
   private buildEmpresaResponse(empresa: Empresa) {
     const establishmentId = String(empresa.id_empresa);
-    const accessToken = this.jwtService.sign({
+    const token = this.assinar({
       sub: establishmentId,
       role: UserRole.ESTABELECIMENTO,
       establishmentId,
     });
 
     return {
-      accessToken,
+      ...token,
       user: {
         id: empresa.id_empresa,
         nomeFantasia: empresa.nome_fantasia,
@@ -147,13 +176,14 @@ export class AuthService {
   }
 
   private buildEntregadorResponse(entregador: Entregador) {
-    const accessToken = this.jwtService.sign({
+    const token = this.assinar({
       sub: entregador.cpf,
       role: UserRole.ENTREGADOR,
+      senhaTemporaria: entregador.senha_temporaria,
     });
 
     return {
-      accessToken,
+      ...token,
       user: {
         cpf: entregador.cpf,
         nome: entregador.nome,
