@@ -1,0 +1,175 @@
+name: CI/CD
+
+# PR: valida (lint, typecheck, testes, build da imagem) sem publicar nada.
+# Push na main: valida, publica a imagem no GHCR e faz o deploy no Render.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Um push novo no mesmo PR cancela a execucao antiga. Na main nada e
+# cancelado, para nao interromper um deploy no meio.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 24.21.0
+  # O Prisma Client (src/generated) nao e versionado. O generate so precisa de
+  # uma URL valida no formato, nao conecta no banco.
+  PRISMA_URL_PLACEHOLDER: postgresql://build:build@localhost:5432/build
+
+jobs:
+  qualidade:
+    name: Lint, typecheck e testes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Gerar Prisma Client
+        run: npx prisma generate
+        env:
+          DIRECT_URL: ${{ env.PRISMA_URL_PLACEHOLDER }}
+
+      - name: Lint
+        run: npm run lint:check
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Testes unitarios
+        run: npm test -- --coverage
+
+      # Bloqueia vulnerabilidade alta ou critica no que vai para producao.
+      # Dependencias de desenvolvimento (Jest, ESLint) ficam de fora porque nao
+      # entram na imagem; hoje o sprintf-js, via Jest, nao tem correcao.
+      - name: Auditoria de dependencias de producao
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Publicar cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura-backend
+          path: coverage/
+          retention-days: 7
+
+  e2e:
+    name: Testes e2e
+    runs-on: ubuntu-latest
+    # Banco descartavel, so para o teste. Nada aqui e segredo.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: vemvindo_ci
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d vemvindo_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/vemvindo_ci
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/vemvindo_ci
+      JWT_SECRET: segredo-de-teste-do-ci-com-mais-de-32-caracteres
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Gerar Prisma Client
+        run: npx prisma generate
+
+      # Tambem prova que as migrations sobem num banco limpo.
+      - name: Aplicar migrations
+        run: npx prisma migrate deploy
+
+      - name: Testes e2e
+        run: npm run test:e2e
+
+  imagem:
+    name: Imagem Docker
+    needs: [qualidade, e2e]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      imagem: ${{ steps.nome.outputs.imagem }}
+    steps:
+      - uses: actions/checkout@v6
+
+      # O GHCR exige nome em minusculas (VemVindo -> vemvindo).
+      - name: Nome da imagem
+        id: nome
+        run: echo "imagem=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.nome.outputs.imagem }}
+          tags: |
+            type=sha,prefix=sha-,format=long
+            type=raw,value=main,enable={{is_default_branch}}
+
+      - uses: docker/login-action@v4
+        if: github.event_name == 'push'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          # Em PR so prova que a imagem builda; publica apenas na main.
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+
+  deploy:
+    name: Deploy no Render
+    needs: imagem
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      # Sobe exatamente a imagem testada neste commit, e nao "a ultima".
+      # As migrations rodam no CMD da imagem quando o container novo sobe.
+      - name: Disparar deploy hook
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+          IMAGEM: ${{ needs.imagem.outputs.imagem }}:sha-${{ github.sha }}
+        run: |
+          curl --fail --silent --show-error --get \
+            --data-urlencode "imgURL=${IMAGEM}" \
+            "${RENDER_DEPLOY_HOOK}"
