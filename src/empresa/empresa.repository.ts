@@ -23,15 +23,15 @@ export interface CreateEmpresaData {
 export class EmpresaRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findByEmail(email: string): Promise<Empresa | null> {
+  procurarPorEmail(email: string): Promise<Empresa | null> {
     return this.prisma.empresa.findUnique({ where: { email } });
   }
 
-  findById(id: number): Promise<Empresa | null> {
+  procurarPorId(id: number): Promise<Empresa | null> {
     return this.prisma.empresa.findUnique({ where: { id_empresa: id } });
   }
 
-  async findByDocumento(
+  async procurarPorDocumento(
     cnpj: string | null,
     cpf: string | null,
   ): Promise<Empresa | null> {
@@ -48,7 +48,7 @@ export class EmpresaRepository {
     return null;
   }
 
-  create(data: CreateEmpresaData): Promise<Empresa> {
+  criar(data: CreateEmpresaData): Promise<Empresa> {
     return this.prisma.empresa.create({
       data: {
         nome_fantasia: data.nomeFantasia,

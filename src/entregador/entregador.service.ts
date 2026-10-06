@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
-import { PasswordService } from '../common/security/password.service';
+import { PasswordService } from '../common/security/senha.service';
 import { ContratoRepository } from '../contrato/contrato.repository';
 import { Entregador } from '../generated/prisma/client';
 import { TipoVeiculo } from '../common/enums/tipo-veiculo.enum';

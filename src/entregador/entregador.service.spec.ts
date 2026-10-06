@@ -1,6 +1,6 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { TipoVeiculo } from '../common/enums/tipo-veiculo.enum';
-import { PasswordService } from '../common/security/password.service';
+import { PasswordService } from '../common/security/senha.service';
 import { ContratoRepository } from '../contrato/contrato.repository';
 import { CadastrarEntregadorDto } from './dto/cadastrar-entregador.dto';
 import { EntregadorRepository } from './entregador.repository';

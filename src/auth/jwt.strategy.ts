@@ -2,20 +2,20 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { UserRole } from '../common/enums/user-role.enum';
+import { Cargo } from '../common/enums/user-role.enum';
 import { extrairTokenDoCookie } from './auth-cookie';
 
 export interface JwtPayload {
   sub: string;
-  role: UserRole;
-  establishmentId?: string;
+  cargo: Cargo;
+  empresaId?: string;
   senhaTemporaria?: boolean;
 }
 
-export interface AuthenticatedUser {
-  userId: string;
-  role: UserRole;
-  establishmentId?: string;
+export interface UsuarioAutenticado {
+  usuarioId: string;
+  cargo: Cargo;
+  empresaId?: string;
   senhaTemporaria?: boolean;
 }
 
@@ -33,19 +33,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: JwtPayload): AuthenticatedUser {
-    if (!payload?.sub || !Object.values(UserRole).includes(payload.role)) {
+  validate(payload: JwtPayload): UsuarioAutenticado {
+    if (!payload?.sub || !Object.values(Cargo).includes(payload.cargo)) {
       throw new UnauthorizedException();
     }
     const empresaSemEstabelecimento =
-      payload.role === UserRole.ESTABELECIMENTO && !payload.establishmentId;
+      payload.cargo === Cargo.ESTABELECIMENTO && !payload.empresaId;
     if (empresaSemEstabelecimento) {
       throw new UnauthorizedException();
     }
     return {
-      userId: payload.sub,
-      role: payload.role,
-      establishmentId: payload.establishmentId,
+      usuarioId: payload.sub,
+      cargo: payload.cargo,
+      empresaId: payload.empresaId,
       senhaTemporaria: payload.senhaTemporaria,
     };
   }

@@ -5,16 +5,16 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { PasswordService } from '../common/security/password.service';
-import { UserRole } from '../common/enums/user-role.enum';
+import { SenhaService } from '../common/security/senha.service';
+import { Cargo } from '../common/enums/user-role.enum';
 import { EmpresaRepository } from '../empresa/empresa.repository';
 import { EntregadorRepository } from '../entregador/entregador.repository';
 import { Empresa, Entregador } from '../generated/prisma/client';
 import { violouUnicidade } from '../prisma/prisma-errors';
-import { AuthenticatedUser, JwtPayload } from './jwt.strategy';
+import { UsuarioAutenticado, JwtPayload } from './jwt.strategy';
 import { LoginEmpresaDto } from './dto/login.dto';
 import { LoginEntregadorDto } from './dto/login-entregador.dto';
-import { RegisterEstablishmentDto } from './dto/register-establishment.dto';
+import { RegistrarEmpresa } from './dto/register-establishment.dto';
 import { TrocarSenhaDto } from './dto/trocar-senha.dto';
 
 @Injectable()
@@ -23,10 +23,10 @@ export class AuthService {
     private readonly empresas: EmpresaRepository,
     private readonly entregadores: EntregadorRepository,
     private readonly jwtService: JwtService,
-    private readonly password: PasswordService,
+    private readonly senha: SenhaService,
   ) {}
 
-  async registerEstablishment(dto: RegisterEstablishmentDto) {
+  async cadastrarEmpresa(dto: RegistrarEmpresa) {
     if (!dto.cnpj === !dto.cpf) {
       throw new BadRequestException('Informe CNPJ ou CPF, apenas um deles');
     }
@@ -34,21 +34,21 @@ export class AuthService {
       throw new BadRequestException('Razao social e obrigatoria para CNPJ');
     }
 
-    const [emailTaken, documentoTaken] = await Promise.all([
-      this.empresas.findByEmail(dto.email),
-      this.empresas.findByDocumento(dto.cnpj ?? null, dto.cpf ?? null),
+    const [email, documento] = await Promise.all([
+      this.empresas.procurarPorEmail(dto.email),
+      this.empresas.procurarPorDocumento(dto.cnpj ?? null, dto.cpf ?? null),
     ]);
-    if (emailTaken) {
+    if (email) {
       throw new ConflictException('E-mail ja cadastrado');
     }
-    if (documentoTaken) {
+    if (documento) {
       throw new ConflictException('Documento ja cadastrado');
     }
 
-    const senhaHash = await this.password.hash(dto.senha);
+    const senhaHash = await this.senha.hash(dto.senha);
     let empresa: Empresa;
     try {
-      empresa = await this.empresas.create({
+      empresa = await this.empresas.criar({
         nomeFantasia: dto.nomeFantasia,
         email: dto.email,
         telefone: dto.telefone,
@@ -75,11 +75,8 @@ export class AuthService {
   }
 
   async loginEmpresa(dto: LoginEmpresaDto) {
-    const empresa = await this.empresas.findByEmail(dto.email);
-    const senhaConfere = await this.password.verificar(
-      dto.senha,
-      empresa?.senha,
-    );
+    const empresa = await this.empresas.procurarPorEmail(dto.email);
+    const senhaConfere = await this.senha.verificar(dto.senha, empresa?.senha);
     if (!empresa || !senhaConfere) {
       throw new UnauthorizedException('Credenciais invalidas');
     }
@@ -87,8 +84,8 @@ export class AuthService {
   }
 
   async loginEntregador(dto: LoginEntregadorDto) {
-    const entregador = await this.entregadores.findByCpf(dto.cpf);
-    const senhaConfere = await this.password.verificar(
+    const entregador = await this.entregadores.procurarPorCpf(dto.cpf);
+    const senhaConfere = await this.senha.verificar(
       dto.senha,
       entregador?.senha,
     );
@@ -98,9 +95,9 @@ export class AuthService {
     return this.buildEntregadorResponse(entregador);
   }
 
-  async getMe(user: AuthenticatedUser) {
-    if (user.role === UserRole.ESTABELECIMENTO) {
-      const empresa = await this.empresas.findById(Number(user.userId));
+  async minhasInformacoes(usuario: UsuarioAutenticado) {
+    if (usuario.cargo === Cargo.ESTABELECIMENTO) {
+      const empresa = await this.empresas.procurarPorId(Number(usuario.usuarioId));
       if (!empresa) {
         throw new UnauthorizedException();
       }
@@ -108,28 +105,28 @@ export class AuthService {
         id: empresa.id_empresa,
         nomeFantasia: empresa.nome_fantasia,
         email: empresa.email,
-        role: UserRole.ESTABELECIMENTO,
+        cargo: Cargo.ESTABELECIMENTO,
       };
     }
 
-    const entregador = await this.entregadores.findByCpf(user.userId);
+    const entregador = await this.entregadores.procurarPorCpf(usuario.usuarioId);
     if (!entregador) {
       throw new UnauthorizedException();
     }
     return {
       cpf: entregador.cpf,
       nome: entregador.nome,
-      role: UserRole.ENTREGADOR,
+      cargo: Cargo.ENTREGADOR,
       senhaTemporaria: entregador.senha_temporaria,
     };
   }
 
-  async trocarSenhaEntregador(user: AuthenticatedUser, dto: TrocarSenhaDto) {
-    const entregador = await this.entregadores.findByCpf(user.userId);
+  async trocarSenhaEntregador(usuario: UsuarioAutenticado, dto: TrocarSenhaDto) {
+    const entregador = await this.entregadores.procurarPorCpf(usuario.usuarioId);
     if (!entregador) {
       throw new UnauthorizedException();
     }
-    const senhaConfere = await this.password.compare(
+    const senhaConfere = await this.senha.comparar(
       dto.senhaAtual,
       entregador.senha,
     );
@@ -142,8 +139,8 @@ export class AuthService {
       );
     }
 
-    const novaHash = await this.password.hash(dto.novaSenha);
-    await this.entregadores.updateSenha(entregador.cpf, novaHash);
+    const novaHash = await this.senha.hash(dto.novaSenha);
+    await this.entregadores.atualizarSenha(entregador.cpf, novaHash);
     return this.buildEntregadorResponse({
       ...entregador,
       senha_temporaria: false,
@@ -151,26 +148,26 @@ export class AuthService {
   }
 
   private assinar(payload: JwtPayload) {
-    const accessToken = this.jwtService.sign(payload);
+    const tokenAcesso = this.jwtService.sign(payload);
     const { exp } = this.jwtService.decode<{ exp: number }>(accessToken);
-    return { accessToken, expiraEm: new Date(exp * 1000) };
+    return { tokenAcesso, expiraEm: new Date(exp * 1000) };
   }
 
   private buildEmpresaResponse(empresa: Empresa) {
-    const establishmentId = String(empresa.id_empresa);
+    const empresaId = String(empresa.id_empresa);
     const token = this.assinar({
-      sub: establishmentId,
-      role: UserRole.ESTABELECIMENTO,
-      establishmentId,
+      sub: empresaId,
+      cargo: Cargo.ESTABELECIMENTO,
+      empresaId,
     });
 
     return {
       ...token,
-      user: {
+      usuario: {
         id: empresa.id_empresa,
         nomeFantasia: empresa.nome_fantasia,
         email: empresa.email,
-        role: UserRole.ESTABELECIMENTO,
+        cargo: Cargo.ESTABELECIMENTO,
       },
     };
   }
@@ -178,16 +175,16 @@ export class AuthService {
   private buildEntregadorResponse(entregador: Entregador) {
     const token = this.assinar({
       sub: entregador.cpf,
-      role: UserRole.ENTREGADOR,
+      cargo: Cargo.ENTREGADOR,
       senhaTemporaria: entregador.senha_temporaria,
     });
 
     return {
       ...token,
-      user: {
+      usuario: {
         cpf: entregador.cpf,
         nome: entregador.nome,
-        role: UserRole.ENTREGADOR,
+        cargo: Cargo.ENTREGADOR,
         senhaTemporaria: entregador.senha_temporaria,
       },
     };

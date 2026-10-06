@@ -15,17 +15,17 @@ export interface CreateEntregadorData {
 export class EntregadorRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findByCpf(cpf: string): Promise<Entregador | null> {
+  procurarPorCpf(cpf: string): Promise<Entregador | null> {
     return this.prisma.entregador.findUnique({ where: { cpf } });
   }
 
-  findAtivosByEmpresa(idEmpresa: number): Promise<Entregador[]> {
+  procurarPorEmpresa(idEmpresa: number): Promise<Entregador[]> {
     return this.prisma.entregador.findMany({
       where: { contratos: { some: { idEmpresa, data_fim: null } } },
     });
   }
 
-  createComVinculo(
+  criarComVinculo(
     data: CreateEntregadorData,
     idEmpresa: number,
   ): Promise<Entregador> {
@@ -42,7 +42,7 @@ export class EntregadorRepository {
     });
   }
 
-  updateSenha(cpf: string, senhaHash: string): Promise<Entregador> {
+  atualizarSenha(cpf: string, senhaHash: string): Promise<Entregador> {
     return this.prisma.entregador.update({
       where: { cpf },
       data: { senha: senhaHash, senha_temporaria: false },

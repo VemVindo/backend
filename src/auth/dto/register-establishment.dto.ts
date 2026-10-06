@@ -52,7 +52,7 @@ const UFS = [
   'TO',
 ];
 
-export class RegisterEstablishmentDto {
+export class RegistrarEmpresa {
   @Trim()
   @IsString()
   @IsNotEmpty()
