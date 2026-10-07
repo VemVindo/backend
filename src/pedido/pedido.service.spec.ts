@@ -126,3 +126,53 @@ describe('PedidoService.atualizarStatus', () => {
     expect(pedidos.atualizarStatus).not.toHaveBeenCalled();
   });
 });
+
+describe('PedidoService.obterStatusDisponiveis', () => {
+  it('retorna os status disponíveis para o pedido', async () => {
+    const { service } = montar();
+
+    await expect(
+      service.obterStatusDisponiveis(
+        CPF_ENTREGADOR,
+        ID_PEDIDO,
+      ),
+    ).resolves.toEqual({
+      statusAtual: StatusPedido.PENDENTE,
+      statusDisponiveis: [
+        StatusPedido.EM_ANDAMENTO,
+      ],
+    });
+  });
+
+  it('responde 404 quando o pedido nao esta atribuido ao entregador', async () => {
+    const { service, pedidos } = montar();
+
+    pedidos.procurarAtribuidoAoEntregador.mockResolvedValue(null);
+
+    await expect(
+      service.obterStatusDisponiveis(
+        CPF_ENTREGADOR,
+        ID_PEDIDO,
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('retorna lista vazia para um pedido finalizado', async () => {
+    const { service, pedidos } = montar();
+
+    pedidos.procurarAtribuidoAoEntregador.mockResolvedValue({
+      ...pedidoPendente,
+      status: StatusPedido.FINALIZADO,
+    });
+
+    await expect(
+      service.obterStatusDisponiveis(
+        CPF_ENTREGADOR,
+        ID_PEDIDO,
+      ),
+    ).resolves.toEqual({
+      statusAtual: StatusPedido.FINALIZADO,
+      statusDisponiveis: [],
+    });
+  });
+});

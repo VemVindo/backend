@@ -5,7 +5,10 @@ import {
 } from '@nestjs/common';
 import { StatusPedido } from '../common/enums/status-pedido.enum';
 import { PedidoRepository } from './pedido.repository';
-import { transicaoPermitida } from './regras/status-pedido.regra';
+import {
+  obterStatusDisponiveis,
+  transicaoPermitida,
+} from './regras/status-pedido.regra';
 
 @Injectable()
 export class PedidoService {
@@ -40,5 +43,24 @@ export class PedidoService {
       idPedido,
       novoStatus,
     );
+  }
+
+  async obterStatusDisponiveis(
+    cpfEntregador: string,
+    idPedido: number,
+  ) {
+    const pedido =
+      await this.pedidoRepository.procurarAtribuidoAoEntregador(
+        idPedido,
+        cpfEntregador,
+      );
+
+    if (!pedido) {
+      throw new NotFoundException('Pedido não encontrado');
+    }
+
+    const statusAtual = pedido.status as StatusPedido;
+
+    return obterStatusDisponiveis(statusAtual);
   }
 }

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Param,
   ParseIntPipe,
   Patch,
@@ -17,6 +18,18 @@ export class PedidoController {
   constructor(
     private readonly pedidoService: PedidoService,
   ) { }
+
+  @Get(':id/status-disponiveis')
+  @Cargos(Cargo.ENTREGADOR)
+  obterStatusDisponiveis(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param('id', ParseIntPipe) idPedido: number,
+  ) {
+    return this.pedidoService.obterStatusDisponiveis(
+      usuario.usuarioId,
+      idPedido,
+    );
+  }
 
   @Patch(':id/status')
   @Cargos(Cargo.ENTREGADOR)
