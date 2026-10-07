@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Entregador } from '../generated/prisma/client';
+import { StatusContrato } from '../generated/prisma/enums';
 
-export interface CreateEntregadorData {
+export interface DadosNovoEntregador {
   nome: string;
   cpf: string;
   telefone: string;
@@ -19,33 +20,49 @@ export class EntregadorRepository {
     return this.prisma.entregador.findUnique({ where: { cpf } });
   }
 
-  procurarPorEmpresa(idEmpresa: number): Promise<Entregador[]> {
+  procurarAtivosPorEmpresa(idEmpresa: number): Promise<Entregador[]> {
     return this.prisma.entregador.findMany({
-      where: { contratos: { some: { idEmpresa, data_fim: null } } },
-    });
-  }
-
-  criarComVinculo(
-    data: CreateEntregadorData,
-    idEmpresa: number,
-  ): Promise<Entregador> {
-    return this.prisma.entregador.create({
-      data: {
-        nome: data.nome,
-        cpf: data.cpf,
-        telefone: data.telefone,
-        tipo_veiculo: data.tipoVeiculo,
-        placa: data.placa,
-        senha: data.senhaHash,
-        contratos: { create: { idEmpresa, data_inicio: new Date() } },
+      where: {
+        contratos: { some: { idEmpresa, status: StatusContrato.ATIVO } },
       },
     });
   }
 
-  atualizarSenha(cpf: string, senhaHash: string): Promise<Entregador> {
+  criarComConvite(
+    dados: DadosNovoEntregador,
+    idEmpresa: number,
+  ): Promise<Entregador> {
+    return this.prisma.entregador.create({
+      data: {
+        nome: dados.nome,
+        cpf: dados.cpf,
+        telefone: dados.telefone,
+        tipo_veiculo: dados.tipoVeiculo,
+        placa: dados.placa,
+        senha: dados.senhaHash,
+        contratos: {
+          create: {
+            idEmpresa,
+            status: StatusContrato.PENDENTE,
+            data_inicio: new Date(),
+          },
+        },
+      },
+    });
+  }
+
+  atualizarSenha(
+    cpf: string,
+    senhaHash: string,
+    cienciaDadosEm?: Date,
+  ): Promise<Entregador> {
     return this.prisma.entregador.update({
       where: { cpf },
-      data: { senha: senhaHash, senha_temporaria: false },
+      data: {
+        senha: senhaHash,
+        senha_temporaria: false,
+        ...(cienciaDadosEm && { ciencia_dados_em: cienciaDadosEm }),
+      },
     });
   }
 }

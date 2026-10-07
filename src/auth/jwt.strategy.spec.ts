@@ -1,6 +1,6 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { UserRole } from '../common/enums/user-role.enum';
+import { Cargo } from '../common/enums/cargo.enum';
 import { JwtPayload, JwtStrategy } from './jwt.strategy';
 
 describe('JwtStrategy.validate', () => {
@@ -9,41 +9,48 @@ describe('JwtStrategy.validate', () => {
   } as unknown as ConfigService;
   const strategy = new JwtStrategy(config);
 
-  it('aceita token de empresa com establishmentId', () => {
+  it('aceita token de empresa com empresaId', () => {
     const payload: JwtPayload = {
       sub: '1',
-      role: UserRole.ESTABELECIMENTO,
-      establishmentId: '1',
+      cargo: Cargo.ESTABELECIMENTO,
+      empresaId: '1',
     };
     expect(strategy.validate(payload)).toEqual({
-      userId: '1',
-      role: UserRole.ESTABELECIMENTO,
-      establishmentId: '1',
+      usuarioId: '1',
+      cargo: Cargo.ESTABELECIMENTO,
+      empresaId: '1',
       senhaTemporaria: undefined,
     });
   });
 
-  it('aceita token de entregador sem establishmentId', () => {
+  it('aceita token de entregador sem empresaId', () => {
     const payload: JwtPayload = {
       sub: '52998224725',
-      role: UserRole.ENTREGADOR,
+      cargo: Cargo.ENTREGADOR,
       senhaTemporaria: false,
     };
-    expect(strategy.validate(payload).userId).toBe('52998224725');
+    expect(strategy.validate(payload).usuarioId).toBe('52998224725');
   });
 
-  it('recusa token de empresa sem establishmentId', () => {
+  it('recusa token de empresa sem empresaId', () => {
     expect(() =>
-      strategy.validate({ sub: '1', role: UserRole.ESTABELECIMENTO }),
+      strategy.validate({ sub: '1', cargo: Cargo.ESTABELECIMENTO }),
     ).toThrow(UnauthorizedException);
   });
 
-  it('recusa papel desconhecido e token sem sub', () => {
+  it('recusa cargo desconhecido e token sem sub', () => {
     expect(() =>
-      strategy.validate({ sub: '1', role: 'ADMIN' as UserRole }),
+      strategy.validate({ sub: '1', cargo: 'ADMIN' as Cargo }),
     ).toThrow(UnauthorizedException);
     expect(() =>
-      strategy.validate({ role: UserRole.ENTREGADOR } as JwtPayload),
+      strategy.validate({ cargo: Cargo.ENTREGADOR } as JwtPayload),
     ).toThrow(UnauthorizedException);
+  });
+
+  it('recusa token antigo, emitido com role em vez de cargo', () => {
+    const antigo = { sub: '1', role: Cargo.ESTABELECIMENTO, empresaId: '1' };
+    expect(() => strategy.validate(antigo as unknown as JwtPayload)).toThrow(
+      UnauthorizedException,
+    );
   });
 });

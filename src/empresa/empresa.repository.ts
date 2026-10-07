@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Empresa } from '../generated/prisma/client';
 
-export interface CreateEmpresaData {
+export interface DadosNovaEmpresa {
   nomeFantasia: string;
   email: string;
   telefone: string;
@@ -36,35 +36,35 @@ export class EmpresaRepository {
     cpf: string | null,
   ): Promise<Empresa | null> {
     if (cnpj) {
-      const byCnpj = await this.prisma.empresa.findUnique({
+      const porCnpj = await this.prisma.empresa.findUnique({
         where: { CNPJ: cnpj },
       });
-      if (byCnpj) return byCnpj;
+      if (porCnpj) return porCnpj;
     }
     if (cpf) {
-      const byCpf = await this.prisma.empresa.findUnique({ where: { cpf } });
-      if (byCpf) return byCpf;
+      const porCpf = await this.prisma.empresa.findUnique({ where: { cpf } });
+      if (porCpf) return porCpf;
     }
     return null;
   }
 
-  criar(data: CreateEmpresaData): Promise<Empresa> {
+  criar(dados: DadosNovaEmpresa): Promise<Empresa> {
     return this.prisma.empresa.create({
       data: {
-        nome_fantasia: data.nomeFantasia,
-        email: data.email,
-        telefone: data.telefone,
-        CNPJ: data.cnpj,
-        cpf: data.cpf,
-        cep: data.cep,
-        logradouro: data.logradouro,
-        numero: data.numero,
-        complemento: data.complemento,
-        bairro: data.bairro,
-        cidade: data.cidade,
-        UF: data.uf,
-        razao_social: data.razaoSocial,
-        senha: data.senhaHash,
+        nome_fantasia: dados.nomeFantasia,
+        email: dados.email,
+        telefone: dados.telefone,
+        CNPJ: dados.cnpj,
+        cpf: dados.cpf,
+        cep: dados.cep,
+        logradouro: dados.logradouro,
+        numero: dados.numero,
+        complemento: dados.complemento,
+        bairro: dados.bairro,
+        cidade: dados.cidade,
+        UF: dados.uf,
+        razao_social: dados.razaoSocial,
+        senha: dados.senhaHash,
       },
     });
   }

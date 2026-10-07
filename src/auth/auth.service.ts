@@ -6,15 +6,15 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { SenhaService } from '../common/security/senha.service';
-import { Cargo } from '../common/enums/user-role.enum';
+import { Cargo } from '../common/enums/cargo.enum';
 import { EmpresaRepository } from '../empresa/empresa.repository';
 import { EntregadorRepository } from '../entregador/entregador.repository';
 import { Empresa, Entregador } from '../generated/prisma/client';
 import { violouUnicidade } from '../prisma/prisma-errors';
 import { UsuarioAutenticado, JwtPayload } from './jwt.strategy';
-import { LoginEmpresaDto } from './dto/login.dto';
+import { CadastrarEmpresaDto } from './dto/cadastrar-empresa.dto';
+import { LoginEmpresaDto } from './dto/login-empresa.dto';
 import { LoginEntregadorDto } from './dto/login-entregador.dto';
-import { RegistrarEmpresa } from './dto/register-establishment.dto';
 import { TrocarSenhaDto } from './dto/trocar-senha.dto';
 
 @Injectable()
@@ -26,7 +26,7 @@ export class AuthService {
     private readonly senha: SenhaService,
   ) {}
 
-  async cadastrarEmpresa(dto: RegistrarEmpresa) {
+  async cadastrarEmpresa(dto: CadastrarEmpresaDto) {
     if (!dto.cnpj === !dto.cpf) {
       throw new BadRequestException('Informe CNPJ ou CPF, apenas um deles');
     }
@@ -71,7 +71,7 @@ export class AuthService {
       throw erro;
     }
 
-    return this.buildEmpresaResponse(empresa);
+    return this.respostaEmpresa(empresa);
   }
 
   async loginEmpresa(dto: LoginEmpresaDto) {
@@ -80,7 +80,7 @@ export class AuthService {
     if (!empresa || !senhaConfere) {
       throw new UnauthorizedException('Credenciais invalidas');
     }
-    return this.buildEmpresaResponse(empresa);
+    return this.respostaEmpresa(empresa);
   }
 
   async loginEntregador(dto: LoginEntregadorDto) {
@@ -92,12 +92,14 @@ export class AuthService {
     if (!entregador || !senhaConfere) {
       throw new UnauthorizedException('Credenciais invalidas');
     }
-    return this.buildEntregadorResponse(entregador);
+    return this.respostaEntregador(entregador);
   }
 
   async minhasInformacoes(usuario: UsuarioAutenticado) {
     if (usuario.cargo === Cargo.ESTABELECIMENTO) {
-      const empresa = await this.empresas.procurarPorId(Number(usuario.usuarioId));
+      const empresa = await this.empresas.procurarPorId(
+        Number(usuario.usuarioId),
+      );
       if (!empresa) {
         throw new UnauthorizedException();
       }
@@ -109,7 +111,9 @@ export class AuthService {
       };
     }
 
-    const entregador = await this.entregadores.procurarPorCpf(usuario.usuarioId);
+    const entregador = await this.entregadores.procurarPorCpf(
+      usuario.usuarioId,
+    );
     if (!entregador) {
       throw new UnauthorizedException();
     }
@@ -121,8 +125,13 @@ export class AuthService {
     };
   }
 
-  async trocarSenhaEntregador(usuario: UsuarioAutenticado, dto: TrocarSenhaDto) {
-    const entregador = await this.entregadores.procurarPorCpf(usuario.usuarioId);
+  async trocarSenhaEntregador(
+    usuario: UsuarioAutenticado,
+    dto: TrocarSenhaDto,
+  ) {
+    const entregador = await this.entregadores.procurarPorCpf(
+      usuario.usuarioId,
+    );
     if (!entregador) {
       throw new UnauthorizedException();
     }
@@ -138,10 +147,20 @@ export class AuthService {
         'A nova senha precisa ser diferente da atual',
       );
     }
+    const primeiroAcesso = entregador.senha_temporaria;
+    if (primeiroAcesso && dto.cienteDadosCompartilhados !== true) {
+      throw new BadRequestException(
+        'Confirme que viu os dados compartilhados com as empresas',
+      );
+    }
 
     const novaHash = await this.senha.hash(dto.novaSenha);
-    await this.entregadores.atualizarSenha(entregador.cpf, novaHash);
-    return this.buildEntregadorResponse({
+    await this.entregadores.atualizarSenha(
+      entregador.cpf,
+      novaHash,
+      primeiroAcesso ? new Date() : undefined,
+    );
+    return this.respostaEntregador({
       ...entregador,
       senha_temporaria: false,
     });
@@ -149,11 +168,11 @@ export class AuthService {
 
   private assinar(payload: JwtPayload) {
     const tokenAcesso = this.jwtService.sign(payload);
-    const { exp } = this.jwtService.decode<{ exp: number }>(accessToken);
+    const { exp } = this.jwtService.decode<{ exp: number }>(tokenAcesso);
     return { tokenAcesso, expiraEm: new Date(exp * 1000) };
   }
 
-  private buildEmpresaResponse(empresa: Empresa) {
+  private respostaEmpresa(empresa: Empresa) {
     const empresaId = String(empresa.id_empresa);
     const token = this.assinar({
       sub: empresaId,
@@ -172,7 +191,7 @@ export class AuthService {
     };
   }
 
-  private buildEntregadorResponse(entregador: Entregador) {
+  private respostaEntregador(entregador: Entregador) {
     const token = this.assinar({
       sub: entregador.cpf,
       cargo: Cargo.ENTREGADOR,

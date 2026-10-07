@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { Cargo } from '../common/enums/user-role.enum';
+import { Cargo } from '../common/enums/cargo.enum';
 import { extrairTokenDoCookie } from './auth-cookie';
 
 export interface JwtPayload {

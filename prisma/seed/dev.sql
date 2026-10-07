@@ -28,25 +28,29 @@ ON CONFLICT (email) DO NOTHING;
 
 -- Entregadores ----------------------------------------------------------------
 -- Ana ainda esta com a senha temporaria: serve para testar o primeiro acesso.
+-- Bruno e Carla ja passaram por ele (ciencia dos dados registrada).
 
-INSERT INTO "Entregador" (cpf, nome, telefone, tipo_veiculo, placa, senha, senha_temporaria)
+INSERT INTO "Entregador" (cpf, nome, telefone, tipo_veiculo, placa, senha, senha_temporaria, ciencia_dados_em)
 VALUES
-  ('12345678909', 'Ana Souza',  '61910000001', 'MOTO',      'ABC1D23', crypt('Temp@2026',    gen_salt('bf', 12)), true),
-  ('98765432100', 'Bruno Lima', '61910000002', 'CARRO',     'XYZ9E87', crypt('Vemvindo@123', gen_salt('bf', 12)), false),
-  ('24681357928', 'Carla Reis', '61910000003', 'BICICLETA', NULL,      crypt('Vemvindo@123', gen_salt('bf', 12)), false)
+  ('12345678909', 'Ana Souza',  '61910000001', 'MOTO',      'ABC1D23', crypt('Temp@2026',    gen_salt('bf', 12)), true,  NULL),
+  ('98765432100', 'Bruno Lima', '61910000002', 'CARRO',     'XYZ9E87', crypt('Vemvindo@123', gen_salt('bf', 12)), false, NOW()),
+  ('24681357928', 'Carla Reis', '61910000003', 'BICICLETA', NULL,      crypt('Vemvindo@123', gen_salt('bf', 12)), false, NOW())
 ON CONFLICT (cpf) DO NOTHING;
 
 -- Vinculos (frota) ------------------------------------------------------------
--- Bruno trabalha para as duas empresas, para testar o vinculo multiplo.
+-- Ana: convite da Cantina, criado no cadastro; aceita depois do primeiro acesso.
+-- Bruno: ativo na Cantina e com convite pendente da Padaria.
+-- Carla: ativa na Padaria.
 
-INSERT INTO "Contrato" ("idEmpresa", cpf_entregador, data_inicio)
-SELECT e.id_empresa, v.cpf, NOW()
+INSERT INTO "Contrato" ("idEmpresa", cpf_entregador, status, data_inicio, data_aceite)
+SELECT e.id_empresa, v.cpf, v.status::"StatusContrato", NOW(),
+       CASE WHEN v.status = 'ATIVO' THEN NOW() END
 FROM (VALUES
-  ('cantina@example.com', '12345678909'),
-  ('cantina@example.com', '98765432100'),
-  ('padaria@example.com', '98765432100'),
-  ('padaria@example.com', '24681357928')
-) AS v(email, cpf)
+  ('cantina@example.com', '12345678909', 'PENDENTE'),
+  ('cantina@example.com', '98765432100', 'ATIVO'),
+  ('padaria@example.com', '98765432100', 'PENDENTE'),
+  ('padaria@example.com', '24681357928', 'ATIVO')
+) AS v(email, cpf, status)
 JOIN "Empresa" e ON e.email = v.email
 WHERE NOT EXISTS (
   SELECT 1 FROM "Contrato" c

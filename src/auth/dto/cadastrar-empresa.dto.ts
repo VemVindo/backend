@@ -16,6 +16,8 @@ import {
   Trim,
 } from '../../common/transformers/texto.transformer';
 import {
+  CARACTERES_PERMITIDOS_SENHA,
+  MENSAGEM_CARACTERES_SENHA,
   TAMANHO_MAXIMO_SENHA_BCRYPT,
   TAMANHO_MINIMO_SENHA,
 } from '../../common/security/senha.constants';
@@ -52,7 +54,7 @@ const UFS = [
   'TO',
 ];
 
-export class RegistrarEmpresa {
+export class CadastrarEmpresaDto {
   @Trim()
   @IsString()
   @IsNotEmpty()
@@ -122,5 +124,6 @@ export class RegistrarEmpresa {
   @IsString()
   @MinLength(TAMANHO_MINIMO_SENHA)
   @MaxLength(TAMANHO_MAXIMO_SENHA_BCRYPT)
+  @Matches(CARACTERES_PERMITIDOS_SENHA, { message: MENSAGEM_CARACTERES_SENHA })
   senha: string;
 }

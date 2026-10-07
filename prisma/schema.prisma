@@ -39,6 +39,7 @@ model Entregador {
   placa            String?
   senha            String
   senha_temporaria Boolean @default(true)
+  ciencia_dados_em DateTime?
 
   pedidos Pedido[]
   contratos Contrato[]
@@ -107,11 +108,21 @@ model HistoricoPedidoEntregadores {
   entregadorNovo   Entregador @relation("EntregadorNovo", fields: [cpf_entregador_novo], references: [cpf])
 }
 
+// RECUSADO e ENCERRADO preenchem data_fim; o indice parcial abaixo depende disso.
+enum StatusContrato {
+  PENDENTE
+  ATIVO
+  RECUSADO
+  ENCERRADO
+}
+
 model Contrato {
-  id_contrato    Int      @id @default(autoincrement())
+  id_contrato    Int            @id @default(autoincrement())
   idEmpresa      Int
   cpf_entregador String
+  status         StatusContrato @default(PENDENTE)
   data_inicio    DateTime
+  data_aceite    DateTime?
   data_fim       DateTime?
 
   empresa    Empresa    @relation(fields: [idEmpresa], references: [id_empresa])

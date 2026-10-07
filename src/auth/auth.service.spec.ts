@@ -4,11 +4,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { UserRole } from '../common/enums/user-role.enum';
+import { Cargo } from '../common/enums/cargo.enum';
 import { EmpresaRepository } from '../empresa/empresa.repository';
 import { EntregadorRepository } from '../entregador/entregador.repository';
 import { AuthService } from './auth.service';
-import { RegisterEstablishmentDto } from './dto/register-establishment.dto';
+import { CadastrarEmpresaDto } from './dto/cadastrar-empresa.dto';
 
 jest.mock('../prisma/prisma.service', () => ({ PrismaService: class {} }));
 
@@ -16,30 +16,30 @@ const CPF_FICTICIO = '52998224725';
 
 function montar() {
   const empresas = {
-    findByEmail: jest.fn().mockResolvedValue(null),
-    findByDocumento: jest.fn().mockResolvedValue(null),
-    create: jest.fn(),
+    procurarPorEmail: jest.fn().mockResolvedValue(null),
+    procurarPorDocumento: jest.fn().mockResolvedValue(null),
+    criar: jest.fn(),
   };
   const entregadores = {
-    findByCpf: jest.fn().mockResolvedValue(null),
-    updateSenha: jest.fn().mockResolvedValue({}),
+    procurarPorCpf: jest.fn().mockResolvedValue(null),
+    atualizarSenha: jest.fn().mockResolvedValue({}),
   };
   const jwt = {
     sign: jest.fn().mockReturnValue('token'),
     decode: jest.fn().mockReturnValue({ exp: 1_900_000_000 }),
   };
-  const password = {
+  const senha = {
     hash: jest.fn().mockResolvedValue('hash'),
-    compare: jest.fn().mockResolvedValue(true),
+    comparar: jest.fn().mockResolvedValue(true),
     verificar: jest.fn().mockResolvedValue(false),
   };
   const service = new AuthService(
     empresas as unknown as EmpresaRepository,
     entregadores as unknown as EntregadorRepository,
     jwt as unknown as JwtService,
-    password,
+    senha,
   );
-  return { service, empresas, entregadores, password };
+  return { service, empresas, entregadores, jwt, senha };
 }
 
 const cadastro = {
@@ -55,85 +55,164 @@ const cadastro = {
   cidade: 'Brasilia',
   uf: 'DF',
   senha: 'senha-segura',
-} as RegisterEstablishmentDto;
+} as CadastrarEmpresaDto;
 
-describe('AuthService.registerEstablishment', () => {
+describe('AuthService.cadastrarEmpresa', () => {
   it('exige exatamente um documento', async () => {
     const { service } = montar();
     await expect(
-      service.registerEstablishment({ ...cadastro, cnpj: undefined }),
+      service.cadastrarEmpresa({ ...cadastro, cnpj: undefined }),
     ).rejects.toThrow(BadRequestException);
     await expect(
-      service.registerEstablishment({ ...cadastro, cpf: CPF_FICTICIO }),
+      service.cadastrarEmpresa({ ...cadastro, cpf: CPF_FICTICIO }),
     ).rejects.toThrow(BadRequestException);
   });
 
   it('converte corrida no unique do banco em 409', async () => {
     const { service, empresas } = montar();
-    empresas.create.mockRejectedValue({ code: 'P2002' });
-    await expect(service.registerEstablishment(cadastro)).rejects.toThrow(
+    empresas.criar.mockRejectedValue({ code: 'P2002' });
+    await expect(service.cadastrarEmpresa(cadastro)).rejects.toThrow(
       ConflictException,
     );
+  });
+
+  it('assina o token com cargo e empresaId e devolve usuario', async () => {
+    const { service, empresas, jwt } = montar();
+    empresas.criar.mockResolvedValue({
+      id_empresa: 7,
+      nome_fantasia: 'Loja Teste',
+      email: 'loja@example.com',
+    });
+
+    const resposta = await service.cadastrarEmpresa(cadastro);
+
+    expect(jwt.sign).toHaveBeenCalledWith({
+      sub: '7',
+      cargo: Cargo.ESTABELECIMENTO,
+      empresaId: '7',
+    });
+    expect(resposta.tokenAcesso).toBe('token');
+    expect(resposta.expiraEm).toEqual(new Date(1_900_000_000 * 1000));
+    expect(resposta.usuario).toEqual({
+      id: 7,
+      nomeFantasia: 'Loja Teste',
+      email: 'loja@example.com',
+      cargo: Cargo.ESTABELECIMENTO,
+    });
   });
 });
 
 describe('AuthService login', () => {
   it('passa pelo bcrypt mesmo quando o e-mail nao existe', async () => {
-    const { service, password } = montar();
+    const { service, senha } = montar();
     await expect(
       service.loginEmpresa({ email: 'nada@example.com', senha: 'x' }),
     ).rejects.toThrow(UnauthorizedException);
-    expect(password.verificar).toHaveBeenCalledWith('x', undefined);
+    expect(senha.verificar).toHaveBeenCalledWith('x', undefined);
   });
 
   it('passa pelo bcrypt mesmo quando o CPF nao existe', async () => {
-    const { service, password } = montar();
+    const { service, senha } = montar();
     await expect(
       service.loginEntregador({ cpf: CPF_FICTICIO, senha: 'x' }),
     ).rejects.toThrow(UnauthorizedException);
-    expect(password.verificar).toHaveBeenCalledWith('x', undefined);
+    expect(senha.verificar).toHaveBeenCalledWith('x', undefined);
   });
 
   it('autentica entregador com senha correta', async () => {
-    const { service, entregadores, password } = montar();
-    entregadores.findByCpf.mockResolvedValue({
+    const { service, entregadores, senha } = montar();
+    entregadores.procurarPorCpf.mockResolvedValue({
       cpf: CPF_FICTICIO,
       nome: 'Entregador Teste',
       senha: 'hash',
       senha_temporaria: true,
     });
-    password.verificar.mockResolvedValue(true);
+    senha.verificar.mockResolvedValue(true);
 
     const resposta = await service.loginEntregador({
       cpf: CPF_FICTICIO,
       senha: 'x',
     });
 
-    expect(resposta.user).toEqual({
+    expect(resposta.usuario).toEqual({
       cpf: CPF_FICTICIO,
       nome: 'Entregador Teste',
-      role: UserRole.ENTREGADOR,
+      cargo: Cargo.ENTREGADOR,
       senhaTemporaria: true,
     });
   });
 });
 
 describe('AuthService.trocarSenhaEntregador', () => {
-  const usuario = { userId: CPF_FICTICIO, role: UserRole.ENTREGADOR };
+  const usuario = { usuarioId: CPF_FICTICIO, cargo: Cargo.ENTREGADOR };
+  const temporario = {
+    cpf: CPF_FICTICIO,
+    nome: 'Entregador Teste',
+    senha: 'hash',
+    senha_temporaria: true,
+  };
 
   it('recusa nova senha igual a atual', async () => {
     const { service, entregadores } = montar();
-    entregadores.findByCpf.mockResolvedValue({
-      cpf: CPF_FICTICIO,
-      senha: 'hash',
-    });
+    entregadores.procurarPorCpf.mockResolvedValue(temporario);
 
     await expect(
       service.trocarSenhaEntregador(usuario, {
         senhaAtual: 'mesma-senha',
         novaSenha: 'mesma-senha',
+        cienteDadosCompartilhados: true,
       }),
     ).rejects.toThrow(BadRequestException);
-    expect(entregadores.updateSenha).not.toHaveBeenCalled();
+    expect(entregadores.atualizarSenha).not.toHaveBeenCalled();
+  });
+
+  it('no primeiro acesso exige a ciencia dos dados compartilhados', async () => {
+    const { service, entregadores } = montar();
+    entregadores.procurarPorCpf.mockResolvedValue(temporario);
+
+    await expect(
+      service.trocarSenhaEntregador(usuario, {
+        senhaAtual: 'Temp@2026',
+        novaSenha: 'NovaSenha@1',
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(entregadores.atualizarSenha).not.toHaveBeenCalled();
+  });
+
+  it('registra a data da ciencia no primeiro acesso', async () => {
+    const { service, entregadores } = montar();
+    entregadores.procurarPorCpf.mockResolvedValue(temporario);
+
+    const resposta = await service.trocarSenhaEntregador(usuario, {
+      senhaAtual: 'Temp@2026',
+      novaSenha: 'NovaSenha@1',
+      cienteDadosCompartilhados: true,
+    });
+
+    expect(entregadores.atualizarSenha).toHaveBeenCalledWith(
+      CPF_FICTICIO,
+      'hash',
+      expect.any(Date),
+    );
+    expect(resposta.usuario.senhaTemporaria).toBe(false);
+  });
+
+  it('fora do primeiro acesso troca sem pedir a ciencia de novo', async () => {
+    const { service, entregadores } = montar();
+    entregadores.procurarPorCpf.mockResolvedValue({
+      ...temporario,
+      senha_temporaria: false,
+    });
+
+    await service.trocarSenhaEntregador(usuario, {
+      senhaAtual: 'SenhaAntiga@1',
+      novaSenha: 'NovaSenha@1',
+    });
+
+    expect(entregadores.atualizarSenha).toHaveBeenCalledWith(
+      CPF_FICTICIO,
+      'hash',
+      undefined,
+    );
   });
 });

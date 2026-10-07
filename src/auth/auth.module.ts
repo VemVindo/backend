@@ -9,7 +9,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { JwtStrategy } from './jwt.strategy';
-import { RolesGuard } from './roles.guard';
+import { CargosGuard } from './cargos.guard';
 import { SenhaTemporariaGuard } from './senha-temporaria.guard';
 
 @Module({
@@ -35,7 +35,7 @@ import { SenhaTemporariaGuard } from './senha-temporaria.guard';
     AuthService,
     JwtStrategy,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
-    { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: CargosGuard },
     { provide: APP_GUARD, useClass: SenhaTemporariaGuard },
   ],
   exports: [AuthService],
