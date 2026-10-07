@@ -1,6 +1,7 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { StatusPedido } from '../common/enums/status-pedido.enum';
 import { PedidoRepository } from './pedido.repository';
+import { EntregadorRepository } from '../entregador/entregador.repository';
 import { PedidoService } from './pedido.service';
 
 jest.mock('../prisma/prisma.service', () => ({
@@ -8,6 +9,7 @@ jest.mock('../prisma/prisma.service', () => ({
 }));
 
 const CPF_ENTREGADOR = '52998224725';
+const NOVO_CPF = '11144477735';
 const ID_PEDIDO = 1;
 
 const pedidoPendente = {
@@ -16,9 +18,18 @@ const pedidoPendente = {
   status: StatusPedido.PENDENTE,
 };
 
+const novoEntregador = {
+  cpf: NOVO_CPF,
+  disponivel: true,
+};
+
 function montar() {
   const pedidos = {
     procurarAtribuidoAoEntregador: jest
+      .fn()
+      .mockResolvedValue(pedidoPendente),
+
+    procurarPorEmpresa: jest
       .fn()
       .mockResolvedValue(pedidoPendente),
 
@@ -31,11 +42,22 @@ function montar() {
     ),
   };
 
+  const entregadores = {
+    procurarAtivoPorEmpresa: jest
+      .fn()
+      .mockResolvedValue(novoEntregador),
+  };
+
   const service = new PedidoService(
     pedidos as unknown as PedidoRepository,
+    entregadores as unknown as EntregadorRepository,
   );
 
-  return { service, pedidos };
+  return {
+    service,
+    pedidos,
+    entregadores,
+  };
 }
 
 describe('PedidoService.atualizarStatus', () => {
@@ -173,6 +195,131 @@ describe('PedidoService.obterStatusDisponiveis', () => {
     ).resolves.toEqual({
       statusAtual: StatusPedido.FINALIZADO,
       statusDisponiveis: [],
+    });
+  });
+});
+
+describe('PedidoService.reatribuir', () => {
+  it('responde 404 quando o pedido nao pertence a empresa', async () => {
+    const { service, pedidos } = montar();
+
+    pedidos.procurarPorEmpresa.mockResolvedValue(null);
+
+    await expect(
+      service.reatribuir(
+        1,
+        ID_PEDIDO,
+        NOVO_CPF,
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('recusa reatribuicao de pedido finalizado', async () => {
+    const { service, pedidos } = montar();
+
+    pedidos.procurarPorEmpresa.mockResolvedValue({
+      ...pedidoPendente,
+      status: StatusPedido.FINALIZADO,
+    });
+
+    await expect(
+      service.reatribuir(
+        1,
+        ID_PEDIDO,
+        NOVO_CPF,
+      ),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('recusa reatribuicao de pedido cancelado', async () => {
+    const { service, pedidos } = montar();
+
+    pedidos.procurarPorEmpresa.mockResolvedValue({
+      ...pedidoPendente,
+      status: StatusPedido.CANCELADO,
+    });
+
+    await expect(
+      service.reatribuir(
+        1,
+        ID_PEDIDO,
+        NOVO_CPF,
+      ),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('recusa reatribuicao quando o pedido nao possui entregador atual', async () => {
+    const { service, pedidos } = montar();
+
+    pedidos.procurarPorEmpresa.mockResolvedValue({
+      ...pedidoPendente,
+      cpf_entregador: null,
+    });
+
+    await expect(
+      service.reatribuir(
+        1,
+        ID_PEDIDO,
+        NOVO_CPF,
+      ),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('recusa reatribuicao para o entregador atual', async () => {
+    const { service } = montar();
+
+    await expect(
+      service.reatribuir(
+        1,
+        ID_PEDIDO,
+        CPF_ENTREGADOR,
+      ),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('responde 404 quando o novo entregador nao possui vinculo ativo com a empresa', async () => {
+    const { service, entregadores } = montar();
+
+    entregadores.procurarAtivoPorEmpresa.mockResolvedValue(null);
+
+    await expect(
+      service.reatribuir(
+        1,
+        ID_PEDIDO,
+        NOVO_CPF,
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('recusa reatribuicao quando o novo entregador esta indisponivel', async () => {
+    const { service, entregadores } = montar();
+
+    entregadores.procurarAtivoPorEmpresa.mockResolvedValue({
+      ...novoEntregador,
+      disponivel: false,
+    });
+
+    await expect(
+      service.reatribuir(
+        1,
+        ID_PEDIDO,
+        NOVO_CPF,
+      ),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('aceita reatribuicao quando todas as regras sao atendidas', async () => {
+    const { service } = montar();
+
+    await expect(
+      service.reatribuir(
+        1,
+        ID_PEDIDO,
+        NOVO_CPF,
+      ),
+    ).resolves.toEqual({
+      pedido: pedidoPendente,
+      novoEntregador,
     });
   });
 });

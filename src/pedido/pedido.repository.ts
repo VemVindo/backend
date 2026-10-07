@@ -7,6 +7,18 @@ import { StatusPedido } from '../common/enums/status-pedido.enum';
 export class PedidoRepository {
   constructor(private readonly prisma: PrismaService) { }
 
+  procurarPorEmpresa(
+    idPedido: number,
+    idEmpresa: number,
+  ): Promise<Pedido | null> {
+    return this.prisma.pedido.findFirst({
+      where: {
+        id_pedido: idPedido,
+        idEmpresa,
+      },
+    });
+  }
+
   procurarAtribuidoAoEntregador(
     idPedido: number,
     cpfEntregador: string,

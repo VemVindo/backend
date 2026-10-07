@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { StatusPedido } from '../common/enums/status-pedido.enum';
 import { PedidoRepository } from './pedido.repository';
+import { EntregadorRepository } from '../entregador/entregador.repository';
 import {
   obterStatusDisponiveis,
   transicaoPermitida,
@@ -14,6 +15,7 @@ import {
 export class PedidoService {
   constructor(
     private readonly pedidoRepository: PedidoRepository,
+    private readonly entregadorRepository: EntregadorRepository,
   ) { }
 
   async atualizarStatus(
@@ -61,6 +63,71 @@ export class PedidoService {
 
     const statusAtual = pedido.status as StatusPedido;
 
-    return obterStatusDisponiveis(statusAtual);
+    return {
+      statusAtual,
+      statusDisponiveis: obterStatusDisponiveis(statusAtual),
+    };
+  }
+
+  async reatribuir(
+    idEmpresa: number,
+    idPedido: number,
+    cpfNovoEntregador: string,
+  ) {
+    const pedido = await this.pedidoRepository.procurarPorEmpresa(
+      idPedido,
+      idEmpresa,
+    );
+
+    if (!pedido) {
+      throw new NotFoundException('Pedido não encontrado');
+    }
+
+    const statusAtual = pedido.status as StatusPedido;
+
+    const podeReatribuir =
+      statusAtual === StatusPedido.PENDENTE ||
+      statusAtual === StatusPedido.EM_ANDAMENTO;
+
+    if (!podeReatribuir) {
+      throw new ConflictException(
+        'Pedido não pode ser reatribuído no status atual',
+      );
+    }
+
+    if (!pedido.cpf_entregador) {
+      throw new ConflictException(
+        'Pedido não possui entregador para ser reatribuído',
+      );
+    }
+
+    if (pedido.cpf_entregador === cpfNovoEntregador) {
+      throw new ConflictException(
+        'O entregador informado já está atribuído ao pedido',
+      );
+    }
+
+    const novoEntregador =
+      await this.entregadorRepository.procurarAtivoPorEmpresa(
+        idEmpresa,
+        cpfNovoEntregador,
+      );
+
+    if (!novoEntregador) {
+      throw new NotFoundException(
+        'Entregador não encontrado na frota da empresa',
+      );
+    }
+
+    if (!novoEntregador.disponivel) {
+      throw new ConflictException(
+        'Entregador não está disponível',
+      );
+    }
+
+    return {
+      pedido,
+      novoEntregador,
+    };
   }
 }

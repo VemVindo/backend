@@ -14,7 +14,7 @@ export interface DadosNovoEntregador {
 
 @Injectable()
 export class EntregadorRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   procurarPorCpf(cpf: string): Promise<Entregador | null> {
     return this.prisma.entregador.findUnique({ where: { cpf } });
@@ -24,6 +24,23 @@ export class EntregadorRepository {
     return this.prisma.entregador.findMany({
       where: {
         contratos: { some: { idEmpresa, status: StatusContrato.ATIVO } },
+      },
+    });
+  }
+
+  procurarAtivoPorEmpresa(
+    idEmpresa: number,
+    cpfEntregador: string,
+  ): Promise<Entregador | null> {
+    return this.prisma.entregador.findFirst({
+      where: {
+        cpf: cpfEntregador,
+        contratos: {
+          some: {
+            idEmpresa,
+            status: StatusContrato.ATIVO,
+          },
+        },
       },
     });
   }
