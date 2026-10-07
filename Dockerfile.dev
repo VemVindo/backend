@@ -1,4 +1,4 @@
-FROM node:24.14.0-slim
+FROM node:24.21.0-slim
 
 RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
@@ -12,5 +12,13 @@ COPY . .
 
 EXPOSE 3000
 
-# Gera o Prisma Client, Aplica as Migrations e Inicia o NestJS
-CMD ["sh", "-c", "npx prisma generate && npx prisma migrate deploy && exec npm run start:dev"]
+# Na subida do container, em ordem, para que um clone limpo suba com um unico
+# "docker compose up". Se um passo falhar, os seguintes nao rodam.
+#   1. gera o Prisma Client
+#   2. aplica as migrations
+#   3. insere os dados de teste (so em dev; idempotente)
+#   4. inicia o Nest em modo watch (exec: o Nest vira o processo principal)
+CMD npx prisma generate \
+    && npx prisma migrate deploy \
+    && npx prisma db execute --file prisma/seed/dev.sql \
+    && exec npm run start:dev

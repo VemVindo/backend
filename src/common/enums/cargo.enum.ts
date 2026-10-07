@@ -1,0 +1,4 @@
+export enum Cargo {
+  ESTABELECIMENTO = 'ESTABELECIMENTO',
+  ENTREGADOR = 'ENTREGADOR',
+}
