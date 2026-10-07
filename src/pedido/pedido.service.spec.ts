@@ -40,6 +40,18 @@ function montar() {
         status: novoStatus,
       }),
     ),
+
+    reatribuir: jest.fn().mockImplementation(
+      async (
+        idPedido: number,
+        _cpfAnterior: string,
+        cpfNovo: string,
+      ) => ({
+        ...pedidoPendente,
+        id_pedido: idPedido,
+        cpf_entregador: cpfNovo,
+      }),
+    ),
   };
 
   const entregadores = {
@@ -308,7 +320,23 @@ describe('PedidoService.reatribuir', () => {
     ).rejects.toThrow(ConflictException);
   });
 
-  it('aceita reatribuicao quando todas as regras sao atendidas', async () => {
+  it('reatribui o pedido quando todas as regras sao atendidas', async () => {
+    const { service, pedidos } = montar();
+
+    await service.reatribuir(
+      1,
+      ID_PEDIDO,
+      NOVO_CPF,
+    );
+
+    expect(pedidos.reatribuir).toHaveBeenCalledWith(
+      ID_PEDIDO,
+      CPF_ENTREGADOR,
+      NOVO_CPF,
+    );
+  });
+
+  it('retorna o pedido com o novo entregador', async () => {
     const { service } = montar();
 
     await expect(
@@ -317,9 +345,28 @@ describe('PedidoService.reatribuir', () => {
         ID_PEDIDO,
         NOVO_CPF,
       ),
-    ).resolves.toEqual({
-      pedido: pedidoPendente,
-      novoEntregador,
+    ).resolves.toMatchObject({
+      id_pedido: ID_PEDIDO,
+      cpf_entregador: NOVO_CPF,
     });
+  });
+
+  it('nao persiste a reatribuicao quando alguma regra falha', async () => {
+    const { service, pedidos } = montar();
+
+    pedidos.procurarPorEmpresa.mockResolvedValue({
+      ...pedidoPendente,
+      status: StatusPedido.FINALIZADO,
+    });
+
+    await expect(
+      service.reatribuir(
+        1,
+        ID_PEDIDO,
+        NOVO_CPF,
+      ),
+    ).rejects.toThrow(ConflictException);
+
+    expect(pedidos.reatribuir).not.toHaveBeenCalled();
   });
 });

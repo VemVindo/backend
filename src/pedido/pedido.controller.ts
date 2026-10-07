@@ -11,6 +11,7 @@ import { UsuarioAtual } from '../auth/decorators/usuario-atual.decorator';
 import type { UsuarioAutenticado } from '../auth/jwt.strategy';
 import { Cargo } from '../common/enums/cargo.enum';
 import { AtualizarStatusPedidoDto } from './dto/atualizar-status-pedido.dto';
+import { ReatribuirPedidoDto } from './dto/reatribuir-pedido.dto';
 import { PedidoService } from './pedido.service';
 
 @Controller('pedidos')
@@ -42,6 +43,20 @@ export class PedidoController {
       usuario.usuarioId,
       idPedido,
       dto.status,
+    );
+  }
+
+  @Patch(':id/entregador')
+  @Cargos(Cargo.ESTABELECIMENTO)
+  reatribuir(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param('id', ParseIntPipe) idPedido: number,
+    @Body() dto: ReatribuirPedidoDto,
+  ) {
+    return this.pedidoService.reatribuir(
+      Number(usuario.usuarioId),
+      idPedido,
+      dto.cpfEntregador,
     );
   }
 }

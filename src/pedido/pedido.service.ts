@@ -125,9 +125,10 @@ export class PedidoService {
       );
     }
 
-    return {
-      pedido,
-      novoEntregador,
-    };
+    return this.pedidoRepository.reatribuir(
+      idPedido,
+      pedido.cpf_entregador,
+      cpfNovoEntregador,
+    );
   }
 }

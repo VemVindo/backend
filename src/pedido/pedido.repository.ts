@@ -44,4 +44,30 @@ export class PedidoRepository {
       },
     });
   }
+
+  reatribuir(
+    idPedido: number,
+    cpfEntregadorAnterior: string,
+    cpfNovoEntregador: string,
+  ): Promise<Pedido> {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.historicoPedidoEntregadores.create({
+        data: {
+          id_pedido: idPedido,
+          cpf_entregador_antigo: cpfEntregadorAnterior,
+          cpf_entregador_novo: cpfNovoEntregador,
+          data: new Date(),
+        },
+      });
+
+      return tx.pedido.update({
+        where: {
+          id_pedido: idPedido,
+        },
+        data: {
+          cpf_entregador: cpfNovoEntregador,
+        },
+      });
+    });
+  }
 }
