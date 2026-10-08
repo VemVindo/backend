@@ -50,6 +50,19 @@ export class EntregadorController {
     return this.entregadorService.listarFrota(Number(usuario.empresaId));
   }
 
+  @Throttle(LIMITE_OPERACOES_POR_CPF)
+  @Post(':cpf/senha-temporaria')
+  @HttpCode(HttpStatus.OK)
+  gerarNovaSenhaTemporaria(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param() { cpf }: CpfParamDto,
+  ) {
+    return this.entregadorService.gerarNovaSenhaTemporaria(
+      Number(usuario.empresaId),
+      cpf,
+    );
+  }
+
   @Delete(':cpf/vinculo')
   @HttpCode(HttpStatus.NO_CONTENT)
   desvincular(

@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
+import { expiracaoSenhaTemporaria } from '../common/security/senha-temporaria';
 import { SenhaService } from '../common/security/senha.service';
 import { ContratoRepository } from '../contrato/contrato.repository';
 import { Entregador } from '../generated/prisma/client';
@@ -33,6 +34,7 @@ export class EntregadorService {
     }
     const senhaTemporaria = this.gerarSenhaTemporaria();
     const senhaHash = await this.senha.hash(senhaTemporaria);
+    const senhaTemporariaExpiraEm = expiracaoSenhaTemporaria();
     let entregador: Entregador;
     try {
       entregador = await this.entregadores.criarComConvite(
@@ -46,6 +48,7 @@ export class EntregadorService {
               ? null
               : (dto.placa ?? null),
           senhaHash,
+          senhaTemporariaExpiraEm,
         },
         idEmpresa,
       );
@@ -66,7 +69,36 @@ export class EntregadorService {
       },
       status: StatusContrato.PENDENTE,
       senhaTemporaria,
+      senhaTemporariaExpiraEm,
     };
+  }
+
+  // So a empresa que cadastrou o entregador, e so antes do primeiro acesso:
+  // depois que ele cria a propria senha, nenhuma empresa consegue troca-la.
+  async gerarNovaSenhaTemporaria(idEmpresa: number, cpf: string) {
+    const [entregador, primeiroContrato] = await Promise.all([
+      this.entregadores.procurarPorCpf(cpf),
+      this.contratos.primeiroDoEntregador(cpf),
+    ]);
+    const cadastradoPorEstaEmpresa =
+      primeiroContrato?.idEmpresa === idEmpresa &&
+      (primeiroContrato.status === StatusContrato.PENDENTE ||
+        primeiroContrato.status === StatusContrato.ATIVO);
+    if (!entregador?.senha_temporaria || !cadastradoPorEstaEmpresa) {
+      throw this.semPrimeiroAcessoPendente();
+    }
+
+    const senhaTemporaria = this.gerarSenhaTemporaria();
+    const senhaTemporariaExpiraEm = expiracaoSenhaTemporaria();
+    const redefinida = await this.entregadores.redefinirSenhaTemporaria(
+      cpf,
+      await this.senha.hash(senhaTemporaria),
+      senhaTemporariaExpiraEm,
+    );
+    if (!redefinida) {
+      throw this.semPrimeiroAcessoPendente();
+    }
+    return { senhaTemporaria, senhaTemporariaExpiraEm };
   }
 
   // Mesma resposta para CPF cadastrado, inexistente ou ja convidado, para nao
@@ -101,6 +133,12 @@ export class EntregadorService {
   private cpfJaCadastrado() {
     return new ConflictException(
       'Entregador ja cadastrado na plataforma; envie um convite pelo CPF',
+    );
+  }
+
+  private semPrimeiroAcessoPendente() {
+    return new NotFoundException(
+      'Nenhum entregador cadastrado por voce aguardando o primeiro acesso com este CPF',
     );
   }
 

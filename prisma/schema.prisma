@@ -24,6 +24,7 @@ model Empresa {
   UF            String
   razao_social  String?
   senha         String
+  sessao_versao Int      @default(0)
 
   pedidos  Pedido[]
   metricas MetricasPagamento[]
@@ -40,6 +41,8 @@ model Entregador {
   senha            String
   senha_temporaria Boolean @default(true)
   ciencia_dados_em DateTime?
+  senha_temporaria_expira_em DateTime?
+  sessao_versao    Int     @default(0)
 
   pedidos Pedido[]
   contratos Contrato[]

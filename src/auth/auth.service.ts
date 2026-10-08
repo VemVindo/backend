@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { senhaTemporariaExpirada } from '../common/security/senha-temporaria';
 import { SenhaService } from '../common/security/senha.service';
 import { Cargo } from '../common/enums/cargo.enum';
 import { EmpresaRepository } from '../empresa/empresa.repository';
@@ -92,7 +93,18 @@ export class AuthService {
     if (!entregador || !senhaConfere) {
       throw new UnauthorizedException('Credenciais invalidas');
     }
+    if (this.temporariaExpirada(entregador)) {
+      throw this.senhaTemporariaExpirada();
+    }
     return this.respostaEntregador(entregador);
+  }
+
+  async sairDeTodosOsAparelhos(usuario: UsuarioAutenticado) {
+    if (usuario.cargo === Cargo.ESTABELECIMENTO) {
+      await this.empresas.encerrarSessoes(Number(usuario.empresaId));
+    } else {
+      await this.entregadores.encerrarSessoes(usuario.usuarioId);
+    }
   }
 
   async minhasInformacoes(usuario: UsuarioAutenticado) {
@@ -122,6 +134,7 @@ export class AuthService {
       nome: entregador.nome,
       cargo: Cargo.ENTREGADOR,
       senhaTemporaria: entregador.senha_temporaria,
+      senhaTemporariaExpiraEm: entregador.senha_temporaria_expira_em,
     };
   }
 
@@ -142,6 +155,9 @@ export class AuthService {
     if (!senhaConfere) {
       throw new UnauthorizedException('Senha atual invalida');
     }
+    if (this.temporariaExpirada(entregador)) {
+      throw this.senhaTemporariaExpirada();
+    }
     if (dto.novaSenha === dto.senhaAtual) {
       throw new BadRequestException(
         'A nova senha precisa ser diferente da atual',
@@ -155,15 +171,25 @@ export class AuthService {
     }
 
     const novaHash = await this.senha.hash(dto.novaSenha);
-    await this.entregadores.atualizarSenha(
+    const atualizado = await this.entregadores.atualizarSenha(
       entregador.cpf,
       novaHash,
       primeiroAcesso ? new Date() : undefined,
     );
-    return this.respostaEntregador({
-      ...entregador,
-      senha_temporaria: false,
-    });
+    return this.respostaEntregador(atualizado);
+  }
+
+  private temporariaExpirada(entregador: Entregador) {
+    return (
+      entregador.senha_temporaria &&
+      senhaTemporariaExpirada(entregador.senha_temporaria_expira_em)
+    );
+  }
+
+  private senhaTemporariaExpirada() {
+    return new UnauthorizedException(
+      'Senha temporaria expirada; peca uma nova a empresa que cadastrou voce',
+    );
   }
 
   private assinar(payload: JwtPayload) {
@@ -178,6 +204,7 @@ export class AuthService {
       sub: empresaId,
       cargo: Cargo.ESTABELECIMENTO,
       empresaId,
+      versao: empresa.sessao_versao,
     });
 
     return {
@@ -196,6 +223,7 @@ export class AuthService {
       sub: entregador.cpf,
       cargo: Cargo.ENTREGADOR,
       senhaTemporaria: entregador.senha_temporaria,
+      versao: entregador.sessao_versao,
     });
 
     return {
