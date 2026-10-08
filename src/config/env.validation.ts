@@ -31,6 +31,10 @@ export class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
+  URL_FRONTEND?: string;
+
+  @IsString()
+  @IsOptional()
   PORT?: string;
 
   @IsNumberString()

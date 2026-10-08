@@ -74,6 +74,7 @@ model Pedido {
 
   avaliacao  Avaliacao?
   historicos HistoricoPedidoEntregadores[]
+  acessoRecebedor AcessoRecebedor?
 }
 
 model MetricasPagamento {
@@ -129,4 +130,13 @@ model Contrato {
   entregador Entregador @relation(fields: [cpf_entregador], references: [cpf])
 
   @@unique([idEmpresa, cpf_entregador], where: { data_fim: null }, map: "Contrato_vinculo_ativo_key")
+}
+
+model AcessoRecebedor {
+  idPedido         Int      @id
+  token_hash       String   @unique
+  codigo_recebedor String
+  data_criacao     DateTime @default(now())
+
+  pedido Pedido @relation(fields: [idPedido], references: [id_pedido])
 }
