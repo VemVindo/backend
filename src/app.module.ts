@@ -13,6 +13,7 @@ import { HealthController } from './health/health.controller';
 import { EmpresaModule } from './empresa/empresa.module';
 import { EntregadorModule } from './entregador/entregador.module';
 import { VinculoModule } from './vinculo/vinculo.module';
+import { IntegracaoModule } from './integracao/integracao.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { VinculoModule } from './vinculo/vinculo.module';
     EntregadorModule,
     VinculoModule,
     AuthModule,
+    IntegracaoModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

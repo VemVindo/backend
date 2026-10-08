@@ -29,6 +29,7 @@ model Empresa {
   pedidos  Pedido[]
   metricas MetricasPagamento[]
   contratos Contrato[]
+  credenciais CredencialIntegracao[]
 }
 
 model Entregador {
@@ -132,4 +133,18 @@ model Contrato {
   entregador Entregador @relation(fields: [cpf_entregador], references: [cpf])
 
   @@unique([idEmpresa, cpf_entregador], where: { data_fim: null }, map: "Contrato_vinculo_ativo_key")
+}
+
+model CredencialIntegracao {
+  id_credencial  Int       @id @default(autoincrement())
+  idEmpresa      Int
+  prefixo        String    @unique
+  hash           String
+  data_criacao   DateTime  @default(now())
+  data_revogacao DateTime?
+  ultimo_uso     DateTime?
+
+  empresa Empresa @relation(fields: [idEmpresa], references: [id_empresa])
+
+  @@unique([idEmpresa], where: { data_revogacao: null }, map: "CredencialIntegracao_ativa_key")
 }
