@@ -64,6 +64,20 @@ SELECT id_empresa, 800, 150, TIMESTAMP '2026-01-01 00:00:00'
 FROM "Empresa" WHERE email = 'cantina@example.com'
 ON CONFLICT DO NOTHING;
 
+INSERT INTO "Pedido" (nome_recebedor, telefone_recebedor, cep, logradouro, numero, complemento, bairro, cidade, uf, descricao, status, data_criacao, data_inicio_entrega, data_finalizacao, valor_entrega, "idEmpresa", cpf_entregador, distancia)
+SELECT v.recebedor, v.telefone, '70000000', v.logradouro, v.numero, v.complemento, v.bairro, 'Brasilia', 'DF',
+       v.descricao, v.status, NOW() - v.criado_ha, NOW() - v.iniciado_ha, NOW() - v.finalizado_ha,
+       v.valor, e.id_empresa, v.cpf, v.distancia
+FROM (VALUES
+  ('cantina@example.com', 'Carla Menezes',  '61920000001', 'SQN 210 Bloco K',  304, NULL,       'Asa Norte', 'Duas marmitas e um suco',  'EM_ANDAMENTO', INTERVAL '40 minutes', INTERVAL '20 minutes', NULL::interval,      1250, '98765432100', 3),
+  ('cantina@example.com', 'Rafael Nunes',   '61920000002', 'CLS 706 Bloco B',  12,  NULL,       'Asa Sul',   'Uma lasanha',              'ATRIBUIDO',    INTERVAL '15 minutes', NULL::interval,        NULL::interval,      1100, '98765432100', 2),
+  ('cantina@example.com', 'Joao Pereira',   '61920000003', 'SHIN QI 9 Conj 4', 8,   'Casa 8',   'Lago Norte','Tres marmitas',            'PENDENTE',     INTERVAL '5 minutes',  NULL::interval,        NULL::interval,      1550, NULL,          5),
+  ('cantina@example.com', 'Thiago Andrade', '61920000004', 'SQS 308 Bloco C',  101, NULL,       'Asa Sul',   'Uma marmita',              'CONCLUIDO',    INTERVAL '3 hours',    INTERVAL '170 minutes', INTERVAL '2 hours', 1400, '98765432100', 4),
+  ('padaria@example.com', 'Marina Costa',   '61920000005', 'CLN 110 Bloco D',  25,  NULL,       'Asa Norte', 'Cesta de paes',            'EM_ANDAMENTO', INTERVAL '30 minutes', INTERVAL '10 minutes', NULL::interval,      950,  '24681357928', 1)
+) AS v(email, recebedor, telefone, logradouro, numero, complemento, bairro, descricao, status, criado_ha, iniciado_ha, finalizado_ha, valor, cpf, distancia)
+JOIN "Empresa" e ON e.email = v.email
+WHERE NOT EXISTS (SELECT 1 FROM "Pedido" p WHERE p."idEmpresa" = e.id_empresa);
+
 -- A extensao so e usada aqui; remover evita diferenca entre o banco e as migrations.
 DROP EXTENSION pgcrypto;
 
