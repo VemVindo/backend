@@ -5,7 +5,7 @@ import { PedidoDto } from './dto/pedido.dto';
 
 @Injectable()
 export class PedidoRepository {
-  constructor(private readonly prisma: PrismaService) {};
+  constructor(private readonly prisma: PrismaService) {}
 
   async criar(pedidoDto: PedidoDto): Promise<Pedido> {
     return await this.prisma.pedido.create({
