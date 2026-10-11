@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PedidoDto } from './dto/pedido.dto';
-import { StatusFactory } from './factory/status.factory';
+import { StatusFactory } from './factories/status.factory';
 import { PedidoRepository } from './pedido.repository';
 import { Pedido } from '../generated/prisma/client';
 
