@@ -4,7 +4,6 @@ import { PedidoDto } from '../dto/pedido.dto';
 
 describe('PedidoService', () => {
   let service: PedidoService;
-  let pedido: PedidoDto;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -15,6 +14,6 @@ describe('PedidoService', () => {
   });
 
   it('should be defined', () => {
-    expect(service.criar()).toBe();
+    expect(service).toBeDefined();
   });
 });

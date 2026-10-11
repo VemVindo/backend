@@ -15,7 +15,6 @@ describe('PedidoController', () => {
     }).compile();
 
     controller = module.get<PedidoController>(PedidoController);
-    service = module.get<PedidoService>(PedidoService);
   });
 
   it('should be defined', () => {
