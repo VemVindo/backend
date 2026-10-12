@@ -125,10 +125,18 @@ export class PedidoService {
       );
     }
 
-    return this.pedidoRepository.reatribuir(
+    const reatribuido = await this.pedidoRepository.reatribuir(
       idPedido,
       pedido.cpf_entregador,
       cpfNovoEntregador,
     );
+
+    return {
+      id: reatribuido.id_pedido,
+      recebedor: reatribuido.nome_recebedor,
+      entregador: reatribuido.entregador?.nome ?? null,
+      status: reatribuido.status,
+      criadoEm: reatribuido.data_criacao,
+    };
   }
 }

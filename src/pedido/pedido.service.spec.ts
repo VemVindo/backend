@@ -11,6 +11,7 @@ jest.mock('../prisma/prisma.service', () => ({
 const CPF_ENTREGADOR = '52998224725';
 const NOVO_CPF = '11144477735';
 const ID_PEDIDO = 1;
+const DATA_CRIACAO = new Date('2026-10-07T17:02:00Z');
 
 const pedidoPendente = {
   id_pedido: ID_PEDIDO,
@@ -50,6 +51,9 @@ function montar() {
         ...pedidoPendente,
         id_pedido: idPedido,
         cpf_entregador: cpfNovo,
+        nome_recebedor: 'Carla Menezes',
+        data_criacao: DATA_CRIACAO,
+        entregador: { nome: 'Ana Souza' },
       }),
     ),
   };
@@ -345,9 +349,12 @@ describe('PedidoService.reatribuir', () => {
         ID_PEDIDO,
         NOVO_CPF,
       ),
-    ).resolves.toMatchObject({
-      id_pedido: ID_PEDIDO,
-      cpf_entregador: NOVO_CPF,
+    ).resolves.toEqual({
+      id: ID_PEDIDO,
+      recebedor: 'Carla Menezes',
+      entregador: 'Ana Souza',
+      status: StatusPedido.PENDENTE,
+      criadoEm: DATA_CRIACAO,
     });
   });
 

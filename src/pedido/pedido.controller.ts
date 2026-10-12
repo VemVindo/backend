@@ -54,7 +54,7 @@ export class PedidoController {
     @Body() dto: ReatribuirPedidoDto,
   ) {
     return this.pedidoService.reatribuir(
-      Number(usuario.usuarioId),
+      Number(usuario.empresaId),
       idPedido,
       dto.cpfEntregador,
     );

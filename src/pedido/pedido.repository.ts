@@ -49,7 +49,7 @@ export class PedidoRepository {
     idPedido: number,
     cpfEntregadorAnterior: string,
     cpfNovoEntregador: string,
-  ): Promise<Pedido> {
+  ): Promise<Pedido & { entregador: { nome: string } | null }> {
     return this.prisma.$transaction(async (tx) => {
       await tx.historicoPedidoEntregadores.create({
         data: {
@@ -66,6 +66,9 @@ export class PedidoRepository {
         },
         data: {
           cpf_entregador: cpfNovoEntregador,
+        },
+        include: {
+          entregador: { select: { nome: true } },
         },
       });
     });
