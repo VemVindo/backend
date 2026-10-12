@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PedidoDto } from './dto/pedido.dto';
+import { CriaPedidoReqDto } from './dto/cria-pedido.dto';
 import { StatusFactory } from './factories/status.factory';
 import { PedidoRepository } from './pedido.repository';
 import { Pedido } from '../generated/prisma/client';
@@ -8,9 +8,9 @@ import { Pedido } from '../generated/prisma/client';
 export class PedidoService {
   constructor(private readonly pedidoRepository: PedidoRepository) {}
 
-  async criar(pedidoDto: PedidoDto): Promise<Pedido> {
-    pedidoDto.status = StatusFactory.criar(pedidoDto.cpf_entregador);
-    pedidoDto.data_criacao = new Date().toISOString();
-    return this.pedidoRepository.criar(pedidoDto);
+  async criar(pedido: CriaPedidoReqDto): Promise<Pedido> {
+    pedido.status = StatusFactory.criar(pedido.cpf_entregador);
+    pedido.data_criacao = new Date().toISOString();
+    return this.pedidoRepository.criar(pedido);
   }
 }
