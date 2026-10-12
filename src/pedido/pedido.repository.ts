@@ -1,31 +1,31 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Pedido } from '../generated/prisma/client';
-import { PedidoDto } from './dto/pedido.dto';
+import { CriaPedidoReqDto } from './dto/cria-pedido.dto';
 
 @Injectable()
 export class PedidoRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async criar(pedidoDto: PedidoDto): Promise<Pedido> {
+  async criar(pedido: CriaPedidoReqDto): Promise<Pedido> {
     return await this.prisma.pedido.create({
       data: {
-        nome_recebedor: pedidoDto.nome_recebedor,
-        telefone_recebedor: pedidoDto.telefone_recebedor,
-        cep: pedidoDto.cep,
-        logradouro: pedidoDto.logradouro,
-        numero: pedidoDto.numero,
-        complemento: pedidoDto.complemento,
-        bairro: pedidoDto.bairro,
-        cidade: pedidoDto.cidade,
-        uf: pedidoDto.uf,
-        descricao: pedidoDto.descricao,
-        status: pedidoDto.status!,
-        data_criacao: pedidoDto.data_criacao!,
-        valor_entrega: pedidoDto.valor_entrega,
-        idEmpresa: pedidoDto.idEmpresa,
-        distancia: pedidoDto.distancia,
-        cpf_entregador: pedidoDto.cpf_entregador,
+        nome_recebedor: pedido.nome_recebedor,
+        telefone_recebedor: pedido.telefone_recebedor,
+        cep: pedido.cep,
+        logradouro: pedido.logradouro,
+        numero: pedido.numero,
+        complemento: pedido.complemento,
+        bairro: pedido.bairro,
+        cidade: pedido.cidade,
+        uf: pedido.uf,
+        descricao: pedido.descricao,
+        status: pedido.status,
+        data_criacao: pedido.data_criacao,
+        valor_entrega: pedido.valor_entrega,
+        idEmpresa: pedido.idEmpresa,
+        distancia: pedido.distancia,
+        cpf_entregador: pedido.cpf_entregador,
       },
     });
   }
