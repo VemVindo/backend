@@ -1,23 +1,23 @@
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { UserRole } from '../common/enums/user-role.enum';
-import { AuthenticatedUser } from './jwt.strategy';
+import { Cargo } from '../common/enums/cargo.enum';
+import { UsuarioAutenticado } from './jwt.strategy';
 import { SenhaTemporariaGuard } from './senha-temporaria.guard';
 
-function contexto(user?: AuthenticatedUser): ExecutionContext {
+function contexto(usuario?: UsuarioAutenticado): ExecutionContext {
   return {
     getHandler: () => undefined,
     getClass: () => undefined,
-    switchToHttp: () => ({ getRequest: () => ({ user }) }),
+    switchToHttp: () => ({ getRequest: () => ({ user: usuario }) }),
   } as unknown as ExecutionContext;
 }
 
 describe('SenhaTemporariaGuard', () => {
   const reflector = new Reflector();
   const guard = new SenhaTemporariaGuard(reflector);
-  const entregadorTemporario: AuthenticatedUser = {
-    userId: '12345678900',
-    role: UserRole.ENTREGADOR,
+  const entregadorTemporario: UsuarioAutenticado = {
+    usuarioId: '12345678900',
+    cargo: Cargo.ENTREGADOR,
     senhaTemporaria: true,
   };
 
@@ -37,8 +37,8 @@ describe('SenhaTemporariaGuard', () => {
 
   it('libera entregador que ja trocou a senha', () => {
     jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(undefined);
-    const user = { ...entregadorTemporario, senhaTemporaria: false };
-    expect(guard.canActivate(contexto(user))).toBe(true);
+    const usuario = { ...entregadorTemporario, senhaTemporaria: false };
+    expect(guard.canActivate(contexto(usuario))).toBe(true);
   });
 
   it('libera rotas publicas, sem usuario', () => {

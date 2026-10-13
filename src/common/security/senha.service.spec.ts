@@ -1,7 +1,7 @@
-import { PasswordService } from './password.service';
+import { SenhaService } from './senha.service';
 
-describe('PasswordService', () => {
-  const service = new PasswordService();
+describe('SenhaService', () => {
+  const service = new SenhaService();
 
   it('confere a senha contra o proprio hash', async () => {
     const hash = await service.hash('senha-de-teste');

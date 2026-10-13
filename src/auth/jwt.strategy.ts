@@ -2,26 +2,33 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { UserRole } from '../common/enums/user-role.enum';
+import { Cargo } from '../common/enums/cargo.enum';
+import { EmpresaRepository } from '../empresa/empresa.repository';
+import { EntregadorRepository } from '../entregador/entregador.repository';
 import { extrairTokenDoCookie } from './auth-cookie';
 
 export interface JwtPayload {
   sub: string;
-  role: UserRole;
-  establishmentId?: string;
+  cargo: Cargo;
+  empresaId?: string;
   senhaTemporaria?: boolean;
+  versao: number;
 }
 
-export interface AuthenticatedUser {
-  userId: string;
-  role: UserRole;
-  establishmentId?: string;
+export interface UsuarioAutenticado {
+  usuarioId: string;
+  cargo: Cargo;
+  empresaId?: string;
   senhaTemporaria?: boolean;
 }
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(config: ConfigService) {
+  constructor(
+    config: ConfigService,
+    private readonly empresas: EmpresaRepository,
+    private readonly entregadores: EntregadorRepository,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         extrairTokenDoCookie,
@@ -33,19 +40,28 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: JwtPayload): AuthenticatedUser {
-    if (!payload?.sub || !Object.values(UserRole).includes(payload.role)) {
+  // A versao da sessao e conferida no banco a cada requisicao: trocar a senha
+  // ou sair de todos os aparelhos invalida os tokens emitidos antes.
+  async validate(payload: JwtPayload): Promise<UsuarioAutenticado> {
+    if (!payload?.sub || !Object.values(Cargo).includes(payload.cargo)) {
       throw new UnauthorizedException();
     }
     const empresaSemEstabelecimento =
-      payload.role === UserRole.ESTABELECIMENTO && !payload.establishmentId;
-    if (empresaSemEstabelecimento) {
+      payload.cargo === Cargo.ESTABELECIMENTO && !payload.empresaId;
+    if (empresaSemEstabelecimento || typeof payload.versao !== 'number') {
       throw new UnauthorizedException();
     }
+    const versaoAtual =
+      payload.cargo === Cargo.ESTABELECIMENTO
+        ? await this.empresas.versaoSessao(Number(payload.empresaId))
+        : await this.entregadores.versaoSessao(payload.sub);
+    if (versaoAtual !== payload.versao) {
+      throw new UnauthorizedException('Sessao encerrada; entre novamente');
+    }
     return {
-      userId: payload.sub,
-      role: payload.role,
-      establishmentId: payload.establishmentId,
+      usuarioId: payload.sub,
+      cargo: payload.cargo,
+      empresaId: payload.empresaId,
       senhaTemporaria: payload.senhaTemporaria,
     };
   }

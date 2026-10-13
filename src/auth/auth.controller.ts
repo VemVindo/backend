@@ -11,23 +11,23 @@ import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { definirCookieAuth, limparCookieAuth } from './auth-cookie';
-import { CurrentUser } from './decorators/current-user.decorator';
+import { Cargos } from './decorators/cargos.decorator';
 import { PermitirSenhaTemporaria } from './decorators/permitir-senha-temporaria.decorator';
 import { Public } from './decorators/public.decorator';
-import { Roles } from './decorators/roles.decorator';
-import { UserRole } from '../common/enums/user-role.enum';
-import type { AuthenticatedUser } from './jwt.strategy';
-import { LoginEmpresaDto } from './dto/login.dto';
+import { UsuarioAtual } from './decorators/usuario-atual.decorator';
+import { Cargo } from '../common/enums/cargo.enum';
+import type { UsuarioAutenticado } from './jwt.strategy';
+import { CadastrarEmpresaDto } from './dto/cadastrar-empresa.dto';
+import { LoginEmpresaDto } from './dto/login-empresa.dto';
 import { LoginEntregadorDto } from './dto/login-entregador.dto';
-import { RegisterEstablishmentDto } from './dto/register-establishment.dto';
 import { TrocarSenhaDto } from './dto/trocar-senha.dto';
 
 const LIMITE_TENTATIVAS_COM_SENHA = { default: { limit: 5, ttl: 60_000 } };
 
 interface RespostaComToken<Usuario> {
-  accessToken: string;
+  tokenAcesso: string;
   expiraEm: Date;
-  user: Usuario;
+  usuario: Usuario;
 }
 
 @Controller('auth')
@@ -36,22 +36,22 @@ export class AuthController {
 
   private responderComCookie<Usuario>(
     res: Response,
-    { accessToken, expiraEm, user }: RespostaComToken<Usuario>,
+    { tokenAcesso, expiraEm, usuario }: RespostaComToken<Usuario>,
   ) {
-    definirCookieAuth(res, accessToken, expiraEm);
-    return { user };
+    definirCookieAuth(res, tokenAcesso, expiraEm);
+    return { usuario };
   }
 
   @Public()
   @Throttle(LIMITE_TENTATIVAS_COM_SENHA)
-  @Post('register')
-  async register(
-    @Body() dto: RegisterEstablishmentDto,
+  @Post('cadastrar/empresa')
+  async cadastrarEmpresa(
+    @Body() dto: CadastrarEmpresaDto,
     @Res({ passthrough: true }) res: Response,
   ) {
     return this.responderComCookie(
       res,
-      await this.authService.registerEstablishment(dto),
+      await this.authService.cadastrarEmpresa(dto),
     );
   }
 
@@ -84,31 +84,42 @@ export class AuthController {
   }
 
   @Public()
-  @Post('logout')
+  @Post('sair')
   @HttpCode(HttpStatus.NO_CONTENT)
-  logout(@Res({ passthrough: true }) res: Response) {
+  sair(@Res({ passthrough: true }) res: Response) {
     limparCookieAuth(res);
   }
 
   @PermitirSenhaTemporaria()
-  @Get('me')
-  me(@CurrentUser() user: AuthenticatedUser) {
-    return this.authService.getMe(user);
+  @Post('sair-de-todos')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async sairDeTodosOsAparelhos(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.authService.sairDeTodosOsAparelhos(usuario);
+    limparCookieAuth(res);
   }
 
   @PermitirSenhaTemporaria()
-  @Roles(UserRole.ENTREGADOR)
+  @Get('minhas-infos')
+  minhasInformacoes(@UsuarioAtual() usuario: UsuarioAutenticado) {
+    return this.authService.minhasInformacoes(usuario);
+  }
+
+  @PermitirSenhaTemporaria()
+  @Cargos(Cargo.ENTREGADOR)
   @Throttle(LIMITE_TENTATIVAS_COM_SENHA)
   @Post('entregador/trocar-senha')
   @HttpCode(HttpStatus.OK)
   async trocarSenha(
-    @CurrentUser() user: AuthenticatedUser,
+    @UsuarioAtual() usuario: UsuarioAutenticado,
     @Body() dto: TrocarSenhaDto,
     @Res({ passthrough: true }) res: Response,
   ) {
     return this.responderComCookie(
       res,
-      await this.authService.trocarSenhaEntregador(user, dto),
+      await this.authService.trocarSenhaEntregador(usuario, dto),
     );
   }
 }

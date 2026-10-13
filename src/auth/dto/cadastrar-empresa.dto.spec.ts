@@ -1,6 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
-import { RegisterEstablishmentDto } from './register-establishment.dto';
+import { CadastrarEmpresaDto } from './cadastrar-empresa.dto';
 
 const base = {
   nomeFantasia: 'Loja Teste',
@@ -18,11 +18,11 @@ const base = {
 };
 
 function validar(dados: object) {
-  const dto = plainToInstance(RegisterEstablishmentDto, { ...base, ...dados });
+  const dto = plainToInstance(CadastrarEmpresaDto, { ...base, ...dados });
   return { dto, campos: validateSync(dto).map((e) => e.property) };
 }
 
-describe('RegisterEstablishmentDto', () => {
+describe('CadastrarEmpresaDto', () => {
   it('aceita um cadastro valido', () => {
     expect(validar({}).campos).toEqual([]);
   });
@@ -47,5 +47,9 @@ describe('RegisterEstablishmentDto', () => {
 
   it('recusa senha acima do limite do bcrypt', () => {
     expect(validar({ senha: 'a'.repeat(73) }).campos).toEqual(['senha']);
+  });
+
+  it('mede o limite da senha em bytes, nao em caracteres', () => {
+    expect(validar({ senha: 'ç'.repeat(40) }).campos).toEqual(['senha']);
   });
 });

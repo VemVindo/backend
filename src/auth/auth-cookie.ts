@@ -17,10 +17,10 @@ function opcoesCookie(): CookieOptions {
 
 export function definirCookieAuth(
   res: Response,
-  accessToken: string,
+  tokenAcesso: string,
   expiraEm: Date,
 ) {
-  res.cookie(AUTH_COOKIE, accessToken, {
+  res.cookie(AUTH_COOKIE, tokenAcesso, {
     ...opcoesCookie(),
     expires: expiraEm,
   });
