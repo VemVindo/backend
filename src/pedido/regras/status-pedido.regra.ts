@@ -1,13 +1,9 @@
-import { StatusPedido } from '../../common/enums/status-pedido.enum';
+import { StatusPedido } from '../../generated/prisma/enums';
 
 const TRANSICOES_PEDIDO: Record<StatusPedido, readonly StatusPedido[]> = {
-  [StatusPedido.PENDENTE]: [
-    StatusPedido.EM_ANDAMENTO,
-  ],
+  [StatusPedido.PENDENTE]: [StatusPedido.EM_ANDAMENTO],
 
-  [StatusPedido.EM_ANDAMENTO]: [
-    StatusPedido.FINALIZADO,
-  ],
+  [StatusPedido.EM_ANDAMENTO]: [StatusPedido.FINALIZADO],
 
   [StatusPedido.FINALIZADO]: [],
 
@@ -25,4 +21,8 @@ export function transicaoPermitida(
   novoStatus: StatusPedido,
 ): boolean {
   return TRANSICOES_PEDIDO[statusAtual].includes(novoStatus);
+}
+
+export function statusFinal(status: StatusPedido): boolean {
+  return TRANSICOES_PEDIDO[status].length === 0;
 }
