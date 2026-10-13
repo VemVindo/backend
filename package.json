@@ -21,7 +21,7 @@
     "test:cov": "jest --coverage",
     "test:ci": "mkdir -p reports && jest --ci --coverage --json --outputFile=reports/jest-results.json --reporters=default --reporters=jest-junit",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json",
     "db:seed": "prisma db execute --file prisma/seed/dev.sql"
   },
   "dependencies": {
