@@ -10,6 +10,7 @@ export interface DadosNovoEntregador {
   tipoVeiculo: string;
   placa: string | null;
   senhaHash: string;
+  senhaTemporariaExpiraEm: Date;
 }
 
 @Injectable()
@@ -40,6 +41,7 @@ export class EntregadorRepository {
         tipo_veiculo: dados.tipoVeiculo,
         placa: dados.placa,
         senha: dados.senhaHash,
+        senha_temporaria_expira_em: dados.senhaTemporariaExpiraEm,
         contratos: {
           create: {
             idEmpresa,
@@ -51,6 +53,7 @@ export class EntregadorRepository {
     });
   }
 
+  // Trocar a senha tambem encerra as sessoes abertas em outros aparelhos.
   atualizarSenha(
     cpf: string,
     senhaHash: string,
@@ -61,8 +64,43 @@ export class EntregadorRepository {
       data: {
         senha: senhaHash,
         senha_temporaria: false,
+        senha_temporaria_expira_em: null,
+        sessao_versao: { increment: 1 },
         ...(cienciaDadosEm && { ciencia_dados_em: cienciaDadosEm }),
       },
+    });
+  }
+
+  // senha_temporaria no where: se o entregador criou a propria senha no meio
+  // do caminho, nada muda.
+  async redefinirSenhaTemporaria(
+    cpf: string,
+    senhaHash: string,
+    expiraEm: Date,
+  ): Promise<boolean> {
+    const { count } = await this.prisma.entregador.updateMany({
+      where: { cpf, senha_temporaria: true },
+      data: {
+        senha: senhaHash,
+        senha_temporaria_expira_em: expiraEm,
+        sessao_versao: { increment: 1 },
+      },
+    });
+    return count > 0;
+  }
+
+  async versaoSessao(cpf: string): Promise<number | null> {
+    const entregador = await this.prisma.entregador.findUnique({
+      where: { cpf },
+      select: { sessao_versao: true },
+    });
+    return entregador?.sessao_versao ?? null;
+  }
+
+  async encerrarSessoes(cpf: string): Promise<void> {
+    await this.prisma.entregador.update({
+      where: { cpf },
+      data: { sessao_versao: { increment: 1 } },
     });
   }
 }

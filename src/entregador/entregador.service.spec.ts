@@ -27,6 +27,7 @@ function montar() {
   const entregadores = {
     procurarPorCpf: jest.fn().mockResolvedValue(null),
     procurarAtivosPorEmpresa: jest.fn().mockResolvedValue([]),
+    redefinirSenhaTemporaria: jest.fn().mockResolvedValue(true),
     criarComConvite: jest.fn(
       (dados: { cpf: string; nome: string; placa: string | null }) =>
         Promise.resolve({
@@ -40,6 +41,7 @@ function montar() {
   const contratos = {
     criarConvite: jest.fn().mockResolvedValue({}),
     encerrarPelaEmpresa: jest.fn().mockResolvedValue(true),
+    primeiroDoEntregador: jest.fn().mockResolvedValue(null),
   };
   const senha = { hash: jest.fn().mockResolvedValue('hash') };
   const service = new EntregadorService(
@@ -65,11 +67,19 @@ describe('EntregadorService.cadastrar', () => {
     const resultado = await service.cadastrar(ID_EMPRESA, dto);
 
     expect(entregadores.criarComConvite).toHaveBeenCalledWith(
-      expect.objectContaining({ cpf: CPF_FICTICIO, senhaHash: 'hash' }),
+      expect.objectContaining({
+        cpf: CPF_FICTICIO,
+        senhaHash: 'hash',
+        senhaTemporariaExpiraEm: resultado.senhaTemporariaExpiraEm,
+      }),
       ID_EMPRESA,
     );
     expect(resultado.status).toBe('PENDENTE');
     expect(resultado.senhaTemporaria).toMatch(/^[\w-]{12}$/);
+    const horas =
+      (resultado.senhaTemporariaExpiraEm.getTime() - Date.now()) / 3_600_000;
+    expect(horas).toBeGreaterThan(47.9);
+    expect(horas).toBeLessThanOrEqual(48);
   });
 
   it('descarta placa enviada para bicicleta', async () => {
@@ -186,5 +196,88 @@ describe('EntregadorService.desvincular', () => {
     await expect(service.desvincular(ID_EMPRESA, CPF_FICTICIO)).rejects.toThrow(
       NotFoundException,
     );
+  });
+});
+
+describe('EntregadorService.gerarNovaSenhaTemporaria', () => {
+  const OUTRA_EMPRESA = 2;
+  const aguardandoPrimeiroAcesso = {
+    ...entregadorSalvo,
+    senha_temporaria: true,
+  };
+
+  function cadastradoPor(idEmpresa: number, status = 'PENDENTE') {
+    return { id_contrato: 1, idEmpresa, status };
+  }
+
+  it('gera outra senha com novo prazo para quem cadastrou o entregador', async () => {
+    const { service, entregadores, contratos } = montar();
+    entregadores.procurarPorCpf.mockResolvedValue(aguardandoPrimeiroAcesso);
+    contratos.primeiroDoEntregador.mockResolvedValue(cadastradoPor(ID_EMPRESA));
+
+    const resultado = await service.gerarNovaSenhaTemporaria(
+      ID_EMPRESA,
+      CPF_FICTICIO,
+    );
+
+    expect(resultado.senhaTemporaria).toMatch(/^[\w-]{12}$/);
+    expect(entregadores.redefinirSenhaTemporaria).toHaveBeenCalledWith(
+      CPF_FICTICIO,
+      'hash',
+      resultado.senhaTemporariaExpiraEm,
+    );
+  });
+
+  it('recusa empresa que so convidou o entregador depois', async () => {
+    const { service, entregadores, contratos } = montar();
+    entregadores.procurarPorCpf.mockResolvedValue(aguardandoPrimeiroAcesso);
+    contratos.primeiroDoEntregador.mockResolvedValue(cadastradoPor(ID_EMPRESA));
+
+    await expect(
+      service.gerarNovaSenhaTemporaria(OUTRA_EMPRESA, CPF_FICTICIO),
+    ).rejects.toThrow(NotFoundException);
+    expect(entregadores.redefinirSenhaTemporaria).not.toHaveBeenCalled();
+  });
+
+  it('recusa quando o entregador ja criou a propria senha', async () => {
+    const { service, entregadores, contratos } = montar();
+    entregadores.procurarPorCpf.mockResolvedValue(entregadorSalvo);
+    contratos.primeiroDoEntregador.mockResolvedValue(cadastradoPor(ID_EMPRESA));
+
+    await expect(
+      service.gerarNovaSenhaTemporaria(ID_EMPRESA, CPF_FICTICIO),
+    ).rejects.toThrow(NotFoundException);
+    expect(entregadores.redefinirSenhaTemporaria).not.toHaveBeenCalled();
+  });
+
+  it('recusa quando o vinculo com quem cadastrou ja foi encerrado', async () => {
+    const { service, entregadores, contratos } = montar();
+    entregadores.procurarPorCpf.mockResolvedValue(aguardandoPrimeiroAcesso);
+    contratos.primeiroDoEntregador.mockResolvedValue(
+      cadastradoPor(ID_EMPRESA, 'ENCERRADO'),
+    );
+
+    await expect(
+      service.gerarNovaSenhaTemporaria(ID_EMPRESA, CPF_FICTICIO),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('responde igual para CPF inexistente', async () => {
+    const { service } = montar();
+
+    await expect(
+      service.gerarNovaSenhaTemporaria(ID_EMPRESA, CPF_FICTICIO),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('recusa se o entregador criou a senha no meio da operacao', async () => {
+    const { service, entregadores, contratos } = montar();
+    entregadores.procurarPorCpf.mockResolvedValue(aguardandoPrimeiroAcesso);
+    contratos.primeiroDoEntregador.mockResolvedValue(cadastradoPor(ID_EMPRESA));
+    entregadores.redefinirSenhaTemporaria.mockResolvedValue(false);
+
+    await expect(
+      service.gerarNovaSenhaTemporaria(ID_EMPRESA, CPF_FICTICIO),
+    ).rejects.toThrow(NotFoundException);
   });
 });

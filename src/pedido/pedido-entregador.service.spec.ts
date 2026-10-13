@@ -2,7 +2,7 @@ import { PedidoEntregadorService } from './pedido-entregador.service';
 import {
   formatarEndereco,
   pedidoVisivelParaEntregador,
-} from './pedido-visivel-entregador';
+} from './pedido-entregador.mapper';
 import { PedidoComEmpresa, PedidoRepository } from './pedido.repository';
 
 jest.mock('../prisma/prisma.service', () => ({ PrismaService: class {} }));

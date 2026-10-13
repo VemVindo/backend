@@ -25,10 +25,17 @@ describe('GET /entregador/pedidos (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
   let jwt: JwtService;
+  let idEmpresa: string;
 
   function token(cargo: Cargo, usuarioId: string, senhaTemporaria = false) {
     const empresaId = cargo === Cargo.ESTABELECIMENTO ? usuarioId : undefined;
-    return jwt.sign({ sub: usuarioId, cargo, empresaId, senhaTemporaria });
+    return jwt.sign({
+      sub: usuarioId,
+      cargo,
+      empresaId,
+      senhaTemporaria,
+      versao: 0,
+    });
   }
 
   async function limpar() {
@@ -105,11 +112,12 @@ describe('GET /entregador/pedidos (e2e)', () => {
       ),
     });
     const id = empresa.id_empresa;
+    idEmpresa = String(id);
     await criarPedido(
       id,
       CPF_COM_DOIS_PEDIDOS,
       'Recebedor Antigo',
-      'CONCLUIDO',
+      'FINALIZADO',
       '2026-10-01T10:00:00Z',
     );
     await criarPedido(
@@ -123,7 +131,7 @@ describe('GET /entregador/pedidos (e2e)', () => {
       id,
       CPF_COM_UM_PEDIDO,
       'Recebedor de Outro',
-      'ATRIBUIDO',
+      'PENDENTE',
       '2026-10-03T10:00:00Z',
     );
   });
@@ -137,7 +145,7 @@ describe('GET /entregador/pedidos (e2e)', () => {
     ['sem login', undefined, 401],
     [
       'logado como estabelecimento',
-      () => token(Cargo.ESTABELECIMENTO, '1'),
+      () => token(Cargo.ESTABELECIMENTO, idEmpresa),
       403,
     ],
     [
@@ -188,7 +196,7 @@ describe('GET /entregador/pedidos (e2e)', () => {
 
     const [pedido] = resposta.body as PedidoDaResposta[];
     expect(pedido).toMatchObject({
-      status: 'ATRIBUIDO',
+      status: 'PENDENTE',
       empresa: 'Empresa E2E',
       endereco: 'Rua das Flores, 100 - Centro, Brasilia/DF',
     });

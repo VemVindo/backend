@@ -27,14 +27,15 @@ VALUES
 ON CONFLICT (email) DO NOTHING;
 
 -- Entregadores ----------------------------------------------------------------
--- Ana ainda esta com a senha temporaria: serve para testar o primeiro acesso.
+-- Ana ainda esta com a senha temporaria (vale 48h a partir do seed): serve para
+-- testar o primeiro acesso.
 -- Bruno e Carla ja passaram por ele (ciencia dos dados registrada).
 
-INSERT INTO "Entregador" (cpf, nome, telefone, tipo_veiculo, placa, senha, senha_temporaria, ciencia_dados_em)
+INSERT INTO "Entregador" (cpf, nome, telefone, tipo_veiculo, placa, senha, senha_temporaria, ciencia_dados_em, senha_temporaria_expira_em)
 VALUES
-  ('12345678909', 'Ana Souza',  '61910000001', 'MOTO',      'ABC1D23', crypt('Temp@2026',    gen_salt('bf', 12)), true,  NULL),
-  ('98765432100', 'Bruno Lima', '61910000002', 'CARRO',     'XYZ9E87', crypt('Vemvindo@123', gen_salt('bf', 12)), false, NOW()),
-  ('24681357928', 'Carla Reis', '61910000003', 'BICICLETA', NULL,      crypt('Vemvindo@123', gen_salt('bf', 12)), false, NOW())
+  ('12345678909', 'Ana Souza',  '61910000001', 'MOTO',      'ABC1D23', crypt('Temp@2026',    gen_salt('bf', 12)), true,  NULL,  NOW() + INTERVAL '48 hours'),
+  ('98765432100', 'Bruno Lima', '61910000002', 'CARRO',     'XYZ9E87', crypt('Vemvindo@123', gen_salt('bf', 12)), false, NOW(), NULL),
+  ('24681357928', 'Carla Reis', '61910000003', 'BICICLETA', NULL,      crypt('Vemvindo@123', gen_salt('bf', 12)), false, NOW(), NULL)
 ON CONFLICT (cpf) DO NOTHING;
 
 -- Vinculos (frota) ------------------------------------------------------------
@@ -70,9 +71,9 @@ SELECT v.recebedor, v.telefone, '70000000', v.logradouro, v.numero, v.complement
        v.valor, e.id_empresa, v.cpf, v.distancia
 FROM (VALUES
   ('cantina@example.com', 'Carla Menezes',  '61920000001', 'SQN 210 Bloco K',  304, NULL,       'Asa Norte', 'Duas marmitas e um suco',  'EM_ANDAMENTO', INTERVAL '40 minutes', INTERVAL '20 minutes', NULL::interval,      1250, '98765432100', 3),
-  ('cantina@example.com', 'Rafael Nunes',   '61920000002', 'CLS 706 Bloco B',  12,  NULL,       'Asa Sul',   'Uma lasanha',              'ATRIBUIDO',    INTERVAL '15 minutes', NULL::interval,        NULL::interval,      1100, '98765432100', 2),
+  ('cantina@example.com', 'Rafael Nunes',   '61920000002', 'CLS 706 Bloco B',  12,  NULL,       'Asa Sul',   'Uma lasanha',              'PENDENTE',     INTERVAL '15 minutes', NULL::interval,        NULL::interval,      1100, '98765432100', 2),
   ('cantina@example.com', 'Joao Pereira',   '61920000003', 'SHIN QI 9 Conj 4', 8,   'Casa 8',   'Lago Norte','Tres marmitas',            'PENDENTE',     INTERVAL '5 minutes',  NULL::interval,        NULL::interval,      1550, NULL,          5),
-  ('cantina@example.com', 'Thiago Andrade', '61920000004', 'SQS 308 Bloco C',  101, NULL,       'Asa Sul',   'Uma marmita',              'CONCLUIDO',    INTERVAL '3 hours',    INTERVAL '170 minutes', INTERVAL '2 hours', 1400, '98765432100', 4),
+  ('cantina@example.com', 'Thiago Andrade', '61920000004', 'SQS 308 Bloco C',  101, NULL,       'Asa Sul',   'Uma marmita',              'FINALIZADO',   INTERVAL '3 hours',    INTERVAL '170 minutes', INTERVAL '2 hours', 1400, '98765432100', 4),
   ('padaria@example.com', 'Marina Costa',   '61920000005', 'CLN 110 Bloco D',  25,  NULL,       'Asa Norte', 'Cesta de paes',            'EM_ANDAMENTO', INTERVAL '30 minutes', INTERVAL '10 minutes', NULL::interval,      950,  '24681357928', 1)
 ) AS v(email, recebedor, telefone, logradouro, numero, complemento, bairro, descricao, status, criado_ha, iniciado_ha, finalizado_ha, valor, cpf, distancia)
 JOIN "Empresa" e ON e.email = v.email

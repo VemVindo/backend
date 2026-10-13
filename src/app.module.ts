@@ -24,8 +24,8 @@ import { PedidoModule } from './pedido/pedido.module';
     EmpresaModule,
     EntregadorModule,
     VinculoModule,
-    PedidoModule,
     AuthModule,
+    PedidoModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

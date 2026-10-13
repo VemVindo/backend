@@ -12,6 +12,7 @@ export class PedidoEntregadorController {
 
   @Get()
   listar(@UsuarioAtual() usuario: UsuarioAutenticado) {
-    return this.pedidoService.listar(usuario.usuarioId);
+    const cpfEntregador = usuario.usuarioId;
+    return this.pedidoService.listar(cpfEntregador);
   }
 }

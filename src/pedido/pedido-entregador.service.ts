@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { pedidoVisivelParaEntregador } from './pedido-visivel-entregador';
+import { pedidoVisivelParaEntregador } from './pedido-entregador.mapper';
 import { PedidoRepository } from './pedido.repository';
 
 @Injectable()
