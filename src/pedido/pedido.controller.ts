@@ -21,10 +21,29 @@ import { PedidoService } from './pedido.service';
 export class PedidoController {
   constructor(private readonly pedidoService: PedidoService) {}
 
-  @Post('criar')
-  async criar(@Body() pedidoDto: CriaPedidoReqDto): Promise<CriaPedidoResDto> {
-    const pedido = await this.pedidoService.criar(pedidoDto);
+  @Post()
+  @Cargos(Cargo.ESTABELECIMENTO)
+  async criar(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Body() pedidoDto: CriaPedidoReqDto,
+  ): Promise<CriaPedidoResDto> {
+    const pedido = await this.pedidoService.criar(
+      Number(usuario.empresaId),
+      pedidoDto,
+    );
     return plainToInstance(CriaPedidoResDto, pedido);
+  }
+
+  @Get()
+  @Cargos(Cargo.ESTABELECIMENTO)
+  listarDaEmpresa(@UsuarioAtual() usuario: UsuarioAutenticado) {
+    return this.pedidoService.listarDaEmpresa(Number(usuario.empresaId));
+  }
+
+  @Get('minhas-entregas')
+  @Cargos(Cargo.ENTREGADOR)
+  listarDoEntregador(@UsuarioAtual() usuario: UsuarioAutenticado) {
+    return this.pedidoService.listarDoEntregador(usuario.usuarioId);
   }
 
   @Get(':id/status-disponiveis')
@@ -64,6 +83,18 @@ export class PedidoController {
       Number(usuario.empresaId),
       idPedido,
       dto.cpfEntregador,
+    );
+  }
+
+  @Get(':id/historico-entregadores')
+  @Cargos(Cargo.ESTABELECIMENTO)
+  listarHistoricoDeEntregadores(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param('id', ParseIntPipe) idPedido: number,
+  ) {
+    return this.pedidoService.listarHistoricoDeEntregadores(
+      Number(usuario.empresaId),
+      idPedido,
     );
   }
 }
