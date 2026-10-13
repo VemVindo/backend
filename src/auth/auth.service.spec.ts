@@ -13,16 +13,27 @@ import { CadastrarEmpresaDto } from './dto/cadastrar-empresa.dto';
 jest.mock('../prisma/prisma.service', () => ({ PrismaService: class {} }));
 
 const CPF_FICTICIO = '52998224725';
+const DAQUI_A_UM_DIA = new Date(Date.now() + 24 * 60 * 60 * 1000);
+const ONTEM = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
 function montar() {
   const empresas = {
     procurarPorEmail: jest.fn().mockResolvedValue(null),
     procurarPorDocumento: jest.fn().mockResolvedValue(null),
     criar: jest.fn(),
+    encerrarSessoes: jest.fn().mockResolvedValue(undefined),
   };
   const entregadores = {
     procurarPorCpf: jest.fn().mockResolvedValue(null),
-    atualizarSenha: jest.fn().mockResolvedValue({}),
+    atualizarSenha: jest.fn((cpf: string) =>
+      Promise.resolve({
+        cpf,
+        nome: 'Entregador Teste',
+        senha_temporaria: false,
+        sessao_versao: 1,
+      }),
+    ),
+    encerrarSessoes: jest.fn().mockResolvedValue(undefined),
   };
   const jwt = {
     sign: jest.fn().mockReturnValue('token'),
@@ -76,12 +87,13 @@ describe('AuthService.cadastrarEmpresa', () => {
     );
   });
 
-  it('assina o token com cargo e empresaId e devolve usuario', async () => {
+  it('assina o token com cargo, empresaId e versao da sessao', async () => {
     const { service, empresas, jwt } = montar();
     empresas.criar.mockResolvedValue({
       id_empresa: 7,
       nome_fantasia: 'Loja Teste',
       email: 'loja@example.com',
+      sessao_versao: 0,
     });
 
     const resposta = await service.cadastrarEmpresa(cadastro);
@@ -90,6 +102,7 @@ describe('AuthService.cadastrarEmpresa', () => {
       sub: '7',
       cargo: Cargo.ESTABELECIMENTO,
       empresaId: '7',
+      versao: 0,
     });
     expect(resposta.tokenAcesso).toBe('token');
     expect(resposta.expiraEm).toEqual(new Date(1_900_000_000 * 1000));
@@ -119,13 +132,15 @@ describe('AuthService login', () => {
     expect(senha.verificar).toHaveBeenCalledWith('x', undefined);
   });
 
-  it('autentica entregador com senha correta', async () => {
-    const { service, entregadores, senha } = montar();
+  it('autentica entregador com senha temporaria dentro do prazo', async () => {
+    const { service, entregadores, senha, jwt } = montar();
     entregadores.procurarPorCpf.mockResolvedValue({
       cpf: CPF_FICTICIO,
       nome: 'Entregador Teste',
       senha: 'hash',
       senha_temporaria: true,
+      senha_temporaria_expira_em: DAQUI_A_UM_DIA,
+      sessao_versao: 3,
     });
     senha.verificar.mockResolvedValue(true);
 
@@ -134,12 +149,92 @@ describe('AuthService login', () => {
       senha: 'x',
     });
 
+    expect(jwt.sign).toHaveBeenCalledWith(
+      expect.objectContaining({ sub: CPF_FICTICIO, versao: 3 }),
+    );
     expect(resposta.usuario).toEqual({
       cpf: CPF_FICTICIO,
       nome: 'Entregador Teste',
       cargo: Cargo.ENTREGADOR,
       senhaTemporaria: true,
     });
+  });
+});
+
+describe('AuthService login com senha temporaria expirada', () => {
+  it('recusa mesmo com a senha certa', async () => {
+    const { service, entregadores, senha, jwt } = montar();
+    entregadores.procurarPorCpf.mockResolvedValue({
+      cpf: CPF_FICTICIO,
+      senha: 'hash',
+      senha_temporaria: true,
+      senha_temporaria_expira_em: ONTEM,
+    });
+    senha.verificar.mockResolvedValue(true);
+
+    await expect(
+      service.loginEntregador({ cpf: CPF_FICTICIO, senha: 'x' }),
+    ).rejects.toThrow(/expirada/);
+    expect(jwt.sign).not.toHaveBeenCalled();
+  });
+
+  it('recusa senha temporaria sem prazo gravado', async () => {
+    const { service, entregadores, senha } = montar();
+    entregadores.procurarPorCpf.mockResolvedValue({
+      cpf: CPF_FICTICIO,
+      senha: 'hash',
+      senha_temporaria: true,
+      senha_temporaria_expira_em: null,
+    });
+    senha.verificar.mockResolvedValue(true);
+
+    await expect(
+      service.loginEntregador({ cpf: CPF_FICTICIO, senha: 'x' }),
+    ).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('ignora o prazo de quem ja criou a propria senha', async () => {
+    const { service, entregadores, senha } = montar();
+    entregadores.procurarPorCpf.mockResolvedValue({
+      cpf: CPF_FICTICIO,
+      nome: 'Entregador Teste',
+      senha: 'hash',
+      senha_temporaria: false,
+      senha_temporaria_expira_em: null,
+      sessao_versao: 0,
+    });
+    senha.verificar.mockResolvedValue(true);
+
+    await expect(
+      service.loginEntregador({ cpf: CPF_FICTICIO, senha: 'x' }),
+    ).resolves.toBeDefined();
+  });
+});
+
+describe('AuthService.sairDeTodosOsAparelhos', () => {
+  it('encerra as sessoes da empresa', async () => {
+    const { service, empresas, entregadores } = montar();
+
+    await service.sairDeTodosOsAparelhos({
+      usuarioId: '7',
+      cargo: Cargo.ESTABELECIMENTO,
+      empresaId: '7',
+    });
+
+    expect(empresas.encerrarSessoes).toHaveBeenCalledWith(7);
+    expect(entregadores.encerrarSessoes).not.toHaveBeenCalled();
+  });
+
+  it('encerra as sessoes do entregador', async () => {
+    const { service, empresas, entregadores } = montar();
+
+    await service.sairDeTodosOsAparelhos({
+      usuarioId: CPF_FICTICIO,
+      cargo: Cargo.ENTREGADOR,
+    });
+
+    expect(entregadores.encerrarSessoes).toHaveBeenCalledWith(CPF_FICTICIO);
+    expect(empresas.encerrarSessoes).not.toHaveBeenCalled();
   });
 });
 
@@ -150,7 +245,26 @@ describe('AuthService.trocarSenhaEntregador', () => {
     nome: 'Entregador Teste',
     senha: 'hash',
     senha_temporaria: true,
+    senha_temporaria_expira_em: DAQUI_A_UM_DIA,
+    sessao_versao: 0,
   };
+
+  it('recusa trocar uma senha temporaria que ja expirou', async () => {
+    const { service, entregadores } = montar();
+    entregadores.procurarPorCpf.mockResolvedValue({
+      ...temporario,
+      senha_temporaria_expira_em: ONTEM,
+    });
+
+    await expect(
+      service.trocarSenhaEntregador(usuario, {
+        senhaAtual: 'Temp@2026',
+        novaSenha: 'NovaSenha@1',
+        cienteDadosCompartilhados: true,
+      }),
+    ).rejects.toThrow(/expirada/);
+    expect(entregadores.atualizarSenha).not.toHaveBeenCalled();
+  });
 
   it('recusa nova senha igual a atual', async () => {
     const { service, entregadores } = montar();
@@ -195,6 +309,21 @@ describe('AuthService.trocarSenhaEntregador', () => {
       expect.any(Date),
     );
     expect(resposta.usuario.senhaTemporaria).toBe(false);
+  });
+
+  it('emite o token novo com a versao de sessao ja incrementada', async () => {
+    const { service, entregadores, jwt } = montar();
+    entregadores.procurarPorCpf.mockResolvedValue(temporario);
+
+    await service.trocarSenhaEntregador(usuario, {
+      senhaAtual: 'Temp@2026',
+      novaSenha: 'NovaSenha@1',
+      cienteDadosCompartilhados: true,
+    });
+
+    expect(jwt.sign).toHaveBeenCalledWith(
+      expect.objectContaining({ versao: 1, senhaTemporaria: false }),
+    );
   });
 
   it('fora do primeiro acesso troca sem pedir a ciencia de novo', async () => {

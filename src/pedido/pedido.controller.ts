@@ -5,20 +5,27 @@ import {
   Param,
   ParseIntPipe,
   Patch,
+  Post,
 } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
 import { Cargos } from '../auth/decorators/cargos.decorator';
 import { UsuarioAtual } from '../auth/decorators/usuario-atual.decorator';
 import type { UsuarioAutenticado } from '../auth/jwt.strategy';
 import { Cargo } from '../common/enums/cargo.enum';
 import { AtualizarStatusPedidoDto } from './dto/atualizar-status-pedido.dto';
+import { CriaPedidoReqDto, CriaPedidoResDto } from './dto/cria-pedido.dto';
 import { ReatribuirPedidoDto } from './dto/reatribuir-pedido.dto';
 import { PedidoService } from './pedido.service';
 
 @Controller('pedidos')
 export class PedidoController {
-  constructor(
-    private readonly pedidoService: PedidoService,
-  ) { }
+  constructor(private readonly pedidoService: PedidoService) {}
+
+  @Post('criar')
+  async criar(@Body() pedidoDto: CriaPedidoReqDto): Promise<CriaPedidoResDto> {
+    const pedido = await this.pedidoService.criar(pedidoDto);
+    return plainToInstance(CriaPedidoResDto, pedido);
+  }
 
   @Get(':id/status-disponiveis')
   @Cargos(Cargo.ENTREGADOR)

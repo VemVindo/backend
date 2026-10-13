@@ -91,6 +91,17 @@ export class AuthController {
   }
 
   @PermitirSenhaTemporaria()
+  @Post('sair-de-todos')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async sairDeTodosOsAparelhos(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.authService.sairDeTodosOsAparelhos(usuario);
+    limparCookieAuth(res);
+  }
+
+  @PermitirSenhaTemporaria()
   @Get('minhas-infos')
   minhasInformacoes(@UsuarioAtual() usuario: UsuarioAutenticado) {
     return this.authService.minhasInformacoes(usuario);

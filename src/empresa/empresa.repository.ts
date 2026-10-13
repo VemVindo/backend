@@ -68,4 +68,19 @@ export class EmpresaRepository {
       },
     });
   }
+
+  async versaoSessao(id: number): Promise<number | null> {
+    const empresa = await this.prisma.empresa.findUnique({
+      where: { id_empresa: id },
+      select: { sessao_versao: true },
+    });
+    return empresa?.sessao_versao ?? null;
+  }
+
+  async encerrarSessoes(id: number): Promise<void> {
+    await this.prisma.empresa.update({
+      where: { id_empresa: id },
+      data: { sessao_versao: { increment: 1 } },
+    });
+  }
 }

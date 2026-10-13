@@ -4,8 +4,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { StatusPedido } from '../common/enums/status-pedido.enum';
-import { PedidoRepository } from './pedido.repository';
 import { EntregadorRepository } from '../entregador/entregador.repository';
+import { Pedido } from '../generated/prisma/client';
+import { CriaPedidoReqDto } from './dto/cria-pedido.dto';
+import { StatusFactory } from './factories/status.factory';
+import { PedidoRepository } from './pedido.repository';
 import {
   obterStatusDisponiveis,
   transicaoPermitida,
@@ -16,7 +19,13 @@ export class PedidoService {
   constructor(
     private readonly pedidoRepository: PedidoRepository,
     private readonly entregadorRepository: EntregadorRepository,
-  ) { }
+  ) {}
+
+  async criar(pedido: CriaPedidoReqDto): Promise<Pedido> {
+    pedido.status = StatusFactory.criar(pedido.cpf_entregador);
+    pedido.data_criacao = new Date().toISOString();
+    return this.pedidoRepository.criar(pedido);
+  }
 
   async atualizarStatus(
     cpfEntregador: string,
