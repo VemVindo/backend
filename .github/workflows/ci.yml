@@ -248,6 +248,11 @@ jobs:
       # Falha em vulnerabilidade CRITICAL que ja tem correcao publicada.
       - name: Varredura da imagem (Trivy)
         uses: aquasecurity/trivy-action@v0.36.0
+        # So a tabela dos achados, sem o resumo de cada package.json da imagem.
+        env:
+          TRIVY_TABLE_MODE: detailed
+          TRIVY_SKIP_VERSION_CHECK: 'true'
+          TRIVY_DISABLE_VEX_NOTICE: 'true'
         with:
           image-ref: vemvindo-backend:ci
           severity: CRITICAL
