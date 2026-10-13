@@ -325,10 +325,21 @@ jobs:
         with:
           node-version: 24.21.0
 
-      - uses: actions/download-artifact@v8
+      # Um download por artifact, cada um na sua pasta. Com "pattern", um
+      # artifact sozinho e extraido sem a subpasta e os caminhos mudam.
+      - name: Baixar resultados dos testes
+        uses: actions/download-artifact@v8
+        continue-on-error: true
         with:
-          pattern: resultados-*
-          path: resultados
+          name: resultados-testes
+          path: resultados/testes
+
+      - name: Baixar resultados do e2e
+        uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: resultados-e2e
+          path: resultados/e2e
 
       - name: Montar resumo
         env:
@@ -337,10 +348,10 @@ jobs:
           node scripts/ci/relatorio.mjs resumo
           --projeto backend
           --etapas "$NEEDS"
-          --testes resultados/resultados-testes/reports/jest-results.json
-          --cobertura resultados/resultados-testes/coverage/coverage-summary.json
-          --base resultados/resultados-testes/baseline/coverage-summary.json
-          --api resultados/resultados-e2e/newman.json
+          --testes resultados/testes/reports/jest-results.json
+          --cobertura resultados/testes/coverage/coverage-summary.json
+          --base resultados/testes/baseline/coverage-summary.json
+          --api resultados/e2e/newman.json
           --saida relatorio.md
 
       # PR de fork recebe token so de leitura: o relatorio fica so no resumo.
@@ -356,7 +367,7 @@ jobs:
         uses: dorny/test-reporter@v3
         with:
           name: Testes unitarios (detalhe)
-          path: resultados/resultados-testes/reports/junit.xml
+          path: resultados/testes/reports/junit.xml
           reporter: jest-junit
           fail-on-error: false
           fail-on-empty: false
