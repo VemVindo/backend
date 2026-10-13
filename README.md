@@ -73,6 +73,17 @@ Todos os dados são fictícios.
 | Entregador | `98765432100` (Bruno) | `Vemvindo@123` | ativo na Cantina, convite pendente da Padaria |
 | Entregador | `24681357928` (Carla) | `Vemvindo@123` | bicicleta, sem placa |
 
+Pedidos (só entram com a tabela de pedidos vazia):
+
+- **Cantina:**
+  - dois pedidos `PENDENTE`, sem entregador;
+  - um `FINALIZADO` pelo Bruno.
+- **Padaria:**
+  - um `EM_ANDAMENTO` com a Carla, que por isso começa indisponível;
+  - um `FINALIZADO` pela Carla.
+
+Cada pedido com entregador abre o histórico de entregadores, como faz a API.
+
 Para voltar ao estado inicial (por exemplo, refazer o primeiro acesso da Ana):
 `docker compose down -v && docker compose up`.
 
