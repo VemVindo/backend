@@ -1,5 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import {
+  IsIn,
   IsNotEmpty,
   IsNumberString,
   IsOptional,
@@ -36,6 +37,11 @@ export class EnvironmentVariables {
   @IsNumberString()
   @IsOptional()
   TRUST_PROXY?: string;
+
+  // 'none' quando front e API estao em sites diferentes. Default: 'lax'.
+  @IsIn(['lax', 'none'])
+  @IsOptional()
+  COOKIE_SAMESITE?: 'lax' | 'none';
 }
 
 export function validateEnv(

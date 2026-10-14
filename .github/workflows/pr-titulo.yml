@@ -1,0 +1,34 @@
+name: PR
+
+# Separado do CI para rodar quando so o titulo muda, sem refazer os testes.
+# Com squash merge, o titulo do PR vira a mensagem do commit na main.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  titulo:
+    name: Titulo do PR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            refactor
+            test
+            docs
+            chore
+            ci
+            build
+            perf
+            style
+            revert
+          requireScope: false
