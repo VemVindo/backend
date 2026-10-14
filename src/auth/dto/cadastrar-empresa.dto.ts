@@ -23,36 +23,7 @@ import {
 } from '../../common/security/senha.constants';
 import { IsCnpj } from '../../common/validators/is-cnpj.validator';
 import { IsCpf } from '../../common/validators/is-cpf.validator';
-
-const UFS = [
-  'AC',
-  'AL',
-  'AP',
-  'AM',
-  'BA',
-  'CE',
-  'DF',
-  'ES',
-  'GO',
-  'MA',
-  'MT',
-  'MS',
-  'MG',
-  'PA',
-  'PB',
-  'PR',
-  'PE',
-  'PI',
-  'RJ',
-  'RN',
-  'RS',
-  'RO',
-  'RR',
-  'SC',
-  'SP',
-  'SE',
-  'TO',
-];
+import { UFS } from '../../common/constantes/ufs';
 
 export class CadastrarEmpresaDto {
   @Trim()
