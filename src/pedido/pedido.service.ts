@@ -1,16 +1,213 @@
-import { Injectable } from '@nestjs/common';
-import { CriaPedidoReqDto } from './dto/cria-pedido.dto';
-import { StatusFactory } from './factories/status.factory';
-import { PedidoRepository } from './pedido.repository';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { EntregadorRepository } from '../entregador/entregador.repository';
 import { Pedido } from '../generated/prisma/client';
+import { StatusPedido } from '../generated/prisma/enums';
+import { CriaPedidoReqDto } from './dto/cria-pedido.dto';
+import {
+  HistoricoEntregadorDto,
+  paraHistoricoEntregador,
+} from './dto/historico-entregador.dto';
+import {
+  paraPedidoDoEntregador,
+  PedidoDoEntregadorDto,
+} from './dto/pedido-do-entregador.dto';
+import { paraPedidoResumo, PedidoResumoDto } from './dto/pedido-resumo.dto';
+import { StatusFactory } from './factories/status.factory';
+import {
+  EntregadorIndisponivelError,
+  PedidoAlteradoError,
+} from './pedido.erros';
+import { PedidoRepository } from './pedido.repository';
+import {
+  obterStatusDisponiveis,
+  statusFinal,
+  transicaoPermitida,
+} from './regras/status-pedido.regra';
+
+const STATUS_REATRIBUIVEIS: readonly StatusPedido[] = [
+  StatusPedido.PENDENTE,
+  StatusPedido.EM_ANDAMENTO,
+];
 
 @Injectable()
 export class PedidoService {
-  constructor(private readonly pedidoRepository: PedidoRepository) {}
+  constructor(
+    private readonly pedidoRepository: PedidoRepository,
+    private readonly entregadorRepository: EntregadorRepository,
+  ) {}
 
-  async criar(pedido: CriaPedidoReqDto): Promise<Pedido> {
+  async criar(idEmpresa: number, pedido: CriaPedidoReqDto): Promise<Pedido> {
+    if (pedido.cpf_entregador) {
+      await this.exigirEntregadorDisponivel(idEmpresa, pedido.cpf_entregador);
+    }
+
     pedido.status = StatusFactory.criar(pedido.cpf_entregador);
     pedido.data_criacao = new Date().toISOString();
-    return this.pedidoRepository.criar(pedido);
+    return this.comControleDeConcorrencia(() =>
+      this.pedidoRepository.criar(pedido, idEmpresa),
+    );
+  }
+
+  async listarDaEmpresa(idEmpresa: number): Promise<PedidoResumoDto[]> {
+    const pedidos = await this.pedidoRepository.listarDaEmpresa(idEmpresa);
+    return pedidos.map(paraPedidoResumo);
+  }
+
+  async listarDoEntregador(
+    cpfEntregador: string,
+  ): Promise<PedidoDoEntregadorDto[]> {
+    const pedidos =
+      await this.pedidoRepository.listarDoEntregador(cpfEntregador);
+    return pedidos.map(paraPedidoDoEntregador);
+  }
+
+  async atualizarStatus(
+    cpfEntregador: string,
+    idPedido: number,
+    novoStatus: StatusPedido,
+  ): Promise<PedidoResumoDto> {
+    const pedido = await this.pedidoRepository.procurarAtribuidoAoEntregador(
+      idPedido,
+      cpfEntregador,
+    );
+
+    if (!pedido) {
+      throw new NotFoundException('Pedido não encontrado');
+    }
+
+    if (!transicaoPermitida(pedido.status, novoStatus)) {
+      throw new ConflictException(
+        `Não é permitido alterar o pedido de ${pedido.status} para ${novoStatus}`,
+      );
+    }
+
+    const atualizado = await this.comControleDeConcorrencia(() =>
+      this.pedidoRepository.atualizarStatus({
+        idPedido,
+        cpfEntregador,
+        statusAtual: pedido.status,
+        novoStatus,
+        finalizar: statusFinal(novoStatus),
+      }),
+    );
+
+    return paraPedidoResumo(atualizado);
+  }
+
+  async obterStatusDisponiveis(cpfEntregador: string, idPedido: number) {
+    const pedido = await this.pedidoRepository.procurarAtribuidoAoEntregador(
+      idPedido,
+      cpfEntregador,
+    );
+
+    if (!pedido) {
+      throw new NotFoundException('Pedido não encontrado');
+    }
+
+    return {
+      statusAtual: pedido.status,
+      statusDisponiveis: obterStatusDisponiveis(pedido.status),
+    };
+  }
+
+  async reatribuir(
+    idEmpresa: number,
+    idPedido: number,
+    cpfNovoEntregador: string,
+  ): Promise<PedidoResumoDto> {
+    const pedido = await this.pedidoRepository.procurarPorEmpresa(
+      idPedido,
+      idEmpresa,
+    );
+
+    if (!pedido) {
+      throw new NotFoundException('Pedido não encontrado');
+    }
+
+    if (!STATUS_REATRIBUIVEIS.includes(pedido.status)) {
+      throw new ConflictException(
+        'Pedido não pode ser reatribuído no status atual',
+      );
+    }
+
+    if (pedido.cpf_entregador === cpfNovoEntregador) {
+      throw new ConflictException(
+        'O entregador informado já está atribuído ao pedido',
+      );
+    }
+
+    await this.exigirEntregadorDisponivel(idEmpresa, cpfNovoEntregador);
+
+    const reatribuido = await this.comControleDeConcorrencia(() =>
+      this.pedidoRepository.reatribuir({
+        idPedido,
+        statusAtual: pedido.status,
+        cpfAnterior: pedido.cpf_entregador,
+        cpfNovo: cpfNovoEntregador,
+      }),
+    );
+
+    return paraPedidoResumo(reatribuido);
+  }
+
+  async listarHistoricoDeEntregadores(
+    idEmpresa: number,
+    idPedido: number,
+  ): Promise<HistoricoEntregadorDto[]> {
+    const pedido = await this.pedidoRepository.procurarPorEmpresa(
+      idPedido,
+      idEmpresa,
+    );
+
+    if (!pedido) {
+      throw new NotFoundException('Pedido não encontrado');
+    }
+
+    const registros =
+      await this.pedidoRepository.listarHistoricoDeEntregadores(idPedido);
+    return registros.map(paraHistoricoEntregador);
+  }
+
+  // Vinculo ATIVO: a empresa so atribui entregador da propria frota.
+  private async exigirEntregadorDisponivel(
+    idEmpresa: number,
+    cpfEntregador: string,
+  ): Promise<void> {
+    const entregador = await this.entregadorRepository.procurarAtivoPorEmpresa(
+      idEmpresa,
+      cpfEntregador,
+    );
+
+    if (!entregador) {
+      throw new NotFoundException(
+        'Entregador não encontrado na frota da empresa',
+      );
+    }
+
+    if (!entregador.disponivel) {
+      throw new ConflictException('Entregador não está disponível');
+    }
+  }
+
+  private async comControleDeConcorrencia<T>(
+    escrita: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await escrita();
+    } catch (erro) {
+      if (erro instanceof PedidoAlteradoError) {
+        throw new ConflictException(
+          'O pedido foi alterado por outra operação; atualize e tente novamente',
+        );
+      }
+      if (erro instanceof EntregadorIndisponivelError) {
+        throw new ConflictException('Entregador não está disponível');
+      }
+      throw erro;
+    }
   }
 }

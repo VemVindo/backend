@@ -65,7 +65,7 @@ model Pedido {
   cidade              String
   uf                  String
   descricao           String
-  status              String
+  status              StatusPedido @default(PENDENTE)
   data_criacao        DateTime
   data_inicio_entrega DateTime?
   data_finalizacao    DateTime?
@@ -102,17 +102,28 @@ model Avaliacao {
   pedido Pedido @relation(fields: [idpedidos], references: [id_pedido])
 }
 
+// cpf_entregador_antigo nulo indica a primeira atribuicao de um pedido PENDENTE.
 model HistoricoPedidoEntregadores {
   id_historico          Int      @id @default(autoincrement())
   id_pedido             Int
-  cpf_entregador_antigo String
+  cpf_entregador_antigo String?
   cpf_entregador_novo   String
   data                  DateTime
 
   pedido Pedido @relation(fields: [id_pedido], references: [id_pedido])
 
-  entregadorAntigo Entregador @relation("EntregadorAntigo", fields: [cpf_entregador_antigo], references: [cpf])
-  entregadorNovo   Entregador @relation("EntregadorNovo", fields: [cpf_entregador_novo], references: [cpf])
+  entregadorAntigo Entregador? @relation("EntregadorAntigo", fields: [cpf_entregador_antigo], references: [cpf], onDelete: Restrict)
+  entregadorNovo   Entregador  @relation("EntregadorNovo", fields: [cpf_entregador_novo], references: [cpf])
+
+  @@index([id_pedido])
+}
+
+// PENDENTE e o unico status sem entregador; atribuir um entregador leva a EM_ANDAMENTO.
+enum StatusPedido {
+  PENDENTE
+  EM_ANDAMENTO
+  FINALIZADO
+  CANCELADO
 }
 
 // RECUSADO e ENCERRADO preenchem data_fim; o indice parcial abaixo depende disso.

@@ -29,6 +29,23 @@ export class EntregadorRepository {
     });
   }
 
+  procurarAtivoPorEmpresa(
+    idEmpresa: number,
+    cpfEntregador: string,
+  ): Promise<Entregador | null> {
+    return this.prisma.entregador.findFirst({
+      where: {
+        cpf: cpfEntregador,
+        contratos: {
+          some: {
+            idEmpresa,
+            status: StatusContrato.ATIVO,
+          },
+        },
+      },
+    });
+  }
+
   criarComConvite(
     dados: DadosNovoEntregador,
     idEmpresa: number,
