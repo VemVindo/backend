@@ -156,6 +156,8 @@ model AcessoRecebedor {
   data_criacao     DateTime @default(now())
 
   pedido Pedido @relation(fields: [idPedido], references: [id_pedido])
+}
+
 model CredencialIntegracao {
   id_credencial  Int       @id @default(autoincrement())
   idEmpresa      Int
