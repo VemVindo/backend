@@ -6,7 +6,7 @@ import {
   PedidoImportado,
   Prisma,
 } from '../../generated/prisma/client';
-import { SituacaoImportacao } from '../../generated/prisma/enums';
+import { SituacaoImportacao, StatusPedido } from '../../generated/prisma/enums';
 import { DadosPedidoExterno } from './analise-pedido-externo';
 
 export interface DadosNovoPedido {
@@ -20,7 +20,7 @@ export interface DadosNovoPedido {
   cidade: string;
   uf: string;
   descricao: string;
-  status: string;
+  status: StatusPedido;
   data_criacao: Date;
   valor_entrega: number;
   distancia: number;

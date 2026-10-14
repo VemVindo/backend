@@ -7,6 +7,7 @@ import type {
   Pedido,
   PedidoImportado,
 } from '../../generated/prisma/client';
+import { StatusPedido } from '../../generated/prisma/enums';
 import { CalculoValorEntregaService } from '../../remuneracao/calculo-valor-entrega.service';
 import {
   ImportacaoRepository,
@@ -89,7 +90,7 @@ describe('ImportacaoService.importar', () => {
     expect(idExterno).toBe('PED-1');
     expect(pedido).toEqual(
       expect.objectContaining({
-        status: 'Pendente',
+        status: StatusPedido.PENDENTE,
         distancia: 0,
         valor_entrega: 800,
         complemento: null,
