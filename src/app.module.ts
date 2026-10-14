@@ -13,6 +13,7 @@ import { HealthController } from './health/health.controller';
 import { EmpresaModule } from './empresa/empresa.module';
 import { EntregadorModule } from './entregador/entregador.module';
 import { VinculoModule } from './vinculo/vinculo.module';
+import { RastreioModule } from './rastreio/rastreio.module';
 import { PedidoModule } from './pedido/pedido.module';
 import { IntegracaoModule } from './integracao/integracao.module';
 
@@ -25,6 +26,7 @@ import { IntegracaoModule } from './integracao/integracao.module';
     EmpresaModule,
     EntregadorModule,
     VinculoModule,
+    RastreioModule,
     AuthModule,
     PedidoModule,
     IntegracaoModule,
