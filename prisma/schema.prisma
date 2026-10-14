@@ -75,7 +75,8 @@ model Pedido {
   distancia           Int
 
   empresa    Empresa     @relation(fields: [idEmpresa], references: [id_empresa])
-  entregador Entregador? @relation(fields: [cpf_entregador], references: [cpf])
+  // Igual a FK da migration: entregador com pedido nao pode ser apagado.
+  entregador Entregador? @relation(fields: [cpf_entregador], references: [cpf], onDelete: Restrict)
 
   avaliacao  Avaliacao?
   historicos HistoricoPedidoEntregadores[]

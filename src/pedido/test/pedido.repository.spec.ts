@@ -28,8 +28,7 @@ describe('PedidoRepository', () => {
     });
     it('CAIXA CINZA: Fluxo Completo', () => {
       const dummyReq = {} as CriaPedidoReqDto;
-      const dummyRes = {} as Promise<Pedido>;
-      jest.spyOn(prisma.pedido, 'create').mockImplementation(() => dummyRes);
+      jest.spyOn(prisma.pedido, 'create').mockResolvedValue({} as Pedido);
       const result = service.criar(dummyReq);
       expect(result).toBeInstanceOf(Promise<Pedido>);
     });
