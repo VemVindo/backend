@@ -24,7 +24,7 @@ jobs:
     name: Lint e formatacao
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/preparar
       - run: npm run lint:check
       - run: npm run format:check
@@ -33,7 +33,7 @@ jobs:
     name: Typecheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/preparar
       - run: npm run typecheck
 
@@ -44,7 +44,7 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/preparar
 
       # Falha se algum teste falhar ou se a cobertura de linhas ficar abaixo
@@ -116,7 +116,7 @@ jobs:
       JWT_SECRET: segredo-de-teste-do-ci-com-mais-de-32-caracteres
       PORT: '3000'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/preparar
 
       # Prova que as migrations sobem num banco limpo e que o seed roda.
@@ -181,7 +181,7 @@ jobs:
     env:
       DIRECT_URL: postgresql://ci:ci@localhost:5432/vemvindo_ci
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/preparar
 
       - name: Aplicar migrations
@@ -200,7 +200,7 @@ jobs:
     name: Seguranca de dependencias
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # Bloqueia vulnerabilidade alta ou critica no que vai para producao.
       # Dependencias de desenvolvimento ficam de fora porque nao entram na imagem.
@@ -226,7 +226,7 @@ jobs:
     outputs:
       imagem: ${{ steps.nome.outputs.imagem }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # O GHCR exige nome em minusculas (VemVindo -> vemvindo).
       - name: Nome da imagem
@@ -319,9 +319,9 @@ jobs:
       checks: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24.21.0
 
