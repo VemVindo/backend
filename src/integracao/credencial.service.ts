@@ -73,8 +73,6 @@ export class CredencialService {
     }
   }
 
-  // A empresa vem sempre da credencial, nunca do corpo da requisicao: uma chave
-  // so enxerga os dados do estabelecimento que a gerou.
   async autenticar(chave: string): Promise<IntegracaoAutenticada | null> {
     const prefixo = extrairPrefixo(chave);
     if (!prefixo) {

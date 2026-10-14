@@ -26,8 +26,6 @@ export class CredencialRepository {
     });
   }
 
-  // Revoga a ativa e cria a nova na mesma transacao: a empresa nunca fica com
-  // duas chaves validas nem sem nenhuma no meio da troca.
   substituir(
     idEmpresa: number,
     prefixo: string,

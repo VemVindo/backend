@@ -44,7 +44,6 @@ export class CredencialController {
     return this.credencialService.revogar(Number(usuario.empresaId));
   }
 
-  // Para o estabelecimento testar a chave no sistema dele antes de integrar.
   @AutenticarIntegracao()
   @Get('verificar')
   verificar(@EmpresaDaIntegracao() empresaId: number) {
