@@ -1,4 +1,14 @@
-import { IsOptional, IsString, IsNumber, IsEmpty } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsNumber,
+  IsEmpty,
+  IsEnum,
+  IsInt,
+  IsPositive,
+  Min,
+} from 'class-validator';
+import { StatusPedido } from '../../generated/prisma/enums';
 
 export class CriaPedidoReqDto {
   @IsEmpty()
@@ -16,7 +26,8 @@ export class CriaPedidoReqDto {
   @IsString()
   logradouro!: string;
 
-  @IsNumber()
+  @IsInt()
+  @IsPositive()
   numero!: number;
 
   @IsOptional()
@@ -36,7 +47,7 @@ export class CriaPedidoReqDto {
   descricao!: string;
 
   @IsEmpty()
-  status!: string;
+  status!: StatusPedido;
 
   @IsEmpty()
   data_criacao!: string;
@@ -47,13 +58,13 @@ export class CriaPedidoReqDto {
   @IsEmpty()
   data_finalizacao!: string;
 
-  @IsNumber()
+  // Valor em centavos e distancia em metros: as colunas sao Int.
+  @IsInt()
+  @Min(0)
   valor_entrega!: number;
 
-  @IsNumber()
-  idEmpresa!: number;
-
-  @IsNumber()
+  @IsInt()
+  @Min(0)
   distancia!: number;
 
   @IsOptional()
@@ -96,8 +107,8 @@ export class CriaPedidoResDto {
   @IsString()
   descricao!: string;
 
-  @IsString()
-  status!: string;
+  @IsEnum(StatusPedido)
+  status!: StatusPedido;
 
   @IsString()
   data_criacao!: string;

@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: vemvindo-backend:prod
-    # Imagem so existe localmente: sempre builda, nunca tenta pull do Docker Hub.
+    # Imagem so existe localmente: sempre builda, nunca reaproveita codigo antigo.
     pull_policy: build
     container_name: vemvindo-backend-prod
     # Opt-in: so sobe com --profile prod ou nomeando o servico. Fora do "up" padrao.
@@ -21,7 +21,7 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     image: vemvindo-backend:dev
-    # Imagem so existe localmente: sempre builda, nunca tenta pull do Docker Hub.
+    # Imagem so existe localmente: sempre builda, nunca reaproveita codigo antigo.
     pull_policy: build
     container_name: vemvindo-backend-dev
     # Desenvolvimento usa o Postgres local do servico "database".
