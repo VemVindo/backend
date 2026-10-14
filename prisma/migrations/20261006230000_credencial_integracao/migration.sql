@@ -1,4 +1,3 @@
--- CreateTable
 CREATE TABLE "CredencialIntegracao" (
     "id_credencial" SERIAL NOT NULL,
     "idEmpresa" INTEGER NOT NULL,
@@ -11,11 +10,8 @@ CREATE TABLE "CredencialIntegracao" (
     CONSTRAINT "CredencialIntegracao_pkey" PRIMARY KEY ("id_credencial")
 );
 
--- CreateIndex
 CREATE UNIQUE INDEX "CredencialIntegracao_prefixo_key" ON "CredencialIntegracao"("prefixo");
 
--- CreateIndex
 CREATE UNIQUE INDEX "CredencialIntegracao_ativa_key" ON "CredencialIntegracao"("idEmpresa") WHERE ("data_revogacao" IS NULL);
 
--- AddForeignKey
 ALTER TABLE "CredencialIntegracao" ADD CONSTRAINT "CredencialIntegracao_idEmpresa_fkey" FOREIGN KEY ("idEmpresa") REFERENCES "Empresa"("id_empresa") ON DELETE RESTRICT ON UPDATE CASCADE;
