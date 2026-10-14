@@ -50,6 +50,35 @@ describe('definirCookieAuth / limparCookieAuth', () => {
     );
   });
 
+  describe('com COOKIE_SAMESITE=none', () => {
+    const original = process.env.COOKIE_SAMESITE;
+
+    beforeEach(() => {
+      process.env.COOKIE_SAMESITE = 'none';
+    });
+
+    afterEach(() => {
+      if (original === undefined) {
+        delete process.env.COOKIE_SAMESITE;
+      } else {
+        process.env.COOKIE_SAMESITE = original;
+      }
+    });
+
+    it('envia SameSite=None e forca Secure', () => {
+      const cookie = jest.fn();
+      const res = { cookie } as unknown as Response;
+
+      definirCookieAuth(res, 'token', new Date('2030-01-01T00:00:00Z'));
+
+      expect(cookie).toHaveBeenCalledWith(
+        AUTH_COOKIE,
+        'token',
+        expect.objectContaining({ sameSite: 'none', secure: true }),
+      );
+    });
+  });
+
   it('limpa o cookie com as mesmas opcoes', () => {
     const clearCookie = jest.fn();
     const res = { clearCookie } as unknown as Response;
