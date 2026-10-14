@@ -29,6 +29,12 @@ RUN npm ci --omit=dev
 # ============================================
 FROM node:24.21.0-slim AS runner
 
+# Aplica as correcoes de seguranca do Debian publicadas depois da imagem base
+# do Node. Sem isso, o Trivy do CI barra a imagem (ex.: perl-base).
+RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /usr/src/app
 
 ENV NODE_ENV=production

@@ -13,9 +13,13 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "lint:check": "eslint \"{src,apps,libs,test}/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
+    "test:ci": "mkdir -p reports && jest --ci --coverage --json --outputFile=reports/jest-results.json --reporters=default --reporters=jest-junit",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json",
     "db:seed": "prisma db execute --file prisma/seed/dev.sql"
@@ -58,6 +62,8 @@
     "eslint-plugin-prettier": "^5.5.6",
     "globals": "^17.13.0",
     "jest": "^30.5.2",
+    "jest-junit": "^16.0.0",
+    "newman": "^6.2.1",
     "prettier": "^3.9.9",
     "source-map-support": "^0.5.21",
     "supertest": "^7.3.1",
@@ -88,9 +94,29 @@
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "**/*.(t|j)s",
+      "!generated/**",
+      "!**/test/**",
+      "!main.ts",
+      "!**/*.module.ts"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "coverageReporters": [
+      "text-summary",
+      "json-summary",
+      "lcov"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "lines": 60
+      }
+    }
+  },
+  "jest-junit": {
+    "outputDirectory": "reports",
+    "outputName": "junit.xml",
+    "classNameTemplate": "{classname}",
+    "titleTemplate": "{title}"
   }
 }

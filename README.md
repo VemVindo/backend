@@ -73,6 +73,17 @@ Todos os dados são fictícios.
 | Entregador | `98765432100` (Bruno) | `Vemvindo@123` | ativo na Cantina, convite pendente da Padaria |
 | Entregador | `24681357928` (Carla) | `Vemvindo@123` | bicicleta, sem placa |
 
+Pedidos (só entram com a tabela de pedidos vazia):
+
+- **Cantina:**
+  - dois pedidos `PENDENTE`, sem entregador;
+  - um `FINALIZADO` pelo Bruno.
+- **Padaria:**
+  - um `EM_ANDAMENTO` com a Carla, que por isso começa indisponível;
+  - um `FINALIZADO` pela Carla.
+
+Cada pedido com entregador abre o histórico de entregadores, como faz a API.
+
 Para voltar ao estado inicial (por exemplo, refazer o primeiro acesso da Ana):
 `docker compose down -v && docker compose up`.
 
@@ -149,6 +160,47 @@ Nenhum segredo é versionado. Em runtime o backend consome:
 - `CORS_ORIGIN` (default `http://localhost:3000`)
 - `PORT` (opcional)
 
+## CI/CD
+
+Cada PR para a `main` roda `.github/workflows/ci.yml`. O merge só é liberado com:
+
+- o check **CI ok** verde (ele agrega os jobs abaixo);
+- o check **Titulo do PR** verde: título em Conventional Commits, porque com squash merge o título vira o commit na main;
+- nenhum alerta alto do CodeQL;
+- **1 aprovação** de outra pessoa, dada depois do último push.
+
+| Job | Barra o merge quando |
+|---|---|
+| Lint e formatacao | ESLint ou Prettier apontam erro |
+| Typecheck | `tsc` falha, inclusive nos testes |
+| Testes unitarios | algum teste falha, linhas abaixo de 60% ou queda de mais de 1 ponto em relação à main |
+| Testes e2e e de API | migrations ou seed falham num banco limpo, o e2e do Jest falha ou a coleção do Postman (`test/postman/`) falha |
+| Schema e migrations | o `schema.prisma` mudou sem migration |
+| Seguranca | vulnerabilidade alta em dependência de produção, ou dependência nova com vulnerabilidade ou licença GPL/AGPL |
+| Imagem Docker | o build falha ou o Trivy acha vulnerabilidade crítica com correção |
+
+O job **Relatorio** publica no resumo da execução e num comentário fixo do PR:
+
+- a porcentagem de testes passando;
+- a cobertura comparada com a main;
+- o resultado de cada etapa.
+
+O push na main publica a imagem no GHCR, faz o deploy no Render e confere a URL pública.
+
+Configuração única, feita por quem é admin do repositório:
+
+```bash
+# protecao da main (aprovacao, checks obrigatorios, squash)
+gh api -X POST repos/VemVindo/backend/rulesets --input .github/rulesets/main.json
+```
+
+Em Settings > Secrets and variables > Actions:
+
+- secret `RENDER_DEPLOY_HOOK`;
+- variável `API_PUBLIC_URL` (smoke test do deploy).
+
+Para rodar o mesmo que o CI, localmente: `npm run lint:check && npm run format:check && npm run typecheck && npm run test:ci`.
+
 ## Scripts úteis
 
 ```bash
@@ -156,5 +208,6 @@ npm run start:dev   # dev com watch (fora de container)
 npm run build       # build de producao
 npm run lint        # eslint
 npm test            # testes
+npm run test:ci     # testes com cobertura e relatorios (o mesmo do CI)
 npm run db:seed     # dados de teste no banco de dev
 ```

@@ -6,6 +6,7 @@ import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { Cargo } from './../src/common/enums/cargo.enum';
 import { PrismaService } from './../src/prisma/prisma.service';
+import { StatusPedido } from './../src/generated/prisma/enums';
 
 const EMAIL_EMPRESA = 'e2e-pedidos@example.com';
 const CPF_COM_DOIS_PEDIDOS = '11144477735';
@@ -51,7 +52,7 @@ describe('GET /entregador/pedidos (e2e)', () => {
     idEmpresa: number,
     cpfEntregador: string,
     recebedor: string,
-    status: string,
+    status: StatusPedido,
     criadoEm: string,
   ) {
     await prisma.pedido.create({

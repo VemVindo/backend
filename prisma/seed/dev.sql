@@ -65,19 +65,41 @@ SELECT id_empresa, 800, 150, TIMESTAMP '2026-01-01 00:00:00'
 FROM "Empresa" WHERE email = 'cantina@example.com'
 ON CONFLICT DO NOTHING;
 
-INSERT INTO "Pedido" (nome_recebedor, telefone_recebedor, cep, logradouro, numero, complemento, bairro, cidade, uf, descricao, status, data_criacao, data_inicio_entrega, data_finalizacao, valor_entrega, "idEmpresa", cpf_entregador, distancia)
-SELECT v.recebedor, v.telefone, '70000000', v.logradouro, v.numero, v.complemento, v.bairro, 'Brasilia', 'DF',
-       v.descricao, v.status, NOW() - v.criado_ha, NOW() - v.iniciado_ha, NOW() - v.finalizado_ha,
-       v.valor, e.id_empresa, v.cpf, v.distancia
-FROM (VALUES
-  ('cantina@example.com', 'Carla Menezes',  '61920000001', 'SQN 210 Bloco K',  304, NULL,       'Asa Norte', 'Duas marmitas e um suco',  'EM_ANDAMENTO', INTERVAL '40 minutes', INTERVAL '20 minutes', NULL::interval,      1250, '98765432100', 3),
-  ('cantina@example.com', 'Rafael Nunes',   '61920000002', 'CLS 706 Bloco B',  12,  NULL,       'Asa Sul',   'Uma lasanha',              'PENDENTE',     INTERVAL '15 minutes', NULL::interval,        NULL::interval,      1100, '98765432100', 2),
-  ('cantina@example.com', 'Joao Pereira',   '61920000003', 'SHIN QI 9 Conj 4', 8,   'Casa 8',   'Lago Norte','Tres marmitas',            'PENDENTE',     INTERVAL '5 minutes',  NULL::interval,        NULL::interval,      1550, NULL,          5),
-  ('cantina@example.com', 'Thiago Andrade', '61920000004', 'SQS 308 Bloco C',  101, NULL,       'Asa Sul',   'Uma marmita',              'FINALIZADO',   INTERVAL '3 hours',    INTERVAL '170 minutes', INTERVAL '2 hours', 1400, '98765432100', 4),
-  ('padaria@example.com', 'Marina Costa',   '61920000005', 'CLN 110 Bloco D',  25,  NULL,       'Asa Norte', 'Cesta de paes',            'EM_ANDAMENTO', INTERVAL '30 minutes', INTERVAL '10 minutes', NULL::interval,      950,  '24681357928', 1)
-) AS v(email, recebedor, telefone, logradouro, numero, complemento, bairro, descricao, status, criado_ha, iniciado_ha, finalizado_ha, valor, cpf, distancia)
-JOIN "Empresa" e ON e.email = v.email
-WHERE NOT EXISTS (SELECT 1 FROM "Pedido" p WHERE p."idEmpresa" = e.id_empresa);
+-- Pedidos -----------------------------------------------------------------------
+-- Um de cada situacao, criados relativos a NOW() para o resumo do dia aparecer.
+-- Cantina: dois PENDENTE (sem entregador) e um FINALIZADO pelo Bruno, que fica
+-- livre para os testes de atribuicao e reatribuicao.
+-- Padaria: um EM_ANDAMENTO com a Carla (ela fica ocupada) e um FINALIZADO.
+-- Valores em centavos (taxa 800 + 150 por km) e distancia em metros.
+-- So entra no banco vazio de pedidos, para nao duplicar a cada subida.
+
+WITH novos AS (
+  INSERT INTO "Pedido" (nome_recebedor, telefone_recebedor, cep, logradouro, numero, complemento, bairro, cidade, uf, descricao,
+                        status, data_criacao, data_inicio_entrega, data_finalizacao, valor_entrega, distancia, "idEmpresa", cpf_entregador)
+  SELECT v.recebedor, v.telefone, v.cep, v.logradouro, v.numero, v.complemento, v.bairro, 'Brasilia', 'DF', v.descricao,
+         v.status::"StatusPedido", NOW() - v.criado, NOW() - v.iniciado, NOW() - v.finalizado, v.valor, v.distancia, e.id_empresa, v.cpf
+  FROM (VALUES
+    ('cantina@example.com', 'Joao Pereira',  '61920000001', '71505090', 'SHIN QI 9 Conj 4',    8,   'Casa 8',      'Lago Norte', 'Tres marmitas',           'PENDENTE',     INTERVAL '20 minutes', NULL::interval,          NULL::interval,          1430, 4200, NULL),
+    ('cantina@example.com', 'Rafael Nunes',  '61920000002', '70390070', 'SHCS 706 Bloco B',    12,  NULL,          'Asa Sul',    'Lasanha e suco',          'PENDENTE',     INTERVAL '10 minutes', NULL,                    NULL,                    1115, 2100, NULL),
+    ('cantina@example.com', 'Marina Costa',  '61920000003', '70750530', 'SQN 210 Bloco K',     304, 'Apto 304',    'Asa Norte',  'Duas marmitas',           'FINALIZADO',   INTERVAL '3 hours',    INTERVAL '170 minutes',  INTERVAL '140 minutes',  1310, 3400, '98765432100'),
+    ('padaria@example.com', 'Pedro Alves',   '61920000004', '70297400', 'SQS 308 Bloco C',     101, 'Apto 101',    'Asa Sul',    'Cesta de cafe da manha',  'EM_ANDAMENTO', INTERVAL '30 minutes', INTERVAL '25 minutes',   NULL,                    1070, 1800, '24681357928'),
+    ('padaria@example.com', 'Lucia Ramos',   '61920000005', '70860080', 'CLN 405 Bloco A',     20,  NULL,          'Asa Norte',  'Bolo e dez paes',         'FINALIZADO',   INTERVAL '5 hours',    INTERVAL '290 minutes',  INTERVAL '270 minutes',  1550, 5000, '24681357928')
+  ) AS v(email, recebedor, telefone, cep, logradouro, numero, complemento, bairro, descricao, status, criado, iniciado, finalizado, valor, distancia, cpf)
+  JOIN "Empresa" e ON e.email = v.email
+  WHERE NOT EXISTS (SELECT 1 FROM "Pedido")
+  RETURNING id_pedido, cpf_entregador, data_inicio_entrega
+)
+-- Toda atribuicao abre o historico (entregador anterior nulo), como no backend.
+INSERT INTO "HistoricoPedidoEntregadores" (id_pedido, cpf_entregador_antigo, cpf_entregador_novo, data)
+SELECT id_pedido, NULL, cpf_entregador, data_inicio_entrega
+FROM novos
+WHERE cpf_entregador IS NOT NULL;
+
+-- Quem tem entrega em andamento fica indisponivel, a mesma regra da atribuicao.
+UPDATE "Entregador" en SET disponivel = false
+WHERE disponivel AND EXISTS (
+  SELECT 1 FROM "Pedido" p WHERE p.cpf_entregador = en.cpf AND p.status = 'EM_ANDAMENTO'
+);
 
 -- A extensao so e usada aqui; remover evita diferenca entre o banco e as migrations.
 DROP EXTENSION pgcrypto;
