@@ -15,6 +15,7 @@ import { EntregadorModule } from './entregador/entregador.module';
 import { VinculoModule } from './vinculo/vinculo.module';
 import { RastreioModule } from './rastreio/rastreio.module';
 import { PedidoModule } from './pedido/pedido.module';
+import { IntegracaoModule } from './integracao/integracao.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { PedidoModule } from './pedido/pedido.module';
     RastreioModule,
     AuthModule,
     PedidoModule,
+    IntegracaoModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
