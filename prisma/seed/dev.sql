@@ -27,14 +27,15 @@ VALUES
 ON CONFLICT (email) DO NOTHING;
 
 -- Entregadores ----------------------------------------------------------------
--- Ana ainda esta com a senha temporaria: serve para testar o primeiro acesso.
+-- Ana ainda esta com a senha temporaria (vale 48h a partir do seed): serve para
+-- testar o primeiro acesso.
 -- Bruno e Carla ja passaram por ele (ciencia dos dados registrada).
 
-INSERT INTO "Entregador" (cpf, nome, telefone, tipo_veiculo, placa, senha, senha_temporaria, ciencia_dados_em)
+INSERT INTO "Entregador" (cpf, nome, telefone, tipo_veiculo, placa, senha, senha_temporaria, ciencia_dados_em, senha_temporaria_expira_em)
 VALUES
-  ('12345678909', 'Ana Souza',  '61910000001', 'MOTO',      'ABC1D23', crypt('Temp@2026',    gen_salt('bf', 12)), true,  NULL),
-  ('98765432100', 'Bruno Lima', '61910000002', 'CARRO',     'XYZ9E87', crypt('Vemvindo@123', gen_salt('bf', 12)), false, NOW()),
-  ('24681357928', 'Carla Reis', '61910000003', 'BICICLETA', NULL,      crypt('Vemvindo@123', gen_salt('bf', 12)), false, NOW())
+  ('12345678909', 'Ana Souza',  '61910000001', 'MOTO',      'ABC1D23', crypt('Temp@2026',    gen_salt('bf', 12)), true,  NULL,  NOW() + INTERVAL '48 hours'),
+  ('98765432100', 'Bruno Lima', '61910000002', 'CARRO',     'XYZ9E87', crypt('Vemvindo@123', gen_salt('bf', 12)), false, NOW(), NULL),
+  ('24681357928', 'Carla Reis', '61910000003', 'BICICLETA', NULL,      crypt('Vemvindo@123', gen_salt('bf', 12)), false, NOW(), NULL)
 ON CONFLICT (cpf) DO NOTHING;
 
 -- Vinculos (frota) ------------------------------------------------------------

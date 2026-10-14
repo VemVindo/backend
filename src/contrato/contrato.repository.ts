@@ -23,6 +23,14 @@ export class ContratoRepository {
     });
   }
 
+  // O primeiro contrato indica a empresa que cadastrou o entregador.
+  primeiroDoEntregador(cpfEntregador: string): Promise<Contrato | null> {
+    return this.prisma.contrato.findFirst({
+      where: { cpf_entregador: cpfEntregador },
+      orderBy: { id_contrato: 'asc' },
+    });
+  }
+
   listarAbertosDoEntregador(
     cpfEntregador: string,
   ): Promise<ContratoComEmpresa[]> {
