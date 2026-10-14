@@ -14,6 +14,7 @@ import { EmpresaModule } from './empresa/empresa.module';
 import { EntregadorModule } from './entregador/entregador.module';
 import { VinculoModule } from './vinculo/vinculo.module';
 import { RastreioModule } from './rastreio/rastreio.module';
+import { PedidoModule } from './pedido/pedido.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { RastreioModule } from './rastreio/rastreio.module';
     VinculoModule,
     RastreioModule,
     AuthModule,
+    PedidoModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

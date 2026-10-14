@@ -1,0 +1,25 @@
+name: Preparar ambiente
+description: Node com cache do npm, dependencias instaladas e Prisma Client gerado.
+
+inputs:
+  node-version:
+    description: Versao do Node (a mesma das imagens Docker)
+    default: 24.21.0
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v6
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: npm
+
+    - name: Instalar dependencias
+      shell: bash
+      run: npm ci
+
+    # O Prisma Client (src/generated) nao e versionado. Sem banco no job, o
+    # generate so precisa de uma URL valida no formato; nao conecta.
+    - name: Gerar Prisma Client
+      shell: bash
+      run: DIRECT_URL="${DIRECT_URL:-postgresql://build:build@localhost:5432/build}" npx prisma generate
