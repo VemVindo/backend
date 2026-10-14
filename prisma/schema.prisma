@@ -1,7 +1,7 @@
 generator client {
-  provider        = "prisma-client"
-  output          = "../src/generated/prisma"
-  previewFeatures = ["partialIndexes"]
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  previewFeatures     = ["partialIndexes"]
   importFileExtension = ""
 }
 
@@ -10,12 +10,12 @@ datasource db {
 }
 
 model Empresa {
-  id_empresa    Int      @id @default(autoincrement())
+  id_empresa    Int     @id @default(autoincrement())
   nome_fantasia String
-  email         String   @unique
+  email         String  @unique
   telefone      String
-  CNPJ          String?  @unique
-  cpf           String?  @unique
+  CNPJ          String? @unique
+  cpf           String? @unique
   cep           String
   logradouro    String
   numero        Int
@@ -25,29 +25,29 @@ model Empresa {
   UF            String
   razao_social  String?
   senha         String
-  sessao_versao Int      @default(0)
+  sessao_versao Int     @default(0)
 
-  pedidos  Pedido[]
-  metricas MetricasPagamento[]
-  contratos Contrato[]
+  pedidos     Pedido[]
+  metricas    MetricasPagamento[]
+  contratos   Contrato[]
   credenciais CredencialIntegracao[]
   importacoes PedidoImportado[]
 }
 
 model Entregador {
-  cpf              String  @id
-  nome             String
-  disponivel       Boolean @default(true)
-  telefone         String
-  tipo_veiculo     String
-  placa            String?
-  senha            String
-  senha_temporaria Boolean @default(true)
-  ciencia_dados_em DateTime?
+  cpf                        String    @id
+  nome                       String
+  disponivel                 Boolean   @default(true)
+  telefone                   String
+  tipo_veiculo               String
+  placa                      String?
+  senha                      String
+  senha_temporaria           Boolean   @default(true)
+  ciencia_dados_em           DateTime?
   senha_temporaria_expira_em DateTime?
-  sessao_versao    Int     @default(0)
+  sessao_versao              Int       @default(0)
 
-  pedidos Pedido[]
+  pedidos   Pedido[]
   contratos Contrato[]
 
   historicosAntigos HistoricoPedidoEntregadores[] @relation("EntregadorAntigo")
@@ -55,7 +55,7 @@ model Entregador {
 }
 
 model Pedido {
-  id_pedido           Int       @id @default(autoincrement())
+  id_pedido           Int          @id @default(autoincrement())
   nome_recebedor      String
   telefone_recebedor  String
   cep                 String
@@ -79,16 +79,17 @@ model Pedido {
   // Igual a FK da migration: entregador com pedido nao pode ser apagado.
   entregador Entregador? @relation(fields: [cpf_entregador], references: [cpf], onDelete: Restrict)
 
-  avaliacao  Avaliacao?
-  historicos HistoricoPedidoEntregadores[]
-  importacao PedidoImportado?
+  avaliacao       Avaliacao?
+  historicos      HistoricoPedidoEntregadores[]
+  importacao      PedidoImportado?
+  acessoRecebedor AcessoRecebedor?
 }
 
 model MetricasPagamento {
-  idEmpresa    Int
-  taxa_fixa    Int
-  coeficiente  Int
-  data         DateTime
+  idEmpresa   Int
+  taxa_fixa   Int
+  coeficiente Int
+  data        DateTime
 
   empresa Empresa @relation(fields: [idEmpresa], references: [id_empresa])
 
@@ -148,6 +149,15 @@ model Contrato {
   entregador Entregador @relation(fields: [cpf_entregador], references: [cpf])
 
   @@unique([idEmpresa, cpf_entregador], where: { data_fim: null }, map: "Contrato_vinculo_ativo_key")
+}
+
+model AcessoRecebedor {
+  idPedido         Int      @id
+  token_hash       String   @unique
+  codigo_recebedor String
+  data_criacao     DateTime @default(now())
+
+  pedido Pedido @relation(fields: [idPedido], references: [id_pedido])
 }
 
 model CredencialIntegracao {
