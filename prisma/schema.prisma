@@ -31,6 +31,7 @@ model Empresa {
   metricas MetricasPagamento[]
   contratos Contrato[]
   credenciais CredencialIntegracao[]
+  importacoes PedidoImportado[]
 }
 
 model Entregador {
@@ -80,6 +81,7 @@ model Pedido {
 
   avaliacao  Avaliacao?
   historicos HistoricoPedidoEntregadores[]
+  importacao PedidoImportado?
 }
 
 model MetricasPagamento {
@@ -160,4 +162,25 @@ model CredencialIntegracao {
   empresa Empresa @relation(fields: [idEmpresa], references: [id_empresa])
 
   @@unique([idEmpresa], where: { data_revogacao: null }, map: "CredencialIntegracao_ativa_key")
+}
+
+enum SituacaoImportacao {
+  AGUARDANDO_COMPLETUDE
+  CONVERTIDO
+}
+
+model PedidoImportado {
+  id_importacao    Int                @id @default(autoincrement())
+  idEmpresa        Int
+  id_externo       String
+  dados            Json
+  campos_faltantes String[]
+  situacao         SituacaoImportacao @default(AGUARDANDO_COMPLETUDE)
+  idPedido         Int?               @unique
+  data_recebimento DateTime           @default(now())
+
+  empresa Empresa @relation(fields: [idEmpresa], references: [id_empresa])
+  pedido  Pedido? @relation(fields: [idPedido], references: [id_pedido])
+
+  @@unique([idEmpresa, id_externo])
 }
