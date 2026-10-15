@@ -28,7 +28,8 @@ function pedido(status = 'EM_ANDAMENTO') {
     cidade: 'Brasilia',
     uf: 'DF',
     cep: '70000000',
-    empresa: { nome_fantasia: 'Cantina Dona Marta' },
+    empresa: { nome_fantasia: 'Cantina Dona Marta', exibir_mapa: true },
+    entregador: { nome: 'Bruno Lima Souza' },
   };
 }
 
@@ -192,6 +193,18 @@ describe('RastreioService.montarPaginaDoRecebedor', () => {
       }),
     );
     expect(pagina.codigoRecebedor).toBe('012345');
+    expect(pagina.exibirMapa).toBe(true);
+    expect(pagina.entregador).toBe('Bruno');
+  });
+
+  it('sem entregador atribuido, devolve o nome nulo', () => {
+    const { service } = montar();
+    const semEntregador = acesso();
+    semEntregador.pedido.entregador = null;
+
+    expect(
+      service.montarPaginaDoRecebedor(semEntregador).entregador,
+    ).toBeNull();
   });
 
   it('nao expoe telefone, CPF do entregador nem valores internos', () => {
@@ -203,5 +216,6 @@ describe('RastreioService.montarPaginaDoRecebedor', () => {
     expect(texto).not.toContain('98765432100');
     expect(texto).not.toContain('1250');
     expect(texto).not.toContain('token_hash');
+    expect(texto).not.toContain('Lima Souza');
   });
 });

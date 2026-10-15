@@ -77,6 +77,21 @@ export class EmpresaRepository {
     return empresa?.sessao_versao ?? null;
   }
 
+  async exibeMapa(id: number): Promise<boolean | null> {
+    const empresa = await this.prisma.empresa.findUnique({
+      where: { id_empresa: id },
+      select: { exibir_mapa: true },
+    });
+    return empresa?.exibir_mapa ?? null;
+  }
+
+  async definirExibirMapa(id: number, exibirMapa: boolean): Promise<void> {
+    await this.prisma.empresa.update({
+      where: { id_empresa: id },
+      data: { exibir_mapa: exibirMapa },
+    });
+  }
+
   async encerrarSessoes(id: number): Promise<void> {
     await this.prisma.empresa.update({
       where: { id_empresa: id },

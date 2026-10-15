@@ -16,6 +16,7 @@ import { VinculoModule } from './vinculo/vinculo.module';
 import { RastreioModule } from './rastreio/rastreio.module';
 import { PedidoModule } from './pedido/pedido.module';
 import { IntegracaoModule } from './integracao/integracao.module';
+import { MapaModule } from './mapa/mapa.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { IntegracaoModule } from './integracao/integracao.module';
     AuthModule,
     PedidoModule,
     IntegracaoModule,
+    MapaModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

@@ -95,6 +95,17 @@ SELECT id_pedido, NULL, cpf_entregador, data_inicio_entrega
 FROM novos
 WHERE cpf_entregador IS NOT NULL;
 
+-- Destino aproximado da SQS 308 (area publica) para o mapa da entrega em
+-- andamento funcionar sem a chave de geocodificacao do Google.
+UPDATE "Pedido" SET destino_lat = -15.8135, destino_lng = -47.9046
+WHERE logradouro = 'SQS 308 Bloco C' AND destino_lat IS NULL;
+
+-- Ponto de saida aproximado das empresas (comercio da Asa Sul e da Asa Norte).
+UPDATE "Empresa" SET origem_lat = -15.8059, origem_lng = -47.8935
+WHERE email = 'padaria@example.com' AND origem_lat IS NULL;
+UPDATE "Empresa" SET origem_lat = -15.7668, origem_lng = -47.8818
+WHERE email = 'cantina@example.com' AND origem_lat IS NULL;
+
 -- Quem tem entrega em andamento fica indisponivel, a mesma regra da atribuicao.
 UPDATE "Entregador" en SET disponivel = false
 WHERE disponivel AND EXISTS (

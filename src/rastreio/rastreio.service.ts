@@ -76,6 +76,7 @@ export class RastreioService {
     const { pedido } = acesso;
     return {
       estabelecimento: pedido.empresa.nome_fantasia,
+      exibirMapa: pedido.empresa.exibir_mapa,
       pedido: {
         numero: pedido.id_pedido,
         descricao: pedido.descricao,
@@ -92,6 +93,8 @@ export class RastreioService {
           cep: pedido.cep,
         },
       },
+      // So o primeiro nome: o recebedor nao precisa do nome completo.
+      entregador: pedido.entregador?.nome.trim().split(/\s+/)[0] ?? null,
       codigoRecebedor: acesso.codigo_recebedor,
     };
   }

@@ -46,6 +46,12 @@ export class EnvironmentVariables {
   @IsIn(['lax', 'none'])
   @IsOptional()
   COOKIE_SAMESITE?: 'lax' | 'none';
+
+  // Routes API e Geocoding API. Sem ela, distancia e tempo sao estimados em
+  // linha reta e o endereco do pedido nao vira coordenada.
+  @IsString()
+  @IsOptional()
+  GOOGLE_MAPS_SERVER_KEY?: string;
 }
 
 export function validateEnv(
@@ -58,5 +64,23 @@ export function validateEnv(
   if (errors.length > 0) {
     throw new Error(`Configuração de ambiente inválida:\n${errors.toString()}`);
   }
+  exigirFrontHttpsEmProducao(validated, config.NODE_ENV);
   return validated;
+}
+
+// O link do recebedor e montado com URL_FRONTEND (ou CORS_ORIGIN, na falta
+// dela) e leva o token de rastreio. Em HTTP, o token trafega aberto na rede.
+function exigirFrontHttpsEmProducao(
+  env: EnvironmentVariables,
+  nodeEnv: unknown,
+): void {
+  if (nodeEnv !== 'production') {
+    return;
+  }
+  const enderecoDoFront = env.URL_FRONTEND ?? env.CORS_ORIGIN;
+  if (!enderecoDoFront?.startsWith('https://')) {
+    throw new Error(
+      'Configuração de ambiente inválida:\nEm produção, URL_FRONTEND (ou CORS_ORIGIN) precisa começar com https://',
+    );
+  }
 }
