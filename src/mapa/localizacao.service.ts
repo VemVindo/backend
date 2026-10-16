@@ -31,7 +31,7 @@ import {
   EVENTO_LOCALIZACAO,
   EVENTO_STATUS,
   RastreioGateway,
-} from './rastreio.gateway';
+} from '../rastreio/rastreio.gateway';
 
 export interface PosicaoRecebida extends Coordenada {
   precisao?: number;

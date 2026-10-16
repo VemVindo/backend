@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import type { AcessoComPedido } from './rastreio.repository';
-import { RastreioService } from './rastreio.service';
+import { ValidadorDeLink } from './validador-de-link';
 
 export type RequisicaoRecebedor = Request & {
   acessoRecebedor?: AcessoComPedido;
@@ -15,12 +15,12 @@ export type RequisicaoRecebedor = Request & {
 
 @Injectable()
 export class AcessoRecebedorGuard implements CanActivate {
-  constructor(private readonly rastreio: RastreioService) {}
+  constructor(private readonly validador: ValidadorDeLink) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const requisicao = context.switchToHttp().getRequest<RequisicaoRecebedor>();
     const token = requisicao.params?.token;
-    const resultado = await this.rastreio.autenticar(
+    const resultado = await this.validador.autenticar(
       typeof token === 'string' ? token : '',
     );
     if (resultado.situacao === 'invalido') {

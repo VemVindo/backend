@@ -5,7 +5,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import type { Namespace, Socket } from 'socket.io';
-import { RastreioService } from '../rastreio/rastreio.service';
+import { ValidadorDeLink } from './validador-de-link';
 
 export const EVENTO_LOCALIZACAO = 'localizacao';
 export const EVENTO_STATUS = 'status';
@@ -25,12 +25,12 @@ export class RastreioGateway implements OnGatewayConnection {
   @WebSocketServer()
   private readonly servidor?: Namespace;
 
-  constructor(private readonly rastreio: RastreioService) {}
+  constructor(private readonly validador: ValidadorDeLink) {}
 
   async handleConnection(cliente: Socket): Promise<void> {
     const token: unknown = cliente.handshake.auth?.token;
     try {
-      const resultado = await this.rastreio.autenticar(
+      const resultado = await this.validador.autenticar(
         typeof token === 'string' ? token : '',
       );
       if (resultado.situacao !== 'valido') {
@@ -51,5 +51,11 @@ export class RastreioGateway implements OnGatewayConnection {
 
   encerrarSala(idPedido: number): void {
     this.servidor?.in(salaDoPedido(idPedido)).disconnectSockets(true);
+  }
+
+  // Link trocado pela empresa: quem usava o anterior ve "link invalido".
+  revogarLink(idPedido: number): void {
+    this.publicar(idPedido, EVENTO_ACESSO_NEGADO, { situacao: 'invalido' });
+    this.encerrarSala(idPedido);
   }
 }

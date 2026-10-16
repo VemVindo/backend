@@ -9,7 +9,7 @@ import {
   EVENTO_LOCALIZACAO,
   EVENTO_STATUS,
   RastreioGateway,
-} from './rastreio.gateway';
+} from '../rastreio/rastreio.gateway';
 
 jest.mock('../prisma/prisma.service', () => ({ PrismaService: class {} }));
 

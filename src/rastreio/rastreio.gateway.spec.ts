@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import type { Socket } from 'socket.io';
-import { RastreioService } from '../rastreio/rastreio.service';
+import { ValidadorDeLink } from './validador-de-link';
 import {
   EVENTO_ACESSO_NEGADO,
   RastreioGateway,
@@ -21,7 +21,7 @@ function cliente(token?: unknown) {
 function montar(autenticar: jest.Mock) {
   const gateway = new RastreioGateway({
     autenticar,
-  } as unknown as RastreioService);
+  } as unknown as ValidadorDeLink);
   const sala = { emit: jest.fn(), disconnectSockets: jest.fn() };
   const servidor = { to: jest.fn(() => sala), in: jest.fn(() => sala) };
   Object.assign(gateway, { servidor });
@@ -92,6 +92,18 @@ describe('RastreioGateway', () => {
       distanciaRestanteM: 10,
     });
     expect(servidor.in).toHaveBeenCalledWith('pedido:42');
+    expect(sala.disconnectSockets).toHaveBeenCalledWith(true);
+  });
+
+  it('revoga o link: avisa link invalido e fecha a sala', () => {
+    const { gateway, servidor, sala } = montar(jest.fn());
+
+    gateway.revogarLink(42);
+
+    expect(servidor.to).toHaveBeenCalledWith('pedido:42');
+    expect(sala.emit).toHaveBeenCalledWith(EVENTO_ACESSO_NEGADO, {
+      situacao: 'invalido',
+    });
     expect(sala.disconnectSockets).toHaveBeenCalledWith(true);
   });
 });
