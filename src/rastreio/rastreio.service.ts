@@ -4,29 +4,21 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { RastreioGateway } from './rastreio.gateway';
 import { AcessoComPedido, RastreioRepository } from './rastreio.repository';
 import {
   gerarCodigoRecebedor,
   gerarTokenRastreio,
   hashDoToken,
-  tokenComFormatoValido,
 } from './token-rastreio';
-
-export const STATUS_DE_ENTREGA_ENCERRADA: readonly string[] = [
-  'FINALIZADO',
-  'CANCELADO',
-];
-
-export type ResultadoAcesso =
-  | { situacao: 'valido'; acesso: AcessoComPedido }
-  | { situacao: 'encerrado' }
-  | { situacao: 'invalido' };
+import { STATUS_DE_ENTREGA_ENCERRADA } from './validador-de-link';
 
 @Injectable()
 export class RastreioService {
   constructor(
     private readonly rastreio: RastreioRepository,
     private readonly config: ConfigService,
+    private readonly gateway: RastreioGateway,
   ) {}
 
   async criarAcesso(idPedido: number) {
@@ -55,27 +47,18 @@ export class RastreioService {
         'Pedido encerrado: o rastreio nao fica mais disponivel',
       );
     }
-    return this.criarAcesso(idPedido);
-  }
-
-  async autenticar(token: string): Promise<ResultadoAcesso> {
-    if (!tokenComFormatoValido(token)) {
-      return { situacao: 'invalido' };
-    }
-    const acesso = await this.rastreio.procurarPorTokenHash(hashDoToken(token));
-    if (!acesso) {
-      return { situacao: 'invalido' };
-    }
-    if (STATUS_DE_ENTREGA_ENCERRADA.includes(acesso.pedido.status)) {
-      return { situacao: 'encerrado' };
-    }
-    return { situacao: 'valido', acesso };
+    const novo = await this.criarAcesso(idPedido);
+    // O link anterior deixa de valer, inclusive para quem ja estava com ele
+    // aberto: se vazou, para de mostrar a localizacao na hora.
+    this.gateway.revogarLink(idPedido);
+    return novo;
   }
 
   montarPaginaDoRecebedor(acesso: AcessoComPedido) {
     const { pedido } = acesso;
     return {
       estabelecimento: pedido.empresa.nome_fantasia,
+      exibirMapa: pedido.empresa.exibir_mapa,
       pedido: {
         numero: pedido.id_pedido,
         descricao: pedido.descricao,
@@ -92,6 +75,8 @@ export class RastreioService {
           cep: pedido.cep,
         },
       },
+      // So o primeiro nome: o recebedor nao precisa do nome completo.
+      entregador: pedido.entregador?.nome.trim().split(/\s+/)[0] ?? null,
       codigoRecebedor: acesso.codigo_recebedor,
     };
   }

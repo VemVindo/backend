@@ -1,8 +1,9 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AcessoComPedido, RastreioRepository } from './rastreio.repository';
+import { RastreioGateway } from './rastreio.gateway';
 import { RastreioService } from './rastreio.service';
-import { gerarTokenRastreio, hashDoToken } from './token-rastreio';
+import { hashDoToken } from './token-rastreio';
 
 jest.mock('../prisma/prisma.service', () => ({ PrismaService: class {} }));
 
@@ -28,7 +29,8 @@ function pedido(status = 'EM_ANDAMENTO') {
     cidade: 'Brasilia',
     uf: 'DF',
     cep: '70000000',
-    empresa: { nome_fantasia: 'Cantina Dona Marta' },
+    empresa: { nome_fantasia: 'Cantina Dona Marta', exibir_mapa: true },
+    entregador: { nome: 'Bruno Lima Souza' },
   };
 }
 
@@ -54,11 +56,13 @@ function montar(config: Record<string, string> = {}) {
     procurarPorTokenHash: jest.fn().mockResolvedValue(null),
     procurarPedidoDaEmpresa: jest.fn().mockResolvedValue(null),
   };
+  const gateway = { revogarLink: jest.fn() };
   const service = new RastreioService(
     repositorio as unknown as RastreioRepository,
     { get: (chave: string) => config[chave] } as unknown as ConfigService,
+    gateway as unknown as RastreioGateway,
   );
-  return { service, repositorio };
+  return { service, repositorio, gateway };
 }
 
 describe('RastreioService.criarAcesso', () => {
@@ -101,6 +105,27 @@ describe('RastreioService.gerarNovoLink', () => {
     expect(repositorio.salvarAcesso).toHaveBeenCalled();
   });
 
+  it('derruba quem estava conectado com o link anterior', async () => {
+    const { service, repositorio, gateway } = montar();
+    repositorio.procurarPedidoDaEmpresa.mockResolvedValue(pedido());
+
+    await service.gerarNovoLink(CANTINA, 42);
+
+    expect(gateway.revogarLink).toHaveBeenCalledWith(42);
+    expect(repositorio.salvarAcesso.mock.invocationCallOrder[0]).toBeLessThan(
+      gateway.revogarLink.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('nao derruba ninguem quando o link nao e gerado', async () => {
+    const { service, gateway } = montar();
+
+    await expect(service.gerarNovoLink(PADARIA, 42)).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(gateway.revogarLink).not.toHaveBeenCalled();
+  });
+
   it('recusa pedido de outra empresa como se nao existisse', async () => {
     const { service, repositorio } = montar();
 
@@ -121,62 +146,6 @@ describe('RastreioService.gerarNovoLink', () => {
   });
 });
 
-describe('RastreioService.autenticar', () => {
-  it('acha o pedido pelo hash do token', async () => {
-    const { service, repositorio } = montar();
-    const token = gerarTokenRastreio();
-    repositorio.procurarPorTokenHash.mockResolvedValue(acesso());
-
-    const resultado = await service.autenticar(token);
-
-    expect(resultado.situacao).toBe('valido');
-    expect(repositorio.procurarPorTokenHash).toHaveBeenCalledWith(
-      hashDoToken(token),
-    );
-  });
-
-  it('nao consulta o banco com token de formato invalido', async () => {
-    const { service, repositorio } = montar();
-
-    await expect(service.autenticar('../../etc')).resolves.toEqual({
-      situacao: 'invalido',
-    });
-    expect(repositorio.procurarPorTokenHash).not.toHaveBeenCalled();
-  });
-
-  it('token desconhecido e invalido', async () => {
-    const { service } = montar();
-
-    await expect(service.autenticar(gerarTokenRastreio())).resolves.toEqual({
-      situacao: 'invalido',
-    });
-  });
-
-  it.each(['FINALIZADO', 'CANCELADO'])(
-    'expira quando o pedido fica %s',
-    async (status) => {
-      const { service, repositorio } = montar();
-      repositorio.procurarPorTokenHash.mockResolvedValue(acesso(status));
-
-      await expect(service.autenticar(gerarTokenRastreio())).resolves.toEqual({
-        situacao: 'encerrado',
-      });
-    },
-  );
-
-  it.each(['PENDENTE', 'EM_ANDAMENTO'])(
-    'continua valido com o pedido %s',
-    async (status) => {
-      const { service, repositorio } = montar();
-      repositorio.procurarPorTokenHash.mockResolvedValue(acesso(status));
-
-      const resultado = await service.autenticar(gerarTokenRastreio());
-
-      expect(resultado.situacao).toBe('valido');
-    },
-  );
-});
-
 describe('RastreioService.montarPaginaDoRecebedor', () => {
   it('mostra estabelecimento, dados gerais e o codigo do recebedor', () => {
     const { service } = montar();
@@ -192,6 +161,18 @@ describe('RastreioService.montarPaginaDoRecebedor', () => {
       }),
     );
     expect(pagina.codigoRecebedor).toBe('012345');
+    expect(pagina.exibirMapa).toBe(true);
+    expect(pagina.entregador).toBe('Bruno');
+  });
+
+  it('sem entregador atribuido, devolve o nome nulo', () => {
+    const { service } = montar();
+    const semEntregador = acesso();
+    semEntregador.pedido.entregador = null;
+
+    expect(
+      service.montarPaginaDoRecebedor(semEntregador).entregador,
+    ).toBeNull();
   });
 
   it('nao expoe telefone, CPF do entregador nem valores internos', () => {
@@ -203,5 +184,6 @@ describe('RastreioService.montarPaginaDoRecebedor', () => {
     expect(texto).not.toContain('98765432100');
     expect(texto).not.toContain('1250');
     expect(texto).not.toContain('token_hash');
+    expect(texto).not.toContain('Lima Souza');
   });
 });
