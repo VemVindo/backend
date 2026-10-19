@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Contrato } from '../generated/prisma/client';
-import { StatusContrato } from '../generated/prisma/enums';
+import { StatusContrato } from '../generated/prisma';
 
 export type ContratoComEmpresa = Contrato & {
   empresa: { nome_fantasia: string };

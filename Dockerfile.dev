@@ -12,13 +12,4 @@ COPY . .
 
 EXPOSE 3000
 
-# Na subida do container, em ordem, para que um clone limpo suba com um unico
-# "docker compose up". Se um passo falhar, os seguintes nao rodam.
-#   1. gera o Prisma Client
-#   2. aplica as migrations
-#   3. insere os dados de teste (so em dev; idempotente)
-#   4. inicia o Nest em modo watch (exec: o Nest vira o processo principal)
-CMD npx prisma generate \
-    && npx prisma migrate deploy \
-    && npx prisma db execute --file prisma/seed/dev.sql \
-    && exec npm run start:dev
+CMD npx prisma generate && npx prisma migrate deploy && npx prisma db execute --file prisma/seed/dev.sql && exec npm run start:dev

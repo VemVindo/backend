@@ -3,7 +3,7 @@ import { PedidoRepository } from '../pedido.repository';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Pedido } from '../../generated/prisma/client';
 import { CriaPedidoReqDto } from '../dto/cria-pedido.dto';
-import { StatusPedido } from '../../generated/prisma/enums';
+import { StatusPedido } from '../../generated/prisma';
 import {
   EntregadorIndisponivelError,
   PedidoAlteradoError,
@@ -37,6 +37,104 @@ describe('PedidoRepository', () => {
       jest.spyOn(prisma.pedido, 'create').mockResolvedValue(dummyRes);
       const result = service.criar(dummyReq, 1);
       expect(result).toBeInstanceOf(Promise<Pedido>);
+    });
+  });
+  describe('ATUALIZAR ENTREGADOR DO PEDIDO (REPOSITORY)', () => {
+    beforeEach(async () => {
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          PedidoRepository,
+          {
+            provide: PrismaService,
+            useValue: {
+              $transaction: jest.fn(),
+              pedido: {
+                update: jest.fn(),
+              },
+            },
+          },
+        ],
+      }).compile();
+
+      service = module.get<PedidoRepository>(PedidoRepository);
+      prisma = module.get<PrismaService>(PrismaService);
+    });
+
+    it('CAIXA BRANCA: Sucesso ao atualizar entregador com transação', async () => {
+      // Simula o $transaction executando o callback e o update resolvendo com sucesso
+      jest
+        .spyOn(prisma, '$transaction')
+        .mockImplementation(async (callback) => {
+          const txMock = {
+            pedido: {
+              update: jest.fn().mockResolvedValue({
+                id_pedido: 10,
+                cpf_entregador: '12345678901',
+              }),
+            },
+          };
+          // Se o repository chamar algum método interno como ocuparEntregador, mockamos também:
+          if (typeof (service as any).ocuparEntregador === 'function') {
+            jest
+              .spyOn(service as any, 'ocuparEntregador').mockResolvedValue(undefined);
+          }
+          return callback(txMock as any);
+        });
+
+      const result = await service.atualizarEntregadorDoPedido(
+        10,
+        '12345678901',
+      );
+
+      expect(result).toBe(true);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('CAIXA BRANCA: Erro ao falhar na transação lança ConflictException (ou erro tratado)', async () => {
+      jest
+        .spyOn(prisma, '$transaction')
+        .mockRejectedValue(new Error('Erro no Prisma'));
+
+      await expect(
+        service.atualizarEntregadorDoPedido(10, '12345678901'),
+      ).rejects.toThrow();
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('CAIXA CINZA: Fluxo completo validando os parâmetros do update', async () => {
+      const txMock = {
+        pedido: {
+          update: jest.fn().mockResolvedValue({ id_pedido: 10 }),
+        },
+      };
+
+      if (typeof (service as any).ocuparEntregador === 'function') {
+        jest
+          .spyOn(service as any, 'ocuparEntregador')
+          .mockResolvedValue(undefined);
+      }
+
+      const transactionSpy = jest
+        .spyOn(prisma, '$transaction')
+        .mockImplementation(async (cb) => cb(txMock as any));
+
+      const result = await service.atualizarEntregadorDoPedido(
+        10,
+        '12345678901',
+      );
+
+      expect(transactionSpy).toHaveBeenCalled();
+      expect(txMock.pedido.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id_pedido: 10 },
+          data: expect.objectContaining({
+            cpf_entregador: '12345678901',
+            status: StatusPedido.EM_ANDAMENTO,
+          }),
+        }),
+      );
+      expect(result).toBe(true);
     });
   });
 });

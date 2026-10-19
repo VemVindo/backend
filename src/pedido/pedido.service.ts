@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { EntregadorRepository } from '../entregador/entregador.repository';
 import { Pedido } from '../generated/prisma/client';
-import { StatusPedido } from '../generated/prisma/enums';
+import { StatusPedido } from '../generated/prisma';
 import { CriaPedidoReqDto } from './dto/cria-pedido.dto';
 import {
   HistoricoEntregadorDto,
@@ -27,6 +27,7 @@ import {
   statusFinal,
   transicaoPermitida,
 } from './regras/status-pedido.regra';
+import { AtualizarEntregadorPedidoReqDto } from './dto/atualizar-entregador-pedido.dto';
 
 const STATUS_REATRIBUIVEIS: readonly StatusPedido[] = [
   StatusPedido.PENDENTE,
@@ -209,5 +210,26 @@ export class PedidoService {
       }
       throw erro;
     }
+  }
+
+  async atualizarEntregadorDoPedido(
+    atualizarEntregadorPedidoReqDto: AtualizarEntregadorPedidoReqDto,
+  ): Promise<boolean> {
+    if (
+      (await this.entregadorRepository.procurarAtivoPorEmpresa(
+        atualizarEntregadorPedidoReqDto.id_empresa,
+        atualizarEntregadorPedidoReqDto.cpf_entregador,
+      )) &&
+      (await this.pedidoRepository.procurarPorEmpresa(
+        atualizarEntregadorPedidoReqDto.id_pedido,
+        atualizarEntregadorPedidoReqDto.id_empresa,
+      ))
+    ) {
+      return this.pedidoRepository.atualizarEntregadorDoPedido(
+        atualizarEntregadorPedidoReqDto.id_pedido,
+        atualizarEntregadorPedidoReqDto.cpf_entregador,
+      );
+    }
+    return false;
   }
 }

@@ -1,5 +1,5 @@
 import { IsEnum } from 'class-validator';
-import { StatusPedido } from '../../generated/prisma/enums';
+import { StatusPedido } from '../../generated/prisma';
 
 export class AtualizarStatusPedidoDto {
   @IsEnum(StatusPedido, {

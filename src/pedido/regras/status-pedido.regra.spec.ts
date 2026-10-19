@@ -1,4 +1,4 @@
-import { StatusPedido } from '../../generated/prisma/enums';
+import { StatusPedido } from '../../generated/prisma';
 import {
   obterStatusDisponiveis,
   statusFinal,

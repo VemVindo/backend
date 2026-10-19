@@ -5,11 +5,12 @@ import { PedidoRepository } from '../pedido.repository';
 import { EntregadorRepository } from '../../entregador/entregador.repository';
 import { CriaPedidoReqDto } from '../dto/cria-pedido.dto';
 import { Pedido } from '../../generated/prisma/client';
-import { StatusPedido } from '../../generated/prisma/enums';
+import { Entregador, StatusPedido } from '../../generated/prisma';
 import {
   EntregadorIndisponivelError,
   PedidoAlteradoError,
 } from '../pedido.erros';
+import { AtualizarEntregadorPedidoReqDto } from '../dto/atualizar-entregador-pedido.dto';
 
 jest.mock('../../prisma/prisma.service', () => ({
   PrismaService: class {},
@@ -17,7 +18,8 @@ jest.mock('../../prisma/prisma.service', () => ({
 
 describe('PedidoService', () => {
   let service: PedidoService;
-  let repository: PedidoRepository;
+  let pedidoRepository: PedidoRepository;
+  let entregadorRepository: EntregadorRepository;
 
   describe('CRIAR', () => {
     beforeEach(async () => {
@@ -39,12 +41,12 @@ describe('PedidoService', () => {
         ],
       }).compile();
       service = module.get<PedidoService>(PedidoService);
-      repository = module.get<PedidoRepository>(PedidoRepository);
+      pedidoRepository = module.get<PedidoRepository>(PedidoRepository);
     });
 
     it('CAIXA BRANCA: Entregador sem CPF', async () => {
       const dummy = {} as CriaPedidoReqDto;
-      const spy = jest.spyOn(repository, 'criar');
+      const spy = jest.spyOn(pedidoRepository, 'criar');
       await service.criar(1, dummy);
       expect(spy.mock.calls[0][0].status).toBe(StatusPedido.PENDENTE);
       expect(spy.mock.calls[0][0].cpf_entregador).toBeUndefined();
@@ -54,7 +56,7 @@ describe('PedidoService', () => {
       const stub = {
         cpf_entregador: 'teste',
       };
-      const spy = jest.spyOn(repository, 'criar');
+      const spy = jest.spyOn(pedidoRepository, 'criar');
       await service.criar(1, stub as CriaPedidoReqDto);
       expect(spy.mock.calls[0][0].status).toBe(StatusPedido.EM_ANDAMENTO);
       expect(spy.mock.calls[0][0].cpf_entregador).not.toBeUndefined();
@@ -64,7 +66,7 @@ describe('PedidoService', () => {
       const stub = {
         cpf_entregador: 'teste',
       };
-      const spy = jest.spyOn(repository, 'criar');
+      const spy = jest.spyOn(pedidoRepository, 'criar');
       await service.criar(1, stub as CriaPedidoReqDto);
       expect(spy.mock.calls[0][0].data_criacao).toMatch(
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/, //Formato ISOString pra datas
@@ -75,11 +77,143 @@ describe('PedidoService', () => {
       const dummyReq = {} as CriaPedidoReqDto;
       const dummyRes = {} as Promise<Pedido>;
       const spy = jest
-        .spyOn(repository, 'criar')
+        .spyOn(pedidoRepository, 'criar')
         .mockImplementation(() => dummyRes);
       const result = service.criar(1, dummyReq);
       expect(spy).toHaveBeenCalledWith(dummyReq, 1);
       expect(result).toBeInstanceOf(Promise<Pedido>);
+    });
+  });
+
+  describe('ATUALIZAR ENTREGADOR', () => {
+    beforeEach(async () => {
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          PedidoService,
+          {
+            provide: EntregadorRepository,
+            useValue: {
+              procurarAtivoPorEmpresa: jest.fn(),
+            },
+          },
+          {
+            provide: PedidoRepository,
+            useValue: {
+              procurarPorEmpresa: jest.fn(),
+              atualizarEntregadorDoPedido: jest.fn(),
+            },
+          },
+        ],
+      }).compile();
+
+      service = module.get<PedidoService>(PedidoService);
+      pedidoRepository = module.get<PedidoRepository>(PedidoRepository);
+      entregadorRepository =
+        module.get<EntregadorRepository>(EntregadorRepository);
+    });
+
+    it('CAIXA BRANCA: Entregador não vinculado a empresa', async () => {
+      jest
+        .spyOn(entregadorRepository, 'procurarAtivoPorEmpresa')
+        .mockResolvedValue(null);
+      jest
+        .spyOn(pedidoRepository, 'procurarPorEmpresa')
+        .mockResolvedValue({} as Pedido);
+
+      const dto: AtualizarEntregadorPedidoReqDto = {
+        id_empresa: 1,
+        cpf_entregador: '12345678901',
+        id_pedido: 10,
+      };
+
+      const result = await service.atualizarEntregadorDoPedido(dto);
+
+      expect(result).toBe(false);
+    });
+
+    it('CAIXA BRANCA: Pedido não vinculado a empresa', async () => {
+      jest
+        .spyOn(entregadorRepository, 'procurarAtivoPorEmpresa')
+        .mockResolvedValue({} as Entregador);
+      jest
+        .spyOn(pedidoRepository, 'procurarPorEmpresa')
+        .mockResolvedValue(null); // Retorna null para simular pedido não vinculado
+
+      const dto: AtualizarEntregadorPedidoReqDto = {
+        id_empresa: 1,
+        cpf_entregador: '12345678901',
+        id_pedido: 10,
+      };
+
+      const result = await service.atualizarEntregadorDoPedido(dto);
+
+      expect(result).toBe(false);
+    });
+
+    it('CAIXA BRANCA: Entregador e Pedido não vinculados a empresa', async () => {
+      jest
+        .spyOn(entregadorRepository, 'procurarAtivoPorEmpresa')
+        .mockResolvedValue(null);
+      jest
+        .spyOn(pedidoRepository, 'procurarPorEmpresa')
+        .mockResolvedValue(null);
+
+      const dto: AtualizarEntregadorPedidoReqDto = {
+        id_empresa: 1,
+        cpf_entregador: '12345678901',
+        id_pedido: 10,
+      };
+
+      const result = await service.atualizarEntregadorDoPedido(dto);
+
+      expect(result).toBe(false);
+    });
+
+    it('CAIXA BRANCA: Entregador e Pedido vinculados com sucesso', async () => {
+      jest
+        .spyOn(entregadorRepository, 'procurarAtivoPorEmpresa')
+        .mockResolvedValue({} as Entregador);
+      jest
+        .spyOn(pedidoRepository, 'procurarPorEmpresa')
+        .mockResolvedValue({} as Pedido);
+      jest
+        .spyOn(pedidoRepository, 'atualizarEntregadorDoPedido')
+        .mockResolvedValue(true);
+
+      const dto: AtualizarEntregadorPedidoReqDto = {
+        id_empresa: 1,
+        cpf_entregador: '12345678901',
+        id_pedido: 10,
+      };
+
+      const result = await service.atualizarEntregadorDoPedido(dto);
+
+      expect(result).toBe(true);
+    });
+
+    it('CAIXA CINZA: Fluxo completo', async () => {
+      const dto: AtualizarEntregadorPedidoReqDto = {
+        id_empresa: 1,
+        cpf_entregador: '12345678901',
+        id_pedido: 10,
+      };
+
+      const spy1 = jest
+        .spyOn(entregadorRepository, 'procurarAtivoPorEmpresa')
+        .mockResolvedValue({} as Entregador);
+      const spy2 = jest
+        .spyOn(pedidoRepository, 'procurarPorEmpresa')
+        .mockResolvedValue({} as Pedido);
+      const spy3 = jest
+        .spyOn(pedidoRepository, 'atualizarEntregadorDoPedido')
+        .mockResolvedValue(true);
+
+      const result = await service.atualizarEntregadorDoPedido(dto);
+
+      expect(spy1).toHaveBeenCalledWith(dto.id_empresa, dto.cpf_entregador);
+      expect(spy2).toHaveBeenCalledWith(dto.id_pedido, dto.id_empresa);
+      expect(spy3).toHaveBeenCalledWith(dto.id_pedido, dto.cpf_entregador);
+      expect(result).toBe(true);
     });
   });
 });

@@ -1,4 +1,4 @@
-import { StatusPedido } from '../../generated/prisma/enums';
+import { StatusPedido } from '../../generated/prisma';
 
 export class StatusFactory {
   static criar(cpf_entregador: string | undefined): StatusPedido {
