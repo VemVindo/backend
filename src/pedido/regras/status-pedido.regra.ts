@@ -1,4 +1,4 @@
-import { StatusPedido } from '../../generated/prisma';
+import { StatusPedido } from '../../generated/prisma/enums';
 
 const TRANSICOES_PEDIDO: Record<StatusPedido, readonly StatusPedido[]> = {
   [StatusPedido.PENDENTE]: [StatusPedido.EM_ANDAMENTO],

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Entregador } from '../generated/prisma/client';
-import { StatusContrato } from '../generated/prisma';
+import { StatusContrato } from '../generated/prisma/enums';
 
 export interface DadosNovoEntregador {
   nome: string;

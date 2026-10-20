@@ -8,7 +8,7 @@ import {
   IsPositive,
   Min,
 } from 'class-validator';
-import { StatusPedido } from '../../generated/prisma';
+import { StatusPedido } from '../../generated/prisma/enums';
 
 export class CriaPedidoReqDto {
   @IsEmpty()

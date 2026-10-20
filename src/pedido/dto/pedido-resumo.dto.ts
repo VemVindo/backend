@@ -1,4 +1,4 @@
-import { StatusPedido } from '../../generated/prisma';
+import { StatusPedido } from '../../generated/prisma/enums';
 import type { PedidoComEntregador } from '../pedido.repository';
 
 // Formato consumido pelo front nas listas e acoes sobre pedidos ativos.

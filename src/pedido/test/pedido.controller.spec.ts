@@ -3,10 +3,9 @@ import { PedidoController } from '../pedido.controller';
 import { PedidoService } from '../pedido.service';
 import { CriaPedidoReqDto, CriaPedidoResDto } from '../dto/cria-pedido.dto';
 import { Pedido } from '../../generated/prisma/client';
-import { StatusPedido } from '../../generated/prisma';
+import { StatusPedido } from '../../generated/prisma/enums';
 import { Cargo } from '../../common/enums/cargo.enum';
 import type { UsuarioAutenticado } from '../../auth/jwt.strategy';
-import { AtualizarEntregadorPedidoReqDto } from '../dto/atualizar-entregador-pedido.dto';
 
 jest.mock('../../prisma/prisma.service', () => ({
   PrismaService: class {},
@@ -48,34 +47,6 @@ describe('PedidoController', () => {
       expect(result).toBeInstanceOf(CriaPedidoResDto);
     });
   });
-  describe('ATUALIZAR ENTREGADOR', () => {
-    beforeEach(async () => {
-      const module: TestingModule = await Test.createTestingModule({
-        controllers: [PedidoController],
-        providers: [
-          {
-            provide: PedidoService,
-            useValue: {
-              atualizarEntregadorDoPedido: jest.fn(),
-            },
-          },
-        ],
-      }).compile();
-
-      controller = module.get<PedidoController>(PedidoController);
-      service = module.get<PedidoService>(PedidoService);
-    });
-
-    it('CAIXA CINZA: Fluxo completo', () => {
-      const dummyReq = {} as AtualizarEntregadorPedidoReqDto;
-      const dummyRes = {} as Promise<boolean>;
-      jest
-        .spyOn(service, 'atualizarEntregadorDoPedido')
-        .mockImplementation(() => dummyRes);
-      const result = controller.atualizarEntregadorPedido(dummyReq);
-      expect(result).toBeInstanceOf(Promise<boolean>);
-    });
-  });
 });
 
 describe('PedidoController rotas de entregador e reatribuicao', () => {
@@ -88,6 +59,7 @@ describe('PedidoController rotas de entregador e reatribuicao', () => {
       obterStatusDisponiveis: jest.fn().mockResolvedValue({}),
       atualizarStatus: jest.fn().mockResolvedValue({}),
       reatribuir: jest.fn().mockResolvedValue({}),
+      atribuir: jest.fn().mockResolvedValue({}),
       listarHistoricoDeEntregadores: jest.fn().mockResolvedValue([]),
       listarDaEmpresa: jest.fn().mockResolvedValue([]),
       listarDoEntregador: jest.fn().mockResolvedValue([]),
@@ -129,6 +101,14 @@ describe('PedidoController rotas de entregador e reatribuicao', () => {
     await controller.reatribuir(EMPRESA, 1, { cpfEntregador: '11144477735' });
 
     expect(service.reatribuir).toHaveBeenCalledWith(7, 1, '11144477735');
+  });
+
+  it('atribui usando a empresa do token, nunca a do corpo', async () => {
+    const { controller, service } = montar();
+
+    await controller.atribuir(EMPRESA, 1, { cpfEntregador: '11144477735' });
+
+    expect(service.atribuir).toHaveBeenCalledWith(7, 1, '11144477735');
   });
 
   it('lista o historico usando a empresa do token', async () => {

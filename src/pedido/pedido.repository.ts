@@ -1,6 +1,6 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Pedido, Prisma } from '../generated/prisma/client';
-import { StatusPedido } from '../generated/prisma';
+import { StatusPedido } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CriaPedidoReqDto } from './dto/cria-pedido.dto';
 import {
@@ -264,31 +264,5 @@ export class PedidoRepository {
         data: { disponivel: true },
       });
     }
-  }
-
-  async atualizarEntregadorDoPedido(
-    id_pedido: number,
-    cpf_entregador: string,
-  ): Promise<boolean> {
-    try {
-      await this.prisma.$transaction(async (tx) => {
-        await this.ocuparEntregador(tx, cpf_entregador);
-
-        await tx.pedido.update({
-          where: {
-            id_pedido: id_pedido,
-          },
-          data: {
-            cpf_entregador: cpf_entregador,
-            data_inicio_entrega: new Date().toISOString(),
-            status: StatusPedido.EM_ANDAMENTO,
-          },
-        });
-      });
-    } catch (erro) {
-      console.log('ERROR:', erro);
-      throw new ConflictException('Erro ao atualizar entregador.');
-    }
-    return true;
   }
 }

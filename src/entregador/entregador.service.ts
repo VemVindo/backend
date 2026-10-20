@@ -8,7 +8,7 @@ import { expiracaoSenhaTemporaria } from '../common/security/senha-temporaria';
 import { SenhaService } from '../common/security/senha.service';
 import { ContratoRepository } from '../contrato/contrato.repository';
 import { Entregador } from '../generated/prisma/client';
-import { StatusContrato } from '../generated/prisma';
+import { StatusContrato } from '../generated/prisma/enums';
 import { TipoVeiculo } from '../common/enums/tipo-veiculo.enum';
 import { violouUnicidade } from '../prisma/prisma-errors';
 import { CadastrarEntregadorDto } from './dto/cadastrar-entregador.dto';

@@ -16,7 +16,6 @@ import { AtualizarStatusPedidoDto } from './dto/atualizar-status-pedido.dto';
 import { CriaPedidoReqDto, CriaPedidoResDto } from './dto/cria-pedido.dto';
 import { ReatribuirPedidoDto } from './dto/reatribuir-pedido.dto';
 import { PedidoService } from './pedido.service';
-import { AtualizarEntregadorPedidoReqDto } from './dto/atualizar-entregador-pedido.dto';
 
 @Controller('pedidos')
 export class PedidoController {
@@ -73,6 +72,20 @@ export class PedidoController {
     );
   }
 
+  @Patch(':id/atribuir')
+  @Cargos(Cargo.ESTABELECIMENTO)
+  atribuir(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param('id', ParseIntPipe) idPedido: number,
+    @Body() dto: ReatribuirPedidoDto,
+  ) {
+    return this.pedidoService.atribuir(
+      Number(usuario.empresaId),
+      idPedido,
+      dto.cpfEntregador,
+    );
+  }
+
   @Patch(':id/entregador')
   @Cargos(Cargo.ESTABELECIMENTO)
   reatribuir(
@@ -96,15 +109,6 @@ export class PedidoController {
     return this.pedidoService.listarHistoricoDeEntregadores(
       Number(usuario.empresaId),
       idPedido,
-    );
-  }
-
-  @Post('atualizar-entregador')
-  async atualizarEntregadorPedido(
-    @Body() atualizarEntregadorPedidoReqDto: AtualizarEntregadorPedidoReqDto,
-  ): Promise<boolean> {
-    return await this.pedidoService.atualizarEntregadorDoPedido(
-      atualizarEntregadorPedidoReqDto,
     );
   }
 }
