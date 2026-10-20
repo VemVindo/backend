@@ -6,6 +6,7 @@ import {
 import { EntregadorRepository } from '../entregador/entregador.repository';
 import { Pedido } from '../generated/prisma/client';
 import { StatusPedido } from '../generated/prisma';
+import { LocalizacaoService } from '../mapa/localizacao.service';
 import { CriaPedidoReqDto } from './dto/cria-pedido.dto';
 import {
   HistoricoEntregadorDto,
@@ -39,6 +40,7 @@ export class PedidoService {
   constructor(
     private readonly pedidoRepository: PedidoRepository,
     private readonly entregadorRepository: EntregadorRepository,
+    private readonly localizacao: LocalizacaoService,
   ) {}
 
   async criar(idEmpresa: number, pedido: CriaPedidoReqDto): Promise<Pedido> {
@@ -96,6 +98,7 @@ export class PedidoService {
       }),
     );
 
+    await this.localizacao.aoMudarStatus(idPedido, novoStatus);
     return paraPedidoResumo(atualizado);
   }
 
@@ -152,6 +155,10 @@ export class PedidoService {
       }),
     );
 
+    await this.localizacao.aoTrocarEntregador(idPedido);
+    if (pedido.status !== reatribuido.status) {
+      await this.localizacao.aoMudarStatus(idPedido, reatribuido.status);
+    }
     return paraPedidoResumo(reatribuido);
   }
 

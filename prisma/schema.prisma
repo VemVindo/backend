@@ -26,6 +26,11 @@ model Empresa {
   razao_social  String?
   senha         String
   sessao_versao Int     @default(0)
+  // Falso: o recebedor ve so distancia e tempo estimado, sem o mapa (R-US03).
+  exibir_mapa   Boolean @default(true)
+  // Coordenada do endereco da empresa: ponto de saida no mapa da entrega.
+  origem_lat    Float?
+  origem_lng    Float?
 
   pedidos     Pedido[]
   metricas    MetricasPagamento[]
@@ -74,6 +79,9 @@ model Pedido {
   idEmpresa           Int
   cpf_entregador      String?
   distancia           Int
+  // Coordenada do endereco, geocodificada uma vez e reaproveitada.
+  destino_lat         Float?
+  destino_lng         Float?
 
   empresa    Empresa     @relation(fields: [idEmpresa], references: [id_empresa])
   // Igual a FK da migration: entregador com pedido nao pode ser apagado.
@@ -83,6 +91,7 @@ model Pedido {
   historicos      HistoricoPedidoEntregadores[]
   importacao      PedidoImportado?
   acessoRecebedor AcessoRecebedor?
+  localizacao     LocalizacaoEntrega?
 }
 
 model MetricasPagamento {
@@ -158,6 +167,26 @@ model AcessoRecebedor {
   data_criacao     DateTime @default(now())
 
   pedido Pedido @relation(fields: [idPedido], references: [id_pedido])
+}
+
+// So a ultima posicao do entregador na entrega em andamento: a linha e apagada
+// quando o pedido e encerrado ou troca de entregador.
+model LocalizacaoEntrega {
+  idPedido             Int       @id
+  lat                  Float
+  lng                  Float
+  precisao_m           Float?
+  registrada_em        DateTime
+  // Ponto de onde a rota atual foi calculada.
+  origem_rota_lat      Float?
+  origem_rota_lng      Float?
+  rota_polyline        String?
+  distancia_restante_m Int?
+  duracao_restante_s   Int?
+  estimado             Boolean   @default(true)
+  rota_calculada_em    DateTime?
+
+  pedido Pedido @relation(fields: [idPedido], references: [id_pedido], onDelete: Cascade)
 }
 
 model CredencialIntegracao {

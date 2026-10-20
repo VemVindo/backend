@@ -31,6 +31,8 @@ services:
       DIRECT_URL: postgresql://vemvindo:tppe2026.1@database:5432/vemvindo
       JWT_SECRET: dev-jwt-secret-nao-usar-em-producao
       JWT_EXPIRES_IN: "1d"
+      # Opcional: sem ela, distancia e tempo do mapa sao estimados em linha reta.
+      GOOGLE_MAPS_SERVER_KEY: ${GOOGLE_MAPS_SERVER_KEY:-}
       WATCHPACK_POLLING: "true"
     ports:
       - "8000:3000"

@@ -7,7 +7,7 @@ import {
   AcessoRecebedorGuard,
   RequisicaoRecebedor,
 } from './acesso-recebedor.guard';
-import { RastreioService } from './rastreio.service';
+import { ValidadorDeLink } from './validador-de-link';
 
 jest.mock('../prisma/prisma.service', () => ({ PrismaService: class {} }));
 
@@ -23,7 +23,7 @@ describe('AcessoRecebedorGuard', () => {
   const autenticar = jest.fn();
   const guard = new AcessoRecebedorGuard({
     autenticar,
-  } as unknown as RastreioService);
+  } as unknown as ValidadorDeLink);
 
   afterEach(() => autenticar.mockReset());
 

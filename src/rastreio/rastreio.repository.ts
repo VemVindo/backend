@@ -3,7 +3,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AcessoRecebedor, Pedido } from '../generated/prisma/client';
 
 export type AcessoComPedido = AcessoRecebedor & {
-  pedido: Pedido & { empresa: { nome_fantasia: string } };
+  pedido: Pedido & {
+    empresa: { nome_fantasia: string; exibir_mapa: boolean };
+    entregador: { nome: string } | null;
+  };
 };
 
 @Injectable()
@@ -30,7 +33,12 @@ export class RastreioRepository {
     return this.prisma.acessoRecebedor.findUnique({
       where: { token_hash: tokenHash },
       include: {
-        pedido: { include: { empresa: { select: { nome_fantasia: true } } } },
+        pedido: {
+          include: {
+            empresa: { select: { nome_fantasia: true, exibir_mapa: true } },
+            entregador: { select: { nome: true } },
+          },
+        },
       },
     });
   }

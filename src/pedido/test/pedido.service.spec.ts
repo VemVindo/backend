@@ -2,6 +2,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PedidoService } from '../pedido.service';
 import { PedidoRepository } from '../pedido.repository';
+import { LocalizacaoService } from '../../mapa/localizacao.service';
 import { EntregadorRepository } from '../../entregador/entregador.repository';
 import { CriaPedidoReqDto } from '../dto/cria-pedido.dto';
 import { Pedido } from '../../generated/prisma/client';
@@ -38,6 +39,7 @@ describe('PedidoService', () => {
                 .mockResolvedValue({ disponivel: true }),
             },
           },
+          { provide: LocalizacaoService, useValue: {} },
         ],
       }).compile();
       service = module.get<PedidoService>(PedidoService);
@@ -311,12 +313,18 @@ function montar() {
     procurarAtivoPorEmpresa: jest.fn().mockResolvedValue(novoEntregador),
   };
 
+  const localizacao = {
+    aoMudarStatus: jest.fn().mockResolvedValue(undefined),
+    aoTrocarEntregador: jest.fn().mockResolvedValue(undefined),
+  };
+
   const service = new PedidoService(
     pedidos as unknown as PedidoRepository,
     entregadores as unknown as EntregadorRepository,
+    localizacao as unknown as LocalizacaoService,
   );
 
-  return { service, pedidos, entregadores };
+  return { service, pedidos, entregadores, localizacao };
 }
 
 describe('PedidoService.atualizarStatus', () => {
@@ -671,5 +679,55 @@ describe('PedidoService listagens', () => {
       iniciadoEm: DATA_CRIACAO,
       finalizadoEm: null,
     });
+  });
+});
+
+describe('PedidoService e o rastreio em tempo real', () => {
+  it('avisa o rastreio depois de gravar a troca de status', async () => {
+    const { service, pedidos, localizacao } = montar();
+
+    await service.atualizarStatus(
+      CPF_ENTREGADOR,
+      ID_PEDIDO,
+      StatusPedido.FINALIZADO,
+    );
+
+    expect(localizacao.aoMudarStatus).toHaveBeenCalledWith(
+      ID_PEDIDO,
+      StatusPedido.FINALIZADO,
+    );
+    expect(pedidos.atualizarStatus.mock.invocationCallOrder[0]).toBeLessThan(
+      localizacao.aoMudarStatus.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('nao avisa o rastreio quando a troca de status e recusada', async () => {
+    const { service, localizacao } = montar();
+
+    await expect(
+      service.atualizarStatus(CPF_ENTREGADOR, ID_PEDIDO, StatusPedido.PENDENTE),
+    ).rejects.toThrow(ConflictException);
+    expect(localizacao.aoMudarStatus).not.toHaveBeenCalled();
+  });
+
+  it('reinicia a posicao ao trocar o entregador sem mudar o status', async () => {
+    const { service, localizacao } = montar();
+
+    await service.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF);
+
+    expect(localizacao.aoTrocarEntregador).toHaveBeenCalledWith(ID_PEDIDO);
+    expect(localizacao.aoMudarStatus).not.toHaveBeenCalled();
+  });
+
+  it('avisa a mudanca de status quando a atribuicao inicia a entrega', async () => {
+    const { service, pedidos, localizacao } = montar();
+    pedidos.procurarPorEmpresa.mockResolvedValue(pedidoPendente);
+
+    await service.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF);
+
+    expect(localizacao.aoMudarStatus).toHaveBeenCalledWith(
+      ID_PEDIDO,
+      StatusPedido.EM_ANDAMENTO,
+    );
   });
 });
