@@ -3,6 +3,9 @@ import { StatusPedido } from '../../generated/prisma/enums';
 import { Coordenada } from '../geo';
 import type { PedidoComMapa } from '../localizacao.repository';
 
+// R-US04: abaixo disso a tela do recebedor avisa que o entregador esta perto.
+export const DISTANCIA_PROXIMO_M = 300;
+
 // Distancia em metros e duracao em segundos. "estimado" indica que o valor
 // veio da linha reta, nao do calculo de rota do Google.
 export interface VisaoDaEntrega {
@@ -15,6 +18,7 @@ export interface VisaoDaEntrega {
   distanciaRestanteM: number | null;
   duracaoRestanteS: number | null;
   estimado: boolean;
+  entregadorProximo: boolean;
   atualizadaEm: Date | null;
 }
 
@@ -40,6 +44,7 @@ export function montarVisao(
   { status, origem, destino }: PontosDaEntrega,
   localizacao: LocalizacaoEntrega | null,
 ): VisaoDaEntrega {
+  const distancia = localizacao?.distancia_restante_m ?? null;
   return {
     status,
     exibirMapa: true,
@@ -51,9 +56,13 @@ export function montarVisao(
       precisaoM: localizacao.precisao_m,
     },
     rota: localizacao?.rota_polyline ?? null,
-    distanciaRestanteM: localizacao?.distancia_restante_m ?? null,
+    distanciaRestanteM: distancia,
     duracaoRestanteS: localizacao?.duracao_restante_s ?? null,
     estimado: localizacao?.estimado ?? true,
+    entregadorProximo:
+      status === StatusPedido.EM_ANDAMENTO &&
+      distancia !== null &&
+      distancia <= DISTANCIA_PROXIMO_M,
     atualizadaEm: localizacao?.registrada_em ?? null,
   };
 }
