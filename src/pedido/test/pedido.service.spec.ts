@@ -120,6 +120,8 @@ function montar() {
 
     procurarPorEmpresa: jest.fn().mockResolvedValue(pedidoEmAndamento),
 
+    procurarDetalheDaEmpresa: jest.fn().mockResolvedValue(null),
+
     criar: jest.fn().mockResolvedValue(pedidoPendente),
 
     listarDaEmpresa: jest
@@ -594,6 +596,56 @@ describe('PedidoService e o rastreio em tempo real', () => {
     expect(localizacao.aoMudarStatus).toHaveBeenCalledWith(
       ID_PEDIDO,
       StatusPedido.EM_ANDAMENTO,
+    );
+  });
+});
+
+describe('PedidoService.detalhar', () => {
+  const INICIO = new Date('2026-10-07T17:10:00Z');
+  const completo = {
+    ...pedidoEmAndamento,
+    descricao: 'Duas marmitas',
+    telefone_recebedor: '61920000001',
+    cep: '70000000',
+    logradouro: 'SQN 210 Bloco K',
+    numero: 304,
+    complemento: null,
+    bairro: 'Asa Norte',
+    cidade: 'Brasilia',
+    uf: 'DF',
+    valor_entrega: 1250,
+    distancia: 4200,
+    data_inicio_entrega: INICIO,
+    data_finalizacao: null,
+    entregador: { nome: 'Bruno Lima' },
+  };
+
+  it('devolve recebedor, endereco, entregador e a linha do tempo', async () => {
+    const { service, pedidos } = montar();
+    pedidos.procurarDetalheDaEmpresa.mockResolvedValue(completo);
+
+    const detalhe = await service.detalhar(ID_EMPRESA, ID_PEDIDO);
+
+    expect(detalhe).toMatchObject({
+      id: ID_PEDIDO,
+      status: StatusPedido.EM_ANDAMENTO,
+      recebedor: { nome: 'Carla Menezes', telefone: '61920000001' },
+      endereco: { logradouro: 'SQN 210 Bloco K', numero: 304, uf: 'DF' },
+      entregador: 'Bruno Lima',
+      valorEntrega: 1250,
+      linhaDoTempo: [
+        { etapa: 'CRIADO', em: DATA_CRIACAO },
+        { etapa: StatusPedido.EM_ANDAMENTO, em: INICIO },
+      ],
+    });
+    expect(detalhe).not.toHaveProperty('cpf_entregador');
+  });
+
+  it('responde 404 para pedido de outra empresa', async () => {
+    const { service } = montar();
+
+    await expect(service.detalhar(ID_EMPRESA, ID_PEDIDO)).rejects.toThrow(
+      NotFoundException,
     );
   });
 });

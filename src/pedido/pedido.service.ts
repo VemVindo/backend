@@ -28,6 +28,10 @@ import {
   statusFinal,
   transicaoPermitida,
 } from './regras/status-pedido.regra';
+import {
+  DetalheDoPedidoDto,
+  paraDetalheDoPedido,
+} from './dto/detalhe-do-pedido.dto';
 
 const STATUS_REATRIBUIVEIS: readonly StatusPedido[] = [
   StatusPedido.PENDENTE,
@@ -57,6 +61,20 @@ export class PedidoService {
   async listarDaEmpresa(idEmpresa: number): Promise<PedidoResumoDto[]> {
     const pedidos = await this.pedidoRepository.listarDaEmpresa(idEmpresa);
     return pedidos.map(paraPedidoResumo);
+  }
+
+  async detalhar(
+    idEmpresa: number,
+    idPedido: number,
+  ): Promise<DetalheDoPedidoDto> {
+    const pedido = await this.pedidoRepository.procurarDetalheDaEmpresa(
+      idPedido,
+      idEmpresa,
+    );
+    if (!pedido) {
+      throw new NotFoundException('Pedido não encontrado');
+    }
+    return paraDetalheDoPedido(pedido);
   }
 
   async listarDoEntregador(

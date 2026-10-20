@@ -30,12 +30,20 @@ export class LocalizacaoController {
     return this.localizacao.registrarPosicao(usuario.usuarioId, idPedido, dto);
   }
 
+  // O entregador ve a rota das proprias entregas; a empresa, a dos pedidos
+  // dela (E-US13).
   @Get('pedidos/:id/rota')
-  @Cargos(Cargo.ENTREGADOR)
+  @Cargos(Cargo.ENTREGADOR, Cargo.ESTABELECIMENTO)
   consultarRota(
     @UsuarioAtual() usuario: UsuarioAutenticado,
     @Param('id', ParseIntPipe) idPedido: number,
   ) {
+    if (usuario.cargo === Cargo.ESTABELECIMENTO) {
+      return this.localizacao.consultarParaEmpresa(
+        Number(usuario.empresaId),
+        idPedido,
+      );
+    }
     return this.localizacao.consultarParaEntregador(
       usuario.usuarioId,
       idPedido,

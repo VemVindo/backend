@@ -62,6 +62,7 @@ describe('PedidoController rotas de entregador e reatribuicao', () => {
       listarHistoricoDeEntregadores: jest.fn().mockResolvedValue([]),
       listarDaEmpresa: jest.fn().mockResolvedValue([]),
       listarDoEntregador: jest.fn().mockResolvedValue([]),
+      detalhar: jest.fn().mockResolvedValue({}),
     };
     const controller = new PedidoController(
       service as unknown as PedidoService,
@@ -116,6 +117,14 @@ describe('PedidoController rotas de entregador e reatribuicao', () => {
     await controller.listarDaEmpresa(EMPRESA);
 
     expect(service.listarDaEmpresa).toHaveBeenCalledWith(7);
+  });
+
+  it('detalha o pedido usando a empresa do token', async () => {
+    const { controller, service } = montar();
+
+    await controller.detalhar(EMPRESA, 1);
+
+    expect(service.detalhar).toHaveBeenCalledWith(7, 1);
   });
 
   it('lista as entregas do entregador logado', async () => {

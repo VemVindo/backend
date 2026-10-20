@@ -117,6 +117,16 @@ export class PedidoRepository {
     });
   }
 
+  procurarDetalheDaEmpresa(
+    idPedido: number,
+    idEmpresa: number,
+  ): Promise<PedidoComEntregador | null> {
+    return this.prisma.pedido.findFirst({
+      where: { id_pedido: idPedido, idEmpresa },
+      include: COM_NOME_DO_ENTREGADOR,
+    });
+  }
+
   procurarAtribuidoAoEntregador(
     idPedido: number,
     cpfEntregador: string,
