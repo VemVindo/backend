@@ -17,6 +17,7 @@ import { RastreioModule } from './rastreio/rastreio.module';
 import { PedidoModule } from './pedido/pedido.module';
 import { IntegracaoModule } from './integracao/integracao.module';
 import { MapaModule } from './mapa/mapa.module';
+import { RemuneracaoModule } from './remuneracao/remuneracao.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { MapaModule } from './mapa/mapa.module';
     PedidoModule,
     IntegracaoModule,
     MapaModule,
+    RemuneracaoModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
