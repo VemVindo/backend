@@ -97,4 +97,28 @@ export class PedidoController {
       idPedido,
     );
   }
+
+  @Get(':id/whatsapp/entregador')
+  @Cargos(Cargo.ESTABELECIMENTO)
+  conversaComEntregador(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param('id', ParseIntPipe) idPedido: number,
+  ) {
+    return this.pedidoService.conversaComEntregador(
+      Number(usuario.empresaId),
+      idPedido,
+    );
+  }
+
+  @Get(':id/whatsapp/estabelecimento')
+  @Cargos(Cargo.ENTREGADOR)
+  conversaComEstabelecimento(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param('id', ParseIntPipe) idPedido: number,
+  ) {
+    return this.pedidoService.conversaComEstabelecimento(
+      usuario.usuarioId,
+      idPedido,
+    );
+  }
 }

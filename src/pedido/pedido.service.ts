@@ -2,11 +2,13 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { EntregadorRepository } from '../entregador/entregador.repository';
 import { Pedido } from '../generated/prisma/client';
 import { StatusPedido } from '../generated/prisma/enums';
 import { LocalizacaoService } from '../mapa/localizacao.service';
+import { ConversaWhatsappDto } from './dto/conversa-whatsapp.dto';
 import { CriaPedidoReqDto } from './dto/cria-pedido.dto';
 import {
   HistoricoEntregadorDto,
@@ -22,12 +24,22 @@ import {
   EntregadorIndisponivelError,
   PedidoAlteradoError,
 } from './pedido.erros';
-import { PedidoRepository } from './pedido.repository';
+import {
+  DonoDoPedido,
+  PedidoComContatos,
+  PedidoRepository,
+} from './pedido.repository';
 import {
   obterStatusDisponiveis,
   statusFinal,
   transicaoPermitida,
 } from './regras/status-pedido.regra';
+import {
+  DadosDaConversa,
+  montarLinkWhatsapp,
+  textoParaEntregador,
+  textoParaEstabelecimento,
+} from './whatsapp';
 
 const STATUS_REATRIBUIVEIS: readonly StatusPedido[] = [
   StatusPedido.PENDENTE,
@@ -179,7 +191,70 @@ export class PedidoService {
     return registros.map(paraHistoricoEntregador);
   }
 
-  // Vinculo ATIVO: a empresa so atribui entregador da propria frota.
+  async conversaComEntregador(
+    idEmpresa: number,
+    idPedido: number,
+  ): Promise<ConversaWhatsappDto> {
+    const { pedido, dados } = await this.prepararConversa(idPedido, {
+      idEmpresa,
+    });
+    return {
+      link: this.exigirLink(
+        pedido.entregador.telefone,
+        textoParaEntregador(dados),
+      ),
+      contato: dados.entregador,
+    };
+  }
+
+  async conversaComEstabelecimento(
+    cpfEntregador: string,
+    idPedido: number,
+  ): Promise<ConversaWhatsappDto> {
+    const { pedido, dados } = await this.prepararConversa(idPedido, {
+      cpf_entregador: cpfEntregador,
+    });
+    return {
+      link: this.exigirLink(
+        pedido.empresa.telefone,
+        textoParaEstabelecimento(dados),
+      ),
+      contato: dados.empresa,
+    };
+  }
+
+  private async prepararConversa(idPedido: number, dono: DonoDoPedido) {
+    const pedido = await this.pedidoRepository.procurarComContatos(
+      idPedido,
+      dono,
+    );
+    if (!pedido) {
+      throw new NotFoundException('Pedido não encontrado');
+    }
+    if (!conversaDisponivel(pedido)) {
+      throw new ConflictException(
+        'A conversa pelo WhatsApp só fica disponível com a entrega em andamento',
+      );
+    }
+
+    const dados: DadosDaConversa = {
+      idPedido: pedido.id_pedido,
+      empresa: pedido.empresa.nome_fantasia,
+      entregador: pedido.entregador.nome,
+    };
+    return { pedido, dados };
+  }
+
+  private exigirLink(telefone: string, texto: string): string {
+    const link = montarLinkWhatsapp(telefone, texto);
+    if (!link) {
+      throw new UnprocessableEntityException(
+        'O telefone cadastrado não é válido para o WhatsApp',
+      );
+    }
+    return link;
+  }
+
   private async exigirEntregadorDisponivel(
     idEmpresa: number,
     cpfEntregador: string,
@@ -217,4 +292,14 @@ export class PedidoService {
       throw erro;
     }
   }
+}
+
+type PedidoEmConversa = PedidoComContatos & {
+  entregador: NonNullable<PedidoComContatos['entregador']>;
+};
+
+function conversaDisponivel(
+  pedido: PedidoComContatos,
+): pedido is PedidoEmConversa {
+  return pedido.status === StatusPedido.EM_ANDAMENTO && !!pedido.entregador;
 }
