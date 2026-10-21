@@ -72,6 +72,20 @@ export class PedidoController {
     );
   }
 
+  @Patch(':id/atribuir')
+  @Cargos(Cargo.ESTABELECIMENTO)
+  atribuir(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param('id', ParseIntPipe) idPedido: number,
+    @Body() dto: ReatribuirPedidoDto,
+  ) {
+    return this.pedidoService.atribuir(
+      Number(usuario.empresaId),
+      idPedido,
+      dto.cpfEntregador,
+    );
+  }
+
   @Patch(':id/entregador')
   @Cargos(Cargo.ESTABELECIMENTO)
   reatribuir(
