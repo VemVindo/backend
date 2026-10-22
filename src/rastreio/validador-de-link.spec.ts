@@ -78,3 +78,21 @@ describe('ValidadorDeLink.autenticar', () => {
     },
   );
 });
+
+describe('ValidadorDeLink.procurarAcesso', () => {
+  it('devolve o acesso mesmo com a entrega finalizada', async () => {
+    const { validador, repositorio } = montar();
+    repositorio.procurarPorTokenHash.mockResolvedValue(acesso('FINALIZADO'));
+
+    await expect(
+      validador.procurarAcesso(gerarTokenRastreio()),
+    ).resolves.toMatchObject({ idPedido: 42 });
+  });
+
+  it('nao consulta o banco com token de formato invalido', async () => {
+    const { validador, repositorio } = montar();
+
+    await expect(validador.procurarAcesso('x')).resolves.toBeNull();
+    expect(repositorio.procurarPorTokenHash).not.toHaveBeenCalled();
+  });
+});

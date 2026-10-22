@@ -127,9 +127,14 @@ export class LocalizacaoService {
 
   // Chamado depois da troca de status. Entrega encerrada apaga a posicao e
   // desconecta o recebedor. Falha aqui nao desfaz a troca de status.
-  async aoMudarStatus(idPedido: number, status: StatusPedido): Promise<void> {
+  async aoMudarStatus(
+    idPedido: number,
+    status: StatusPedido,
+    agora = new Date(),
+  ): Promise<void> {
     try {
-      this.gateway.publicar(idPedido, EVENTO_STATUS, { status });
+      // O horario entra na linha do tempo do recebedor (R-US02).
+      this.gateway.publicar(idPedido, EVENTO_STATUS, { status, em: agora });
       if (STATUS_ENCERRADOS.includes(status)) {
         await this.localizacoes.apagarPosicao(idPedido);
         this.ultimaGeocodificacao.delete(chaveDoPedido(idPedido));
