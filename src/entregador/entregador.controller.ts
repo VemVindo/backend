@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
@@ -17,6 +18,7 @@ import { CpfParamDto } from './dto/cpf-param.dto';
 import { CadastrarEntregadorDto } from './dto/cadastrar-entregador.dto';
 import { VincularEntregadorDto } from './dto/vincular-entregador.dto';
 import { EntregadorService } from './entregador.service';
+import { EditarEntregadorReqDto } from './dto/editar-entregador.dto';
 
 // Cadastro e convite recebem CPF de terceiros; o limite dificulta varrer CPFs.
 const LIMITE_OPERACOES_POR_CPF = { default: { limit: 10, ttl: 60_000 } };
@@ -70,5 +72,17 @@ export class EntregadorController {
     @Param() { cpf }: CpfParamDto,
   ) {
     return this.entregadorService.desvincular(Number(usuario.empresaId), cpf);
+  }
+
+  @Patch()
+  async editar(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Body() editarEntregadorDto: EditarEntregadorReqDto,
+  ): Promise<boolean> {
+    const result = this.entregadorService.editar(
+      Number(usuario.empresaId),
+      editarEntregadorDto,
+    );
+    return result;
   }
 }
