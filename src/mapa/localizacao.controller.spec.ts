@@ -18,6 +18,7 @@ function montar() {
   const service = {
     registrarPosicao: jest.fn().mockResolvedValue({ status: 'EM_ANDAMENTO' }),
     consultarParaEntregador: jest.fn().mockResolvedValue({}),
+    consultarParaEmpresa: jest.fn().mockResolvedValue({}),
     consultarParaRecebedor: jest.fn().mockResolvedValue({}),
   };
   const controller = new LocalizacaoController(
@@ -55,6 +56,18 @@ describe('LocalizacaoController', () => {
       '98765432100',
       42,
     );
+  });
+
+  it('a empresa consulta a rota com o id do token, nunca o CPF', async () => {
+    const { controller, service } = montar();
+
+    await controller.consultarRota(
+      { usuarioId: '7', cargo: Cargo.ESTABELECIMENTO, empresaId: '7' },
+      42,
+    );
+
+    expect(service.consultarParaEmpresa).toHaveBeenCalledWith(7, 42);
+    expect(service.consultarParaEntregador).not.toHaveBeenCalled();
   });
 
   it('o recebedor consulta o pedido do proprio link', async () => {

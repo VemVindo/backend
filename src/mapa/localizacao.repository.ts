@@ -57,6 +57,16 @@ export class LocalizacaoRepository {
     });
   }
 
+  procurarDaEmpresa(
+    idPedido: number,
+    idEmpresa: number,
+  ): Promise<PedidoComMapa | null> {
+    return this.prisma.pedido.findFirst({
+      where: { id_pedido: idPedido, idEmpresa },
+      include: DADOS_DO_MAPA,
+    });
+  }
+
   procurarPorId(idPedido: number): Promise<PedidoComMapa | null> {
     return this.prisma.pedido.findUnique({
       where: { id_pedido: idPedido },
