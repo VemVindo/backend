@@ -61,7 +61,7 @@ WHERE NOT EXISTS (
 -- Parametros de remuneracao (centavos) ---------------------------------------
 
 INSERT INTO "MetricasPagamento" ("idEmpresa", taxa_fixa, coeficiente, data)
-SELECT id_empresa, 800, 150, TIMESTAMP '2026-01-01 00:00:00'
+SELECT id_empresa, 800, 150, TIMESTAMPTZ '2026-01-01 00:00:00-03:00'
 FROM "Empresa" WHERE email = 'cantina@example.com'
 ON CONFLICT DO NOTHING;
 
