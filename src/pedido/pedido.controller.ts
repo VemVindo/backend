@@ -72,6 +72,20 @@ export class PedidoController {
     );
   }
 
+  @Patch(':id/atribuir')
+  @Cargos(Cargo.ESTABELECIMENTO)
+  atribuir(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param('id', ParseIntPipe) idPedido: number,
+    @Body() dto: ReatribuirPedidoDto,
+  ) {
+    return this.pedidoService.atribuir(
+      Number(usuario.empresaId),
+      idPedido,
+      dto.cpfEntregador,
+    );
+  }
+
   @Patch(':id/entregador')
   @Cargos(Cargo.ESTABELECIMENTO)
   reatribuir(
@@ -96,5 +110,15 @@ export class PedidoController {
       Number(usuario.empresaId),
       idPedido,
     );
+  }
+
+  // Fica por ultimo: ':id' nao pode capturar as rotas fixas acima.
+  @Get(':id')
+  @Cargos(Cargo.ESTABELECIMENTO)
+  detalhar(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param('id', ParseIntPipe) idPedido: number,
+  ) {
+    return this.pedidoService.detalhar(Number(usuario.empresaId), idPedido);
   }
 }

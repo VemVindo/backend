@@ -59,9 +59,11 @@ describe('PedidoController rotas de entregador e reatribuicao', () => {
       obterStatusDisponiveis: jest.fn().mockResolvedValue({}),
       atualizarStatus: jest.fn().mockResolvedValue({}),
       reatribuir: jest.fn().mockResolvedValue({}),
+      atribuir: jest.fn().mockResolvedValue({}),
       listarHistoricoDeEntregadores: jest.fn().mockResolvedValue([]),
       listarDaEmpresa: jest.fn().mockResolvedValue([]),
       listarDoEntregador: jest.fn().mockResolvedValue([]),
+      detalhar: jest.fn().mockResolvedValue({}),
     };
     const controller = new PedidoController(
       service as unknown as PedidoService,
@@ -102,6 +104,14 @@ describe('PedidoController rotas de entregador e reatribuicao', () => {
     expect(service.reatribuir).toHaveBeenCalledWith(7, 1, '11144477735');
   });
 
+  it('atribui usando a empresa do token, nunca a do corpo', async () => {
+    const { controller, service } = montar();
+
+    await controller.atribuir(EMPRESA, 1, { cpfEntregador: '11144477735' });
+
+    expect(service.atribuir).toHaveBeenCalledWith(7, 1, '11144477735');
+  });
+
   it('lista o historico usando a empresa do token', async () => {
     const { controller, service } = montar();
 
@@ -116,6 +126,14 @@ describe('PedidoController rotas de entregador e reatribuicao', () => {
     await controller.listarDaEmpresa(EMPRESA);
 
     expect(service.listarDaEmpresa).toHaveBeenCalledWith(7);
+  });
+
+  it('detalha o pedido usando a empresa do token', async () => {
+    const { controller, service } = montar();
+
+    await controller.detalhar(EMPRESA, 1);
+
+    expect(service.detalhar).toHaveBeenCalledWith(7, 1);
   });
 
   it('lista as entregas do entregador logado', async () => {
