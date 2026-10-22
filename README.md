@@ -63,7 +63,7 @@ Datas com horário são armazenadas como instantes (`TIMESTAMPTZ`) e enviadas pe
 API em UTC, com sufixo `Z`. A interface deve formatá-las no fuso do usuário (por
 exemplo, `America/Sao_Paulo`) e não somar ou subtrair horas manualmente. A
 migration `20261021224600_padronizar_fuso_data` interpreta os horários legados
-sem fuso como horário de São Paulo, preservando o horário exibido.
+sem fuso como UTC, que é como o Prisma os gravava, preservando o horário exibido.
 
 ### Dados de teste
 
