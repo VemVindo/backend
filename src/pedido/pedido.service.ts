@@ -161,22 +161,32 @@ export class PedidoService {
       );
     }
 
-    await this.exigirEntregadorDisponivel(idEmpresa, cpfNovoEntregador);
+    return this.trocarEntregador(idEmpresa, pedido, cpfNovoEntregador);
+  }
 
-    const reatribuido = await this.comControleDeConcorrencia(() =>
-      this.pedidoRepository.reatribuir({
-        idPedido,
-        statusAtual: pedido.status,
-        cpfAnterior: pedido.cpf_entregador,
-        cpfNovo: cpfNovoEntregador,
-      }),
+  // E-US08: so o primeiro entregador. Trocar quem ja esta no pedido e a
+  // reatribuicao (E-US11), que registra o entregador anterior.
+  async atribuir(
+    idEmpresa: number,
+    idPedido: number,
+    cpfEntregador: string,
+  ): Promise<PedidoResumoDto> {
+    const pedido = await this.pedidoRepository.procurarPorEmpresa(
+      idPedido,
+      idEmpresa,
     );
 
-    await this.localizacao.aoTrocarEntregador(idPedido);
-    if (pedido.status !== reatribuido.status) {
-      await this.localizacao.aoMudarStatus(idPedido, reatribuido.status);
+    if (!pedido) {
+      throw new NotFoundException('Pedido não encontrado');
     }
-    return paraPedidoResumo(reatribuido);
+
+    if (pedido.status !== StatusPedido.PENDENTE || pedido.cpf_entregador) {
+      throw new ConflictException(
+        'Só é possível atribuir um pedido pendente e sem entregador',
+      );
+    }
+
+    return this.trocarEntregador(idEmpresa, pedido, cpfEntregador);
   }
 
   async listarHistoricoDeEntregadores(
@@ -195,6 +205,31 @@ export class PedidoService {
     const registros =
       await this.pedidoRepository.listarHistoricoDeEntregadores(idPedido);
     return registros.map(paraHistoricoEntregador);
+  }
+
+  private async trocarEntregador(
+    idEmpresa: number,
+    pedido: Pedido,
+    cpfNovoEntregador: string,
+  ): Promise<PedidoResumoDto> {
+    const idPedido = pedido.id_pedido;
+
+    await this.exigirEntregadorDisponivel(idEmpresa, cpfNovoEntregador);
+
+    const reatribuido = await this.comControleDeConcorrencia(() =>
+      this.pedidoRepository.reatribuir({
+        idPedido,
+        statusAtual: pedido.status,
+        cpfAnterior: pedido.cpf_entregador,
+        cpfNovo: cpfNovoEntregador,
+      }),
+    );
+
+    await this.localizacao.aoTrocarEntregador(idPedido);
+    if (pedido.status !== reatribuido.status) {
+      await this.localizacao.aoMudarStatus(idPedido, reatribuido.status);
+    }
+    return paraPedidoResumo(reatribuido);
   }
 
   // Vinculo ATIVO: a empresa so atribui entregador da propria frota.
