@@ -18,6 +18,10 @@ export class EnvironmentVariables {
   @IsOptional()
   DIRECT_URL?: string;
 
+  @IsNumberString()
+  @IsOptional()
+  DB_POOL_MAX?: string;
+
   @IsString()
   @MinLength(32)
   JWT_SECRET: string;
