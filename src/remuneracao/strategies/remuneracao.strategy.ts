@@ -1,3 +1,4 @@
+import { MetricasPagamento } from 'src/generated/prisma';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 export abstract class Remuneracao {
@@ -7,7 +8,7 @@ export abstract class Remuneracao {
   coeficiente: number;
   data: string;
 
-  public abstract configurar(): Promise<any>;
+  public abstract configurar(): Promise<MetricasPagamento | null>;
 
   constructor(
     idEmpresa: number,

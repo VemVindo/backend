@@ -6,18 +6,18 @@ import { RemuneracaoFactory } from './factories/remuneracao.factory';
 export class RemuneracaoService {
   constructor(private readonly remuneracaoFactory: RemuneracaoFactory) {}
 
-  public async configurarTaxaFixa(
+  public async configurarRemuneracao(
     idEmpresa: number,
     configurarRemuneracaoDto: ConfigurarRemuneracaoReqDto,
   ): Promise<boolean> {
     const { taxa_fixa, coeficiente } = configurarRemuneracaoDto;
-    if (!taxa_fixa && !coeficiente) return false;
+    if (!taxa_fixa || !coeficiente) return false;
     const configuracao = await this.remuneracaoFactory.criar(
       idEmpresa,
       taxa_fixa,
       coeficiente,
     );
-    if (await configuracao.configurar()) return true;
+    if ((await configuracao.configurar()) !== null) return true;
     else return false;
   }
 }

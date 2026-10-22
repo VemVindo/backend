@@ -1,8 +1,9 @@
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Remuneracao } from './remuneracao.strategy';
+import { MetricasPagamento } from 'src/generated/prisma';
 
 export class RemuneracaoExistente extends Remuneracao {
-  public async configurar(): Promise<any> {
+  public async configurar(): Promise<MetricasPagamento | null> {
     return await this.prisma.metricasPagamento.update({
       where: {
         idEmpresa_data: {

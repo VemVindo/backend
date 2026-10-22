@@ -1,4 +1,4 @@
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { RemuneracaoRepository } from '../remuneracao.repository';
 import { RemuneracaoExistente } from '../strategies/remuneracao-existente.strategy';
 import { RemuneracaoInexistente } from '../strategies/remuneracao-inexistente.strategy';
@@ -17,7 +17,8 @@ export class RemuneracaoFactory {
     taxa_fixa: number,
     coeficiente: number,
   ): Promise<Remuneracao> {
-    const result = await this.remuneracaoRepository.verificaTaxaFixa(idEmpresa);
+    const result =
+      await this.remuneracaoRepository.verificaRemuneracao(idEmpresa);
     if (result)
       return new RemuneracaoExistente(
         idEmpresa,
