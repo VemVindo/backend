@@ -105,12 +105,17 @@ model MetricasPagamento {
   @@id([idEmpresa, data])
 }
 
+// R-US05: nota de 0 a 5. R-US06: o comentario e opcional e chega depois
+// da nota. A data ordena e filtra a pagina de comentarios (E-US17).
 model Avaliacao {
-  idpedidos         Int    @id
+  idpedidos         Int      @id
   avaliacao_entrega Int
-  comentario        String
+  comentario        String?
+  data              DateTime @default(now())
 
   pedido Pedido @relation(fields: [idpedidos], references: [id_pedido])
+
+  @@index([data])
 }
 
 // cpf_entregador_antigo nulo indica a primeira atribuicao de um pedido PENDENTE.
