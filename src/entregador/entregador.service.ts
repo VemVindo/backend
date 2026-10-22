@@ -155,15 +155,7 @@ export class EntregadorService {
     if (!nome && !telefone && !veiculo && !placa) return false;
     if (!(await this.entregadores.procurarAtivoPorEmpresa(idEmpresa, cpf)))
       return false;
-    if (
-      await this.entregadores.atualizar(
-        cpf,
-        nome as string,
-        telefone as string,
-        veiculo as string,
-        placa as string,
-      )
-    )
+    if (await this.entregadores.atualizar(cpf, nome, telefone, veiculo, placa))
       return true;
     return false;
   }
