@@ -173,7 +173,7 @@ model AcessoRecebedor {
   idPedido                Int       @id
   token_hash              String    @unique
   codigo_recebedor        String
-  data_criacao            DateTime  @default(now())
+  data_criacao            DateTime  @default(now()) @db.Timestamptz(3)
   tentativas_codigo       Int       @default(0)
   ultima_tentativa_codigo DateTime?
 
