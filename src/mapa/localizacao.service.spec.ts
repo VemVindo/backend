@@ -503,10 +503,12 @@ describe('LocalizacaoService ganchos do pedido', () => {
   it('ao iniciar a entrega so avisa o novo status', async () => {
     const { service, gateway, repositorio } = montar();
 
-    await service.aoMudarStatus(ID_PEDIDO, StatusPedido.EM_ANDAMENTO);
+    const agora = new Date('2026-10-20T12:10:00Z');
+    await service.aoMudarStatus(ID_PEDIDO, StatusPedido.EM_ANDAMENTO, agora);
 
     expect(gateway.publicar).toHaveBeenCalledWith(ID_PEDIDO, EVENTO_STATUS, {
       status: StatusPedido.EM_ANDAMENTO,
+      em: agora,
     });
     expect(repositorio.apagarPosicao).not.toHaveBeenCalled();
     expect(gateway.encerrarSala).not.toHaveBeenCalled();

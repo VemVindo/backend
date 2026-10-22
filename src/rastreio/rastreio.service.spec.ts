@@ -22,6 +22,8 @@ function pedido(status = 'EM_ANDAMENTO') {
     descricao: 'Duas marmitas',
     status,
     data_criacao: new Date('2026-10-08T12:00:00Z'),
+    data_inicio_entrega: new Date('2026-10-08T12:10:00Z'),
+    data_finalizacao: null,
     logradouro: 'SQN 210 Bloco K',
     numero: 304,
     complemento: null,
@@ -167,6 +169,15 @@ describe('RastreioService.montarPaginaDoRecebedor', () => {
     expect(pagina.codigoRecebedor).toBe('012345');
     expect(pagina.exibirMapa).toBe(true);
     expect(pagina.entregador).toBe('Bruno');
+  });
+
+  it('traz a linha do tempo com o horario de cada etapa', () => {
+    const { service } = montar();
+
+    expect(service.montarPaginaDoRecebedor(acesso()).linhaDoTempo).toEqual([
+      { etapa: 'CRIADO', em: new Date('2026-10-08T12:00:00Z') },
+      { etapa: 'EM_ANDAMENTO', em: new Date('2026-10-08T12:10:00Z') },
+    ]);
   });
 
   it('sem entregador atribuido, devolve o nome nulo', () => {

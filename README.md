@@ -57,6 +57,14 @@ Duas variáveis controlam a conexão:
 Em dev as duas apontam para o serviço `database`. Em produção apontam para o
 Supabase, com credenciais vindas de um `.env` não versionado.
 
+### Datas e fusos horários
+
+Datas com horário são armazenadas como instantes (`TIMESTAMPTZ`) e enviadas pela
+API em UTC, com sufixo `Z`. A interface deve formatá-las no fuso do usuário (por
+exemplo, `America/Sao_Paulo`) e não somar ou subtrair horas manualmente. A
+migration `20261021224600_padronizar_fuso_data` interpreta os horários legados
+sem fuso como horário de São Paulo, preservando o horário exibido.
+
 ### Dados de teste
 
 Em dev, o `CMD` do `Dockerfile.dev` roda `prisma/seed/dev.sql` depois das

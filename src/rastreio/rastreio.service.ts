@@ -13,6 +13,7 @@ import {
   hashDoToken,
 } from './token-rastreio';
 import { STATUS_DE_ENTREGA_ENCERRADA } from './validador-de-link';
+import { linhaDoTempo } from './linha-do-tempo';
 
 @Injectable()
 export class RastreioService {
@@ -91,6 +92,7 @@ export class RastreioService {
               recebedor: pedido.nome_recebedor,
             }),
           ),
+      linhaDoTempo: linhaDoTempo(pedido),
     };
   }
 
