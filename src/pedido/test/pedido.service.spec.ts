@@ -438,6 +438,85 @@ describe('PedidoService.reatribuir', () => {
   });
 });
 
+describe('PedidoService.atribuir', () => {
+  it('responde 404 quando o pedido nao pertence a empresa', async () => {
+    const { service, pedidos } = montar();
+    pedidos.procurarPorEmpresa.mockResolvedValue(null);
+
+    await expect(
+      service.atribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it.each([
+    ['ja tem entregador', pedidoEmAndamento],
+    [
+      'esta finalizado',
+      { ...pedidoEmAndamento, status: StatusPedido.FINALIZADO },
+    ],
+    ['esta cancelado', { ...pedidoPendente, status: StatusPedido.CANCELADO }],
+  ])(
+    'recusa atribuir quando o pedido %s, sem gravar',
+    async (_caso, pedido) => {
+      const { service, pedidos } = montar();
+      pedidos.procurarPorEmpresa.mockResolvedValue(pedido);
+
+      await expect(
+        service.atribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
+      ).rejects.toThrow(ConflictException);
+      expect(pedidos.reatribuir).not.toHaveBeenCalled();
+    },
+  );
+
+  it('responde 404 quando o entregador nao e da frota da empresa', async () => {
+    const { service, pedidos, entregadores } = montar();
+    pedidos.procurarPorEmpresa.mockResolvedValue(pedidoPendente);
+    entregadores.procurarAtivoPorEmpresa.mockResolvedValue(null);
+
+    await expect(
+      service.atribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('recusa entregador indisponivel sem gravar', async () => {
+    const { service, pedidos, entregadores } = montar();
+    pedidos.procurarPorEmpresa.mockResolvedValue(pedidoPendente);
+    entregadores.procurarAtivoPorEmpresa.mockResolvedValue({
+      ...novoEntregador,
+      disponivel: false,
+    });
+
+    await expect(
+      service.atribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
+    ).rejects.toThrow(ConflictException);
+    expect(pedidos.reatribuir).not.toHaveBeenCalled();
+  });
+
+  it('grava o primeiro entregador condicionado ao pedido pendente', async () => {
+    const { service, pedidos } = montar();
+    pedidos.procurarPorEmpresa.mockResolvedValue(pedidoPendente);
+
+    await service.atribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF);
+
+    expect(pedidos.reatribuir).toHaveBeenCalledWith({
+      idPedido: ID_PEDIDO,
+      statusAtual: StatusPedido.PENDENTE,
+      cpfAnterior: null,
+      cpfNovo: NOVO_CPF,
+    });
+  });
+
+  it('responde 409 quando outro usuario atribuiu antes', async () => {
+    const { service, pedidos } = montar();
+    pedidos.procurarPorEmpresa.mockResolvedValue(pedidoPendente);
+    pedidos.reatribuir.mockRejectedValue(new PedidoAlteradoError());
+
+    await expect(
+      service.atribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
+    ).rejects.toThrow(ConflictException);
+  });
+});
+
 describe('PedidoService.criar com entregador', () => {
   const pedido = () =>
     ({ cpf_entregador: NOVO_CPF }) as unknown as CriaPedidoReqDto;
