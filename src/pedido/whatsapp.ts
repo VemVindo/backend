@@ -36,3 +36,17 @@ export function textoParaEntregador(dados: DadosDaConversa): string {
 export function textoParaEstabelecimento(dados: DadosDaConversa): string {
   return `Olá, ${dados.empresa}! Sou ${dados.entregador}, entregador do pedido #${dados.idPedido}.`;
 }
+
+export interface DadosDaConversaComRecebedor {
+  idPedido: number;
+  empresa: string;
+  recebedor: string;
+}
+
+export function textoParaRecebedor(dados: DadosDaConversaComRecebedor): string {
+  return `Olá, ${dados.recebedor}! Aqui é ${dados.empresa}, sobre o seu pedido #${dados.idPedido}.`;
+}
+
+export function textoDoRecebedor(dados: DadosDaConversaComRecebedor): string {
+  return `Olá, ${dados.empresa}! Sou ${dados.recebedor}, sobre o meu pedido #${dados.idPedido}.`;
+}

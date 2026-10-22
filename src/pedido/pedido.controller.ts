@@ -121,4 +121,16 @@ export class PedidoController {
       idPedido,
     );
   }
+
+  @Get(':id/whatsapp/recebedor')
+  @Cargos(Cargo.ESTABELECIMENTO)
+  conversaComRecebedor(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param('id', ParseIntPipe) idPedido: number,
+  ) {
+    return this.pedidoService.conversaComRecebedor(
+      Number(usuario.empresaId),
+      idPedido,
+    );
+  }
 }

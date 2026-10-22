@@ -4,7 +4,7 @@ import { AcessoRecebedor, Pedido } from '../generated/prisma/client';
 
 export type AcessoComPedido = AcessoRecebedor & {
   pedido: Pedido & {
-    empresa: { nome_fantasia: string; exibir_mapa: boolean };
+    empresa: { nome_fantasia: string; exibir_mapa: boolean; telefone: string };
     entregador: { nome: string } | null;
   };
 };
@@ -35,7 +35,13 @@ export class RastreioRepository {
       include: {
         pedido: {
           include: {
-            empresa: { select: { nome_fantasia: true, exibir_mapa: true } },
+            empresa: {
+              select: {
+                nome_fantasia: true,
+                exibir_mapa: true,
+                telefone: true,
+              },
+            },
             entregador: { select: { nome: true } },
           },
         },

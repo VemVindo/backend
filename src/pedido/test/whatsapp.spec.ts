@@ -1,8 +1,10 @@
 import {
   montarLinkWhatsapp,
   numeroInternacional,
+  textoDoRecebedor,
   textoParaEntregador,
   textoParaEstabelecimento,
+  textoParaRecebedor,
 } from '../whatsapp';
 
 const DADOS = {
@@ -54,6 +56,26 @@ describe('mensagens iniciais', () => {
   it('o entregador cita so o pedido para a empresa', () => {
     expect(textoParaEstabelecimento(DADOS)).toBe(
       'Olá, Padaria Sol! Sou Joao Silva, entregador do pedido #12.',
+    );
+  });
+});
+
+describe('mensagens iniciais com o recebedor', () => {
+  const COM_RECEBEDOR = {
+    idPedido: 12,
+    empresa: 'Padaria Sol',
+    recebedor: 'Carla Menezes',
+  };
+
+  it('a empresa cita so o pedido para o recebedor', () => {
+    expect(textoParaRecebedor(COM_RECEBEDOR)).toBe(
+      'Olá, Carla Menezes! Aqui é Padaria Sol, sobre o seu pedido #12.',
+    );
+  });
+
+  it('o recebedor cita so o pedido para a empresa', () => {
+    expect(textoDoRecebedor(COM_RECEBEDOR)).toBe(
+      'Olá, Padaria Sol! Sou Carla Menezes, sobre o meu pedido #12.',
     );
   });
 });

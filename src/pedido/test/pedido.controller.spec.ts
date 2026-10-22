@@ -136,6 +136,7 @@ describe('PedidoController conversa pelo WhatsApp', () => {
     const service = {
       conversaComEntregador: jest.fn().mockResolvedValue({}),
       conversaComEstabelecimento: jest.fn().mockResolvedValue({}),
+      conversaComRecebedor: jest.fn().mockResolvedValue({}),
     };
     const controller = new PedidoController(
       service as unknown as PedidoService,
@@ -160,5 +161,13 @@ describe('PedidoController conversa pelo WhatsApp', () => {
       '52998224725',
       1,
     );
+  });
+
+  it('a empresa abre a conversa com o recebedor usando a empresa do token', async () => {
+    const { controller, service } = montar();
+
+    await controller.conversaComRecebedor(EMPRESA, 1);
+
+    expect(service.conversaComRecebedor).toHaveBeenCalledWith(7, 1);
   });
 });

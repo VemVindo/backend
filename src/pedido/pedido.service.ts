@@ -39,9 +39,15 @@ import {
   montarLinkWhatsapp,
   textoParaEntregador,
   textoParaEstabelecimento,
+  textoParaRecebedor,
 } from './whatsapp';
 
 const STATUS_REATRIBUIVEIS: readonly StatusPedido[] = [
+  StatusPedido.PENDENTE,
+  StatusPedido.EM_ANDAMENTO,
+];
+
+const STATUS_COM_CONVERSA_DO_RECEBEDOR: readonly StatusPedido[] = [
   StatusPedido.PENDENTE,
   StatusPedido.EM_ANDAMENTO,
 ];
@@ -220,6 +226,34 @@ export class PedidoService {
         textoParaEstabelecimento(dados),
       ),
       contato: dados.empresa,
+    };
+  }
+
+  async conversaComRecebedor(
+    idEmpresa: number,
+    idPedido: number,
+  ): Promise<ConversaWhatsappDto> {
+    const pedido = await this.pedidoRepository.procurarComContatos(idPedido, {
+      idEmpresa,
+    });
+    if (!pedido) {
+      throw new NotFoundException('Pedido não encontrado');
+    }
+    if (!STATUS_COM_CONVERSA_DO_RECEBEDOR.includes(pedido.status)) {
+      throw new ConflictException(
+        'A conversa com o recebedor só fica disponível enquanto o pedido está aberto',
+      );
+    }
+    return {
+      link: this.exigirLink(
+        pedido.telefone_recebedor,
+        textoParaRecebedor({
+          idPedido: pedido.id_pedido,
+          empresa: pedido.empresa.nome_fantasia,
+          recebedor: pedido.nome_recebedor,
+        }),
+      ),
+      contato: pedido.nome_recebedor,
     };
   }
 
