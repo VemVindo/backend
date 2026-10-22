@@ -10,27 +10,31 @@ datasource db {
 }
 
 model Empresa {
-  id_empresa    Int     @id @default(autoincrement())
-  nome_fantasia String
-  email         String  @unique
-  telefone      String
-  CNPJ          String? @unique
-  cpf           String? @unique
-  cep           String
-  logradouro    String
-  numero        Int
-  complemento   String?
-  bairro        String
-  cidade        String
-  UF            String
-  razao_social  String?
-  senha         String
-  sessao_versao Int     @default(0)
+  id_empresa             Int      @id @default(autoincrement())
+  nome_fantasia          String
+  email                  String   @unique
+  telefone               String
+  CNPJ                   String?  @unique
+  cpf                    String?  @unique
+  cep                    String
+  logradouro             String
+  numero                 Int
+  complemento            String?
+  bairro                 String
+  cidade                 String
+  UF                     String
+  razao_social           String?
+  senha                  String
+  sessao_versao          Int      @default(0)
   // Falso: o recebedor ve so distancia e tempo estimado, sem o mapa (R-US03).
-  exibir_mapa   Boolean @default(true)
+  exibir_mapa            Boolean  @default(true)
   // Coordenada do endereco da empresa: ponto de saida no mapa da entrega.
-  origem_lat    Float?
-  origem_lng    Float?
+  origem_lat             Float?
+  origem_lng             Float?
+  // E-US02: a ultima atualizacao conta so a edicao do cadastro (E-US03), nao
+  // a troca de sessao nem as configuracoes.
+  criada_em              DateTime @default(now())
+  cadastro_atualizado_em DateTime @default(now())
 
   pedidos     Pedido[]
   metricas    MetricasPagamento[]
@@ -48,8 +52,8 @@ model Entregador {
   placa                      String?
   senha                      String
   senha_temporaria           Boolean   @default(true)
-  ciencia_dados_em           DateTime?
-  senha_temporaria_expira_em DateTime?
+  ciencia_dados_em           DateTime? @db.Timestamptz(3)
+  senha_temporaria_expira_em DateTime? @db.Timestamptz(3)
   sessao_versao              Int       @default(0)
 
   pedidos   Pedido[]
@@ -72,9 +76,9 @@ model Pedido {
   uf                  String
   descricao           String
   status              StatusPedido @default(PENDENTE)
-  data_criacao        DateTime
-  data_inicio_entrega DateTime?
-  data_finalizacao    DateTime?
+  data_criacao        DateTime  @db.Timestamptz(3)
+  data_inicio_entrega DateTime? @db.Timestamptz(3)
+  data_finalizacao    DateTime? @db.Timestamptz(3)
   valor_entrega       Int
   idEmpresa           Int
   cpf_entregador      String?
@@ -98,19 +102,24 @@ model MetricasPagamento {
   idEmpresa   Int
   taxa_fixa   Int
   coeficiente Int
-  data        DateTime
+  data        DateTime @db.Timestamptz(3)
 
   empresa Empresa @relation(fields: [idEmpresa], references: [id_empresa])
 
   @@id([idEmpresa, data])
 }
 
+// R-US05: nota de 0 a 5. R-US06: o comentario e opcional e chega depois
+// da nota. A data ordena e filtra a pagina de comentarios (E-US17).
 model Avaliacao {
-  idpedidos         Int    @id
+  idpedidos         Int      @id
   avaliacao_entrega Int
-  comentario        String
+  comentario        String?
+  data              DateTime @default(now())
 
   pedido Pedido @relation(fields: [idpedidos], references: [id_pedido])
+
+  @@index([data])
 }
 
 // cpf_entregador_antigo nulo indica a primeira atribuicao de um pedido PENDENTE.
@@ -119,7 +128,7 @@ model HistoricoPedidoEntregadores {
   id_pedido             Int
   cpf_entregador_antigo String?
   cpf_entregador_novo   String
-  data                  DateTime
+  data                  DateTime @db.Timestamptz(3)
 
   pedido Pedido @relation(fields: [id_pedido], references: [id_pedido])
 
@@ -150,9 +159,9 @@ model Contrato {
   idEmpresa      Int
   cpf_entregador String
   status         StatusContrato @default(PENDENTE)
-  data_inicio    DateTime
-  data_aceite    DateTime?
-  data_fim       DateTime?
+  data_inicio    DateTime  @db.Timestamptz(3)
+  data_aceite    DateTime? @db.Timestamptz(3)
+  data_fim       DateTime? @db.Timestamptz(3)
 
   empresa    Empresa    @relation(fields: [idEmpresa], references: [id_empresa])
   entregador Entregador @relation(fields: [cpf_entregador], references: [cpf])
@@ -164,7 +173,7 @@ model AcessoRecebedor {
   idPedido         Int      @id
   token_hash       String   @unique
   codigo_recebedor String
-  data_criacao     DateTime @default(now())
+  data_criacao     DateTime @default(now()) @db.Timestamptz(3)
 
   pedido Pedido @relation(fields: [idPedido], references: [id_pedido])
 }
@@ -176,7 +185,7 @@ model LocalizacaoEntrega {
   lat                  Float
   lng                  Float
   precisao_m           Float?
-  registrada_em        DateTime
+  registrada_em        DateTime  @db.Timestamptz(3)
   // Ponto de onde a rota atual foi calculada.
   origem_rota_lat      Float?
   origem_rota_lng      Float?
@@ -184,7 +193,7 @@ model LocalizacaoEntrega {
   distancia_restante_m Int?
   duracao_restante_s   Int?
   estimado             Boolean   @default(true)
-  rota_calculada_em    DateTime?
+  rota_calculada_em    DateTime? @db.Timestamptz(3)
 
   pedido Pedido @relation(fields: [idPedido], references: [id_pedido], onDelete: Cascade)
 }
@@ -194,9 +203,9 @@ model CredencialIntegracao {
   idEmpresa      Int
   prefixo        String    @unique
   hash           String
-  data_criacao   DateTime  @default(now())
-  data_revogacao DateTime?
-  ultimo_uso     DateTime?
+  data_criacao   DateTime  @default(now()) @db.Timestamptz(3)
+  data_revogacao DateTime? @db.Timestamptz(3)
+  ultimo_uso     DateTime? @db.Timestamptz(3)
 
   empresa Empresa @relation(fields: [idEmpresa], references: [id_empresa])
 
@@ -216,7 +225,7 @@ model PedidoImportado {
   campos_faltantes String[]
   situacao         SituacaoImportacao @default(AGUARDANDO_COMPLETUDE)
   idPedido         Int?               @unique
-  data_recebimento DateTime           @default(now())
+  data_recebimento DateTime           @default(now()) @db.Timestamptz(3)
 
   empresa Empresa @relation(fields: [idEmpresa], references: [id_empresa])
   pedido  Pedido? @relation(fields: [idPedido], references: [id_pedido])

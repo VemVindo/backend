@@ -12,6 +12,7 @@ import {
   hashDoToken,
 } from './token-rastreio';
 import { STATUS_DE_ENTREGA_ENCERRADA } from './validador-de-link';
+import { linhaDoTempo } from './linha-do-tempo';
 
 @Injectable()
 export class RastreioService {
@@ -78,6 +79,7 @@ export class RastreioService {
       // So o primeiro nome: o recebedor nao precisa do nome completo.
       entregador: pedido.entregador?.nome.trim().split(/\s+/)[0] ?? null,
       codigoRecebedor: acesso.codigo_recebedor,
+      linhaDoTempo: linhaDoTempo(pedido),
     };
   }
 

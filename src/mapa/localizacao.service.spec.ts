@@ -75,6 +75,7 @@ function montar({ habilitado = true, encontrado = pedido() } = {}) {
   const repositorio = {
     procurarDoEntregador: jest.fn().mockResolvedValue(encontrado),
     procurarPorId: jest.fn().mockResolvedValue(encontrado),
+    procurarDaEmpresa: jest.fn().mockResolvedValue(encontrado),
     salvarDestino: jest.fn().mockResolvedValue(undefined),
     salvarOrigem: jest.fn().mockResolvedValue(undefined),
     salvarPosicao: jest.fn((idPedido: number, dados: object) =>
@@ -449,6 +450,28 @@ describe('LocalizacaoService.consultarParaEntregador', () => {
   });
 });
 
+describe('LocalizacaoService.consultarParaEmpresa', () => {
+  it('busca so entre os pedidos da empresa e mostra o mapa completo', async () => {
+    const { service, repositorio, maps } = montar({
+      encontrado: pedido({ localizacao: localizacaoAnterior() }),
+    });
+
+    const visao = await service.consultarParaEmpresa(7, ID_PEDIDO);
+
+    expect(repositorio.procurarDaEmpresa).toHaveBeenCalledWith(ID_PEDIDO, 7);
+    expect(maps.calcularRota).not.toHaveBeenCalled();
+    expect(visao).toMatchObject({ destino: DESTINO, rota: 'rota-antiga' });
+  });
+
+  it('responde 404 para pedido de outra empresa', async () => {
+    const { service } = montar({ encontrado: null as never });
+
+    await expect(service.consultarParaEmpresa(7, ID_PEDIDO)).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+});
+
 describe('LocalizacaoService.consultarParaRecebedor', () => {
   it('esconde as coordenadas quando a empresa desligou o mapa', async () => {
     const { service } = montar({
@@ -503,10 +526,12 @@ describe('LocalizacaoService ganchos do pedido', () => {
   it('ao iniciar a entrega so avisa o novo status', async () => {
     const { service, gateway, repositorio } = montar();
 
-    await service.aoMudarStatus(ID_PEDIDO, StatusPedido.EM_ANDAMENTO);
+    const agora = new Date('2026-10-20T12:10:00Z');
+    await service.aoMudarStatus(ID_PEDIDO, StatusPedido.EM_ANDAMENTO, agora);
 
     expect(gateway.publicar).toHaveBeenCalledWith(ID_PEDIDO, EVENTO_STATUS, {
       status: StatusPedido.EM_ANDAMENTO,
+      em: agora,
     });
     expect(repositorio.apagarPosicao).not.toHaveBeenCalled();
     expect(gateway.encerrarSala).not.toHaveBeenCalled();

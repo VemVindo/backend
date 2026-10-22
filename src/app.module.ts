@@ -14,9 +14,11 @@ import { EmpresaModule } from './empresa/empresa.module';
 import { EntregadorModule } from './entregador/entregador.module';
 import { VinculoModule } from './vinculo/vinculo.module';
 import { RastreioModule } from './rastreio/rastreio.module';
+import { AvaliacaoModule } from './avaliacao/avaliacao.module';
 import { PedidoModule } from './pedido/pedido.module';
 import { IntegracaoModule } from './integracao/integracao.module';
 import { MapaModule } from './mapa/mapa.module';
+import { RemuneracaoModule } from './remuneracao/remuneracao.module';
 
 @Module({
   imports: [
@@ -28,10 +30,12 @@ import { MapaModule } from './mapa/mapa.module';
     EntregadorModule,
     VinculoModule,
     RastreioModule,
+    AvaliacaoModule,
     AuthModule,
     PedidoModule,
     IntegracaoModule,
     MapaModule,
+    RemuneracaoModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

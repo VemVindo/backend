@@ -19,10 +19,7 @@ export class ValidadorDeLink {
   constructor(private readonly rastreio: RastreioRepository) {}
 
   async autenticar(token: string): Promise<ResultadoAcesso> {
-    if (!tokenComFormatoValido(token)) {
-      return { situacao: 'invalido' };
-    }
-    const acesso = await this.rastreio.procurarPorTokenHash(hashDoToken(token));
+    const acesso = await this.procurarAcesso(token);
     if (!acesso) {
       return { situacao: 'invalido' };
     }
@@ -30,5 +27,13 @@ export class ValidadorDeLink {
       return { situacao: 'encerrado' };
     }
     return { situacao: 'valido', acesso };
+  }
+
+  // Sem olhar o status: a avaliacao (R-US05) usa o link depois do fim.
+  async procurarAcesso(token: string): Promise<AcessoComPedido | null> {
+    if (!tokenComFormatoValido(token)) {
+      return null;
+    }
+    return this.rastreio.procurarPorTokenHash(hashDoToken(token));
   }
 }

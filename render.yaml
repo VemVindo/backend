@@ -1,0 +1,46 @@
+# Blueprint do Render: infra do VemVindo (API + Postgres) versionada no repo.
+# Doc: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: backend
+    runtime: image
+    image:
+      url: ghcr.io/vemvindo/backend:main
+    region: oregon
+    plan: free
+    autoDeploy: false
+
+    healthCheckPath: /health/db
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: vemvindo
+          property: connectionString
+      - key: DIRECT_URL
+        fromDatabase:
+          name: vemvindo
+          property: connectionString
+      - key: DB_POOL_MAX
+        value: "5"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: JWT_EXPIRES_IN
+        value: 1d
+
+      - key: JWT_SECRET
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: URL_FRONTEND
+        sync: false
+      - key: COOKIE_SAMESITE
+        sync: false
+      - key: GOOGLE_MAPS_SERVER_KEY
+        sync: false
+
+databases:
+  - name: vemvindo
+    region: oregon
+    plan: free
+    ipAllowList: []
