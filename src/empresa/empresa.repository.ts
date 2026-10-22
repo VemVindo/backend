@@ -19,6 +19,20 @@ export interface DadosNovaEmpresa {
   senhaHash: string;
 }
 
+export type DadosCadastrais = Pick<
+  DadosNovaEmpresa,
+  | 'nomeFantasia'
+  | 'email'
+  | 'telefone'
+  | 'cep'
+  | 'logradouro'
+  | 'numero'
+  | 'complemento'
+  | 'bairro'
+  | 'cidade'
+  | 'uf'
+>;
+
 @Injectable()
 export class EmpresaRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -65,6 +79,32 @@ export class EmpresaRepository {
         UF: dados.uf,
         razao_social: dados.razaoSocial,
         senha: dados.senhaHash,
+      },
+    });
+  }
+
+  atualizarCadastro(
+    id: number,
+    dados: DadosCadastrais,
+    enderecoMudou: boolean,
+    agora: Date,
+  ): Promise<Empresa> {
+    return this.prisma.empresa.update({
+      where: { id_empresa: id },
+      data: {
+        nome_fantasia: dados.nomeFantasia,
+        email: dados.email,
+        telefone: dados.telefone,
+        cep: dados.cep,
+        logradouro: dados.logradouro,
+        numero: dados.numero,
+        complemento: dados.complemento,
+        bairro: dados.bairro,
+        cidade: dados.cidade,
+        UF: dados.uf,
+        cadastro_atualizado_em: agora,
+        // O ponto de saida no mapa e geocodificado de novo no proximo pedido.
+        ...(enderecoMudou ? { origem_lat: null, origem_lng: null } : {}),
       },
     });
   }

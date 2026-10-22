@@ -129,4 +129,14 @@ export class PedidoController {
       idPedido,
     );
   }
+
+  // Fica por ultimo: ':id' nao pode capturar as rotas fixas acima.
+  @Get(':id')
+  @Cargos(Cargo.ESTABELECIMENTO)
+  detalhar(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param('id', ParseIntPipe) idPedido: number,
+  ) {
+    return this.pedidoService.detalhar(Number(usuario.empresaId), idPedido);
+  }
 }
