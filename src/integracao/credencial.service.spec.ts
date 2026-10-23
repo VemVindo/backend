@@ -51,8 +51,10 @@ describe('CredencialService.gerar', () => {
 
     const [, prefixoGravado, hashGravado] = credenciais.criar.mock.calls[0];
     expect(chave).toMatch(/^vv_[0-9a-f]{12}_[\w-]{43}$/);
-    expect(chave).toContain(prefixoGravado);
-    expect(hashGravado).not.toContain(chave.split('_')[2]);
+    const segredo = chave.slice(`vv_${prefixoGravado}_`.length);
+    expect(chave).toBe(`vv_${prefixoGravado}_${segredo}`);
+    expect(segredo).toHaveLength(43);
+    expect(hashGravado).not.toContain(segredo);
     expect(resumo).toEqual(
       expect.objectContaining({ prefixo: `vv_${prefixoGravado}` }),
     );
