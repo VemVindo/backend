@@ -8,7 +8,7 @@ import { EntregadorService, MENSAGEM_CONVITE } from '../entregador.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EditarEntregadorReqDto } from '../dto/editar-entregador.dto';
 
-jest.mock('../prisma/prisma.service', () => ({ PrismaService: class {} }));
+jest.mock('../../prisma/prisma.service', () => ({ PrismaService: class {} }));
 
 const CPF_FICTICIO = '52998224725';
 const ID_EMPRESA = 1;
