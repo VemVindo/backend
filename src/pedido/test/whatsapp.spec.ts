@@ -1,10 +1,10 @@
 import {
   montarLinkWhatsapp,
   numeroInternacional,
-  textoDoRecebedor,
-  textoParaEntregador,
-  textoParaEstabelecimento,
-  textoParaRecebedor,
+  textoDaEmpresaParaEntregador,
+  textoDaEmpresaParaRecebedor,
+  textoDoEntregadorParaEmpresa,
+  textoDoRecebedorParaEmpresa,
 } from '../whatsapp';
 
 const DADOS = {
@@ -48,13 +48,13 @@ describe('montarLinkWhatsapp', () => {
 
 describe('mensagens iniciais', () => {
   it('a empresa cita so o pedido para o entregador', () => {
-    expect(textoParaEntregador(DADOS)).toBe(
+    expect(textoDaEmpresaParaEntregador(DADOS)).toBe(
       'Olá, Joao Silva! Aqui é Padaria Sol, sobre a entrega do pedido #12.',
     );
   });
 
   it('o entregador cita so o pedido para a empresa', () => {
-    expect(textoParaEstabelecimento(DADOS)).toBe(
+    expect(textoDoEntregadorParaEmpresa(DADOS)).toBe(
       'Olá, Padaria Sol! Sou Joao Silva, entregador do pedido #12.',
     );
   });
@@ -68,13 +68,13 @@ describe('mensagens iniciais com o recebedor', () => {
   };
 
   it('a empresa cita so o pedido para o recebedor', () => {
-    expect(textoParaRecebedor(COM_RECEBEDOR)).toBe(
+    expect(textoDaEmpresaParaRecebedor(COM_RECEBEDOR)).toBe(
       'Olá, Carla Menezes! Aqui é Padaria Sol, sobre o seu pedido #12.',
     );
   });
 
   it('o recebedor cita so o pedido para a empresa', () => {
-    expect(textoDoRecebedor(COM_RECEBEDOR)).toBe(
+    expect(textoDoRecebedorParaEmpresa(COM_RECEBEDOR)).toBe(
       'Olá, Padaria Sol! Sou Carla Menezes, sobre o meu pedido #12.',
     );
   });

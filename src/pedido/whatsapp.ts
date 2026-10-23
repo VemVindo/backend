@@ -29,11 +29,15 @@ export function montarLinkWhatsapp(
   return `${URL_WHATSAPP}/${numero}?text=${encodeURIComponent(texto)}`;
 }
 
-export function textoParaEntregador(dados: DadosDaConversa): string {
+export function textoDaEmpresaParaEntregador(
+  dados: DadosDaConversa,
+): string {
   return `Olá, ${dados.entregador}! Aqui é ${dados.empresa}, sobre a entrega do pedido #${dados.idPedido}.`;
 }
 
-export function textoParaEstabelecimento(dados: DadosDaConversa): string {
+export function textoDoEntregadorParaEmpresa(
+  dados: DadosDaConversa,
+): string {
   return `Olá, ${dados.empresa}! Sou ${dados.entregador}, entregador do pedido #${dados.idPedido}.`;
 }
 
@@ -43,10 +47,14 @@ export interface DadosDaConversaComRecebedor {
   recebedor: string;
 }
 
-export function textoParaRecebedor(dados: DadosDaConversaComRecebedor): string {
+export function textoDaEmpresaParaRecebedor(
+  dados: DadosDaConversaComRecebedor,
+): string {
   return `Olá, ${dados.recebedor}! Aqui é ${dados.empresa}, sobre o seu pedido #${dados.idPedido}.`;
 }
 
-export function textoDoRecebedor(dados: DadosDaConversaComRecebedor): string {
+export function textoDoRecebedorParaEmpresa(
+  dados: DadosDaConversaComRecebedor,
+): string {
   return `Olá, ${dados.empresa}! Sou ${dados.recebedor}, sobre o meu pedido #${dados.idPedido}.`;
 }

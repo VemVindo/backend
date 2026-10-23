@@ -44,9 +44,9 @@ import {
 import {
   DadosDaConversa,
   montarLinkWhatsapp,
-  textoParaEntregador,
-  textoParaEstabelecimento,
-  textoParaRecebedor,
+  textoDaEmpresaParaEntregador,
+  textoDaEmpresaParaRecebedor,
+  textoDoEntregadorParaEmpresa,
 } from './whatsapp';
 
 import {
@@ -234,7 +234,7 @@ export class PedidoService {
     return {
       link: this.exigirLink(
         pedido.entregador.telefone,
-        textoParaEntregador(dados),
+        textoDaEmpresaParaEntregador(dados),
       ),
       contato: dados.entregador,
     };
@@ -250,7 +250,7 @@ export class PedidoService {
     return {
       link: this.exigirLink(
         pedido.empresa.telefone,
-        textoParaEstabelecimento(dados),
+        textoDoEntregadorParaEmpresa(dados),
       ),
       contato: dados.empresa,
     };
@@ -274,7 +274,7 @@ export class PedidoService {
     return {
       link: this.exigirLink(
         pedido.telefone_recebedor,
-        textoParaRecebedor({
+        textoDaEmpresaParaRecebedor({
           idPedido: pedido.id_pedido,
           empresa: pedido.empresa.nome_fantasia,
           recebedor: pedido.nome_recebedor,

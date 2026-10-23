@@ -4,7 +4,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { montarLinkWhatsapp, textoDoRecebedor } from '../pedido/whatsapp';
+import {
+  montarLinkWhatsapp,
+  textoDoRecebedorParaEmpresa,
+} from '../pedido/whatsapp';
 import { RastreioGateway } from './rastreio.gateway';
 import { AcessoComPedido, RastreioRepository } from './rastreio.repository';
 import {
@@ -86,7 +89,7 @@ export class RastreioService {
         ? null
         : montarLinkWhatsapp(
             pedido.empresa.telefone,
-            textoDoRecebedor({
+            textoDoRecebedorParaEmpresa({
               idPedido: pedido.id_pedido,
               empresa: pedido.empresa.nome_fantasia,
               recebedor: pedido.nome_recebedor,
