@@ -1,8 +1,6 @@
 import { StatusPedido } from '../../generated/prisma/enums';
 import type { PedidoComEmpresa } from '../pedido.repository';
 
-// O entregador ve o necessario para a entrega; o telefone do recebedor fica
-// de fora ate existir o canal de contato (E-US20).
 export interface PedidoDoEntregadorDto {
   id: number;
   status: StatusPedido;

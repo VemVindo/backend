@@ -3,21 +3,21 @@ import { LocalizacaoEntrega, Pedido, Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { Coordenada } from './geo';
 
+const CAMPOS_DA_EMPRESA = {
+  id_empresa: true,
+  exibir_mapa: true,
+  origem_lat: true,
+  origem_lng: true,
+  cep: true,
+  logradouro: true,
+  numero: true,
+  bairro: true,
+  cidade: true,
+  UF: true,
+} satisfies Prisma.EmpresaSelect;
+
 const DADOS_DO_MAPA = {
-  empresa: {
-    select: {
-      id_empresa: true,
-      exibir_mapa: true,
-      origem_lat: true,
-      origem_lng: true,
-      cep: true,
-      logradouro: true,
-      numero: true,
-      bairro: true,
-      cidade: true,
-      UF: true,
-    },
-  },
+  empresa: { select: CAMPOS_DA_EMPRESA },
   entregador: { select: { tipo_veiculo: true } },
   localizacao: true,
 } satisfies Prisma.PedidoInclude;
@@ -71,6 +71,13 @@ export class LocalizacaoRepository {
     return this.prisma.pedido.findUnique({
       where: { id_pedido: idPedido },
       include: DADOS_DO_MAPA,
+    });
+  }
+
+  procurarEmpresa(idEmpresa: number): Promise<EmpresaDoMapa | null> {
+    return this.prisma.empresa.findUnique({
+      where: { id_empresa: idEmpresa },
+      select: CAMPOS_DA_EMPRESA,
     });
   }
 

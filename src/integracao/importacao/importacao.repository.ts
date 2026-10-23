@@ -24,6 +24,8 @@ export interface DadosNovoPedido {
   data_criacao: Date;
   valor_entrega: number;
   distancia: number;
+  destino_lat: number | null;
+  destino_lng: number | null;
 }
 
 export class PendenciaJaConvertida extends Error {}

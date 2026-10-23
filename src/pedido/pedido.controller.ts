@@ -130,6 +130,42 @@ export class PedidoController {
     );
   }
 
+  @Get(':id/whatsapp/entregador')
+  @Cargos(Cargo.ESTABELECIMENTO)
+  conversaComEntregador(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param('id', ParseIntPipe) idPedido: number,
+  ) {
+    return this.pedidoService.conversaComEntregador(
+      Number(usuario.empresaId),
+      idPedido,
+    );
+  }
+
+  @Get(':id/whatsapp/estabelecimento')
+  @Cargos(Cargo.ENTREGADOR)
+  conversaComEstabelecimento(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param('id', ParseIntPipe) idPedido: number,
+  ) {
+    return this.pedidoService.conversaComEstabelecimento(
+      usuario.usuarioId,
+      idPedido,
+    );
+  }
+
+  @Get(':id/whatsapp/recebedor')
+  @Cargos(Cargo.ESTABELECIMENTO)
+  conversaComRecebedor(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param('id', ParseIntPipe) idPedido: number,
+  ) {
+    return this.pedidoService.conversaComRecebedor(
+      Number(usuario.empresaId),
+      idPedido,
+    );
+  }
+
   // Fica por ultimo: ':id' nao pode capturar as rotas fixas acima.
   @Get(':id')
   @Cargos(Cargo.ESTABELECIMENTO)

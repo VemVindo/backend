@@ -17,6 +17,13 @@ export type PedidoComEmpresa = Pedido & {
   empresa: { nome_fantasia: string };
 };
 
+export type PedidoComContatos = Pedido & {
+  empresa: { nome_fantasia: string; telefone: string };
+  entregador: { nome: string; telefone: string } | null;
+};
+
+export type DonoDoPedido = { idEmpresa: number } | { cpf_entregador: string };
+
 export interface DadosAtualizacaoStatus {
   idPedido: number;
   cpfEntregador: string;
@@ -139,6 +146,19 @@ export class PedidoRepository {
       where: {
         id_pedido: idPedido,
         cpf_entregador: cpfEntregador,
+      },
+    });
+  }
+
+  procurarComContatos(
+    idPedido: number,
+    dono: DonoDoPedido,
+  ): Promise<PedidoComContatos | null> {
+    return this.prisma.pedido.findFirst({
+      where: { id_pedido: idPedido, ...dono },
+      include: {
+        empresa: { select: { nome_fantasia: true, telefone: true } },
+        entregador: { select: { nome: true, telefone: true } },
       },
     });
   }

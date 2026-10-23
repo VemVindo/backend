@@ -144,3 +144,48 @@ describe('PedidoController rotas de entregador e reatribuicao', () => {
     expect(service.listarDoEntregador).toHaveBeenCalledWith('52998224725');
   });
 });
+
+describe('PedidoController conversa pelo WhatsApp', () => {
+  const entregador: UsuarioAutenticado = {
+    usuarioId: '52998224725',
+    cargo: Cargo.ENTREGADOR,
+  };
+  function montar() {
+    const service = {
+      conversaComEntregador: jest.fn().mockResolvedValue({}),
+      conversaComEstabelecimento: jest.fn().mockResolvedValue({}),
+      conversaComRecebedor: jest.fn().mockResolvedValue({}),
+    };
+    const controller = new PedidoController(
+      service as unknown as PedidoService,
+    );
+    return { controller, service };
+  }
+
+  it('a empresa abre a conversa com a empresa do token', async () => {
+    const { controller, service } = montar();
+
+    await controller.conversaComEntregador(EMPRESA, 1);
+
+    expect(service.conversaComEntregador).toHaveBeenCalledWith(7, 1);
+  });
+
+  it('o entregador abre a conversa com o cpf do token', async () => {
+    const { controller, service } = montar();
+
+    await controller.conversaComEstabelecimento(entregador, 1);
+
+    expect(service.conversaComEstabelecimento).toHaveBeenCalledWith(
+      '52998224725',
+      1,
+    );
+  });
+
+  it('a empresa abre a conversa com o recebedor usando a empresa do token', async () => {
+    const { controller, service } = montar();
+
+    await controller.conversaComRecebedor(EMPRESA, 1);
+
+    expect(service.conversaComRecebedor).toHaveBeenCalledWith(7, 1);
+  });
+});

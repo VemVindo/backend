@@ -4,11 +4,17 @@ import { GoogleMapsClient } from './google-maps.client';
 import { LocalizacaoController } from './localizacao.controller';
 import { LocalizacaoRepository } from './localizacao.repository';
 import { LocalizacaoService } from './localizacao.service';
+import { RotaDeCarroService } from './rota-de-carro.service';
 
 @Module({
   imports: [RastreioModule],
   controllers: [LocalizacaoController],
-  providers: [GoogleMapsClient, LocalizacaoRepository, LocalizacaoService],
-  exports: [LocalizacaoService],
+  providers: [
+    GoogleMapsClient,
+    LocalizacaoRepository,
+    LocalizacaoService,
+    RotaDeCarroService,
+  ],
+  exports: [LocalizacaoService, RotaDeCarroService],
 })
 export class MapaModule {}

@@ -31,7 +31,11 @@ function pedido(status = 'EM_ANDAMENTO') {
     cidade: 'Brasilia',
     uf: 'DF',
     cep: '70000000',
-    empresa: { nome_fantasia: 'Cantina Dona Marta', exibir_mapa: true },
+    empresa: {
+      nome_fantasia: 'Cantina Dona Marta',
+      exibir_mapa: true,
+      telefone: '6133334444',
+    },
     entregador: { nome: 'Bruno Lima Souza' },
   };
 }
@@ -185,6 +189,29 @@ describe('RastreioService.montarPaginaDoRecebedor', () => {
       service.montarPaginaDoRecebedor(semEntregador).entregador,
     ).toBeNull();
   });
+
+  it('oferece o WhatsApp do estabelecimento, nunca o do entregador', () => {
+    const { service } = montar();
+
+    const link =
+      service.montarPaginaDoRecebedor(acesso()).whatsappEstabelecimento;
+
+    expect(link).toMatch(/^https:\/\/wa\.me\/556133334444\?text=/);
+    expect(decodeURIComponent(link ?? '')).toContain(
+      'Sou Carla Menezes, sobre o meu pedido #42',
+    );
+  });
+
+  it.each(['FINALIZADO', 'CANCELADO'])(
+    'sem WhatsApp com o pedido %s',
+    (status) => {
+      const { service } = montar();
+
+      expect(
+        service.montarPaginaDoRecebedor(acesso(status)).whatsappEstabelecimento,
+      ).toBeNull();
+    },
+  );
 
   it('nao expoe telefone, CPF do entregador nem valores internos', () => {
     const { service } = montar();
