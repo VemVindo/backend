@@ -169,6 +169,7 @@ describe('EntregadorService.listarFrota', () => {
       {
         nome: 'Entregador Teste',
         cpf: CPF_FICTICIO,
+        telefone: '61900000000',
         tipoVeiculo: 'MOTO',
         placa: 'ABC1D23',
         disponivel: true,

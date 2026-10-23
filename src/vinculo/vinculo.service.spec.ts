@@ -41,6 +41,7 @@ describe('VinculoService.dadosCompartilhados', () => {
       dados: {
         nome: 'Entregador Teste',
         cpf: CPF_FICTICIO,
+        telefone: '61900000000',
         tipoVeiculo: 'CARRO',
         placa: 'XYZ9E87',
         disponivel: false,
