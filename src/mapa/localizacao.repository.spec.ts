@@ -10,7 +10,10 @@ function montar() {
       findUnique: jest.fn().mockResolvedValue(null),
       update: jest.fn().mockResolvedValue({}),
     },
-    empresa: { update: jest.fn().mockResolvedValue({}) },
+    empresa: {
+      findUnique: jest.fn().mockResolvedValue(null),
+      update: jest.fn().mockResolvedValue({}),
+    },
     localizacaoEntrega: {
       upsert: jest.fn().mockResolvedValue({}),
       deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -42,6 +45,17 @@ const INCLUI_MAPA = {
 };
 
 describe('LocalizacaoRepository', () => {
+  it('busca a empresa so com o endereco e a saida usados no mapa', async () => {
+    const { repositorio, prisma } = montar();
+
+    await repositorio.procurarEmpresa(1);
+
+    expect(prisma.empresa.findUnique).toHaveBeenCalledWith({
+      where: { id_empresa: 1 },
+      select: INCLUI_MAPA.empresa.select,
+    });
+  });
+
   it('so encontra o pedido atribuido ao proprio entregador', async () => {
     const { repositorio, prisma } = montar();
 

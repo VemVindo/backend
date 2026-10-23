@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { MapaModule } from '../mapa/mapa.module';
 import { RemuneracaoModule } from '../remuneracao/remuneracao.module';
 import { CredencialController } from './credencial.controller';
 import { CredencialIntegracaoGuard } from './credencial-integracao.guard';
@@ -9,7 +10,7 @@ import { ImportacaoRepository } from './importacao/importacao.repository';
 import { ImportacaoService } from './importacao/importacao.service';
 
 @Module({
-  imports: [RemuneracaoModule],
+  imports: [MapaModule, RemuneracaoModule],
   controllers: [CredencialController, ImportacaoController],
   providers: [
     CredencialRepository,
