@@ -109,6 +109,8 @@ const pedidoPendente = {
   data_criacao: DATA_CRIACAO,
   cpf_entregador: null,
   status: StatusPedido.PENDENTE,
+  valor_entrega: 1430,
+  data_finalizacao: null,
 };
 
 const pedidoEmAndamento = {
@@ -305,6 +307,9 @@ describe('PedidoService.atualizarStatus', () => {
       entregador: 'Bruno Lima',
       status: StatusPedido.EM_ANDAMENTO,
       criadoEm: DATA_CRIACAO,
+      valorEntrega: 1430,
+      finalizadoEm: null,
+      nota: null,
     });
   });
 
@@ -569,6 +574,9 @@ describe('PedidoService.reatribuir', () => {
       entregador: 'Ana Souza',
       status: StatusPedido.EM_ANDAMENTO,
       criadoEm: DATA_CRIACAO,
+      valorEntrega: 1430,
+      finalizadoEm: null,
+      nota: null,
     });
   });
 
@@ -758,10 +766,43 @@ describe('PedidoService listagens', () => {
         entregador: null,
         status: StatusPedido.PENDENTE,
         criadoEm: DATA_CRIACAO,
+        valorEntrega: 1430,
+        finalizadoEm: null,
+        nota: null,
       },
     ]);
     expect(pedidos.listarDaEmpresa).toHaveBeenCalledWith(ID_EMPRESA);
   });
+
+  it.each([
+    ['avaliado com nota 4', { avaliacao_entrega: 4 }, 4],
+    ['avaliado com nota 0', { avaliacao_entrega: 0 }, 0],
+    ['sem avaliacao', null, null],
+  ])(
+    'mostra o pedido finalizado %s',
+    async (_caso, avaliacao, notaEsperada) => {
+      const { service, pedidos } = montar();
+      const finalizadoEm = new Date('2026-10-07T18:00:00Z');
+      pedidos.listarDaEmpresa.mockResolvedValue([
+        {
+          ...pedidoEmAndamento,
+          status: StatusPedido.FINALIZADO,
+          data_finalizacao: finalizadoEm,
+          entregador: { nome: 'Bruno Lima' },
+          avaliacao,
+        },
+      ]);
+
+      const [pedido] = await service.listarDaEmpresa(ID_EMPRESA);
+
+      expect(pedido).toMatchObject({
+        status: StatusPedido.FINALIZADO,
+        valorEntrega: 1430,
+        finalizadoEm,
+        nota: notaEsperada,
+      });
+    },
+  );
 
   it('lista as entregas do entregador com endereco montado e sem telefone', async () => {
     const { service, pedidos } = montar();

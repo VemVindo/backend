@@ -8,6 +8,9 @@ export interface PedidoResumoDto {
   entregador: string | null;
   status: StatusPedido;
   criadoEm: Date;
+  valorEntrega: number;
+  finalizadoEm: Date | null;
+  nota: number | null;
 }
 
 export function paraPedidoResumo(pedido: PedidoComEntregador): PedidoResumoDto {
@@ -17,5 +20,8 @@ export function paraPedidoResumo(pedido: PedidoComEntregador): PedidoResumoDto {
     entregador: pedido.entregador?.nome ?? null,
     status: pedido.status,
     criadoEm: pedido.data_criacao,
+    valorEntrega: pedido.valor_entrega,
+    finalizadoEm: pedido.data_finalizacao,
+    nota: pedido.avaliacao?.avaliacao_entrega ?? null,
   };
 }
