@@ -22,7 +22,7 @@ export interface VisaoDaEntrega {
   atualizadaEm: Date | null;
 }
 
-function coordenada(lat: number | null, lng: number | null) {
+export function coordenada(lat: number | null, lng: number | null) {
   return lat === null || lng === null ? null : { lat, lng };
 }
 
