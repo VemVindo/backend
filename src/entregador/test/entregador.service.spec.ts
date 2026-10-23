@@ -1,12 +1,14 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { TipoVeiculo } from '../common/enums/tipo-veiculo.enum';
-import { SenhaService } from '../common/security/senha.service';
-import { ContratoRepository } from '../contrato/contrato.repository';
-import { CadastrarEntregadorDto } from './dto/cadastrar-entregador.dto';
-import { EntregadorRepository } from './entregador.repository';
-import { EntregadorService, MENSAGEM_CONVITE } from './entregador.service';
+import { TipoVeiculo } from '../../common/enums/tipo-veiculo.enum';
+import { SenhaService } from '../../common/security/senha.service';
+import { ContratoRepository } from '../../contrato/contrato.repository';
+import { CadastrarEntregadorDto } from '../dto/cadastrar-entregador.dto';
+import { EntregadorRepository } from '../entregador.repository';
+import { EntregadorService, MENSAGEM_CONVITE } from '../entregador.service';
+import { Test, TestingModule } from '@nestjs/testing';
+import { EditarEntregadorReqDto } from '../dto/editar-entregador.dto';
 
-jest.mock('../prisma/prisma.service', () => ({ PrismaService: class {} }));
+jest.mock('../../prisma/prisma.service', () => ({ PrismaService: class {} }));
 
 const CPF_FICTICIO = '52998224725';
 const ID_EMPRESA = 1;
@@ -280,5 +282,106 @@ describe('EntregadorService.gerarNovaSenhaTemporaria', () => {
     await expect(
       service.gerarNovaSenhaTemporaria(ID_EMPRESA, CPF_FICTICIO),
     ).rejects.toThrow(NotFoundException);
+  });
+});
+
+describe('EntregadorService.editar', () => {
+  let service: EntregadorService;
+  let repository: EntregadorRepository;
+  let mock1: jest.Mock;
+  let mock2: jest.Mock;
+  beforeEach(async () => {
+    mock1 = jest.fn();
+    mock2 = jest.fn();
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        EntregadorService,
+        {
+          provide: ContratoRepository,
+          useValue: {},
+        },
+        {
+          provide: SenhaService,
+          useValue: {},
+        },
+        {
+          provide: EntregadorRepository,
+          useValue: {
+            procurarAtivoPorEmpresa: mock1,
+            atualizar: mock2,
+          },
+        },
+      ],
+    }).compile();
+    service = module.get<EntregadorService>(EntregadorService);
+    repository = module.get<EntregadorRepository>(EntregadorRepository);
+  });
+
+  it('CAIXA PRETA: Entrada inválidas retorna false', async () => {
+    const stub = {
+      nome: null,
+      veiculo: null,
+      telefone: null,
+      placa: null,
+      cpf: {} as string,
+    } as EditarEntregadorReqDto;
+
+    const dummyIdEmpresa = {} as number;
+
+    const result = await service.editar(dummyIdEmpresa, stub);
+    expect(result).toBe(false);
+  });
+
+  it('CAIXA CINZA: Vinculo empresa entregador inexistente', async () => {
+    mock1.mockResolvedValue(false);
+    const dummyDto = {
+      nome: {} as string,
+      veiculo: {} as string,
+      telefone: {} as string,
+      placa: {} as string,
+      cpf: {} as string,
+    } as EditarEntregadorReqDto;
+
+    const dummyIdEmpresa = {} as number;
+    const spy = jest.spyOn(repository, 'procurarAtivoPorEmpresa');
+    const result = await service.editar(dummyIdEmpresa, dummyDto);
+    expect(result).toBe(false);
+    expect(spy).toHaveBeenCalledWith(dummyIdEmpresa, dummyDto.cpf);
+  });
+
+  it('CAIXA CINZA: Atualizacao bem sucedida', async () => {
+    mock1.mockResolvedValue(true);
+    mock2.mockResolvedValue(true);
+    const dummyDto = {
+      nome: {} as string,
+      veiculo: {} as string,
+      telefone: {} as string,
+      placa: {} as string,
+      cpf: {} as string,
+    } as EditarEntregadorReqDto;
+
+    const dummyIdEmpresa = {} as number;
+    const spy = jest.spyOn(repository, 'procurarAtivoPorEmpresa');
+    const result = await service.editar(dummyIdEmpresa, dummyDto);
+    expect(result).toBe(true);
+    expect(spy).toHaveBeenCalledWith(dummyIdEmpresa, dummyDto.cpf);
+  });
+
+  it('CAIXA CINZA: Atualizacao mal sucedida', async () => {
+    mock1.mockResolvedValue(true);
+    mock2.mockResolvedValue(false);
+    const dummyDto = {
+      nome: {} as string,
+      veiculo: {} as string,
+      telefone: {} as string,
+      placa: {} as string,
+      cpf: {} as string,
+    } as EditarEntregadorReqDto;
+
+    const dummyIdEmpresa = {} as number;
+    const spy = jest.spyOn(repository, 'procurarAtivoPorEmpresa');
+    const result = await service.editar(dummyIdEmpresa, dummyDto);
+    expect(result).toBe(false);
+    expect(spy).toHaveBeenCalledWith(dummyIdEmpresa, dummyDto.cpf);
   });
 });
