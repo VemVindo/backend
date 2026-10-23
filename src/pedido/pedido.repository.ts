@@ -10,6 +10,7 @@ import {
 
 export type PedidoComEntregador = Pedido & {
   entregador: { nome: string } | null;
+  avaliacao?: { avaliacao_entrega: number } | null;
 };
 
 export type PedidoComEmpresa = Pedido & {
@@ -92,7 +93,10 @@ export class PedidoRepository {
   listarDaEmpresa(idEmpresa: number): Promise<PedidoComEntregador[]> {
     return this.prisma.pedido.findMany({
       where: { idEmpresa },
-      include: COM_NOME_DO_ENTREGADOR,
+      include: {
+        ...COM_NOME_DO_ENTREGADOR,
+        avaliacao: { select: { avaliacao_entrega: true } },
+      },
       orderBy: { data_criacao: 'desc' },
     });
   }

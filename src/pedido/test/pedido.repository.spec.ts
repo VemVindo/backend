@@ -348,14 +348,17 @@ describe('PedidoRepository.listarHistoricoDeEntregadores', () => {
 });
 
 describe('PedidoRepository listagens', () => {
-  it('lista os pedidos da empresa com o nome do entregador, mais novos primeiro', async () => {
+  it('lista os pedidos da empresa com o nome do entregador e a nota, mais novos primeiro', async () => {
     const { repository, prisma } = montar();
 
     await repository.listarDaEmpresa(ID_EMPRESA);
 
     expect(prisma.pedido.findMany).toHaveBeenCalledWith({
       where: { idEmpresa: ID_EMPRESA },
-      include: { entregador: { select: { nome: true } } },
+      include: {
+        entregador: { select: { nome: true } },
+        avaliacao: { select: { avaliacao_entrega: true } },
+      },
       orderBy: { data_criacao: 'desc' },
     });
   });
