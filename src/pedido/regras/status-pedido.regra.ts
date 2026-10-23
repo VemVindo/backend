@@ -10,10 +10,20 @@ const TRANSICOES_PEDIDO: Record<StatusPedido, readonly StatusPedido[]> = {
   [StatusPedido.CANCELADO]: [],
 };
 
+const STATUS_QUE_EXIGEM_CODIGO: readonly StatusPedido[] = [
+  StatusPedido.FINALIZADO,
+];
+
+export function exigeCodigoDoRecebedor(status: StatusPedido): boolean {
+  return STATUS_QUE_EXIGEM_CODIGO.includes(status);
+}
+
 export function obterStatusDisponiveis(
   statusAtual: StatusPedido,
 ): readonly StatusPedido[] {
-  return TRANSICOES_PEDIDO[statusAtual];
+  return TRANSICOES_PEDIDO[statusAtual].filter(
+    (status) => !exigeCodigoDoRecebedor(status),
+  );
 }
 
 export function transicaoPermitida(

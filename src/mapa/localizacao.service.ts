@@ -106,12 +106,22 @@ export class LocalizacaoService {
     idPedido: number,
   ): Promise<VisaoDaEntrega> {
     const pedido = await this.pedidoDoEntregador(cpfEntregador, idPedido);
-    // Entrega encerrada nao gasta geocodificacao: devolve o que ja existe.
-    const pontos =
-      pedido.status === StatusPedido.EM_ANDAMENTO
-        ? await this.garantirPontos(pedido, new Date())
-        : pontosSalvos(pedido);
-    return montarVisao(pontos, pedido.localizacao);
+    return this.visaoCompleta(pedido);
+  }
+
+  // E-US13: a empresa ve o mesmo mapa do entregador, so dos proprios pedidos.
+  async consultarParaEmpresa(
+    idEmpresa: number,
+    idPedido: number,
+  ): Promise<VisaoDaEntrega> {
+    const pedido = await this.localizacoes.procurarDaEmpresa(
+      idPedido,
+      idEmpresa,
+    );
+    if (!pedido) {
+      throw new NotFoundException('Pedido não encontrado');
+    }
+    return this.visaoCompleta(pedido);
   }
 
   async consultarParaRecebedor(idPedido: number): Promise<VisaoDaEntrega> {
@@ -160,6 +170,15 @@ export class LocalizacaoService {
         erro,
       );
     }
+  }
+
+  // Entrega encerrada nao gasta geocodificacao: devolve o que ja existe.
+  private async visaoCompleta(pedido: PedidoComMapa): Promise<VisaoDaEntrega> {
+    const pontos =
+      pedido.status === StatusPedido.EM_ANDAMENTO
+        ? await this.garantirPontos(pedido, new Date())
+        : pontosSalvos(pedido);
+    return montarVisao(pontos, pedido.localizacao);
   }
 
   private async pedidoDoEntregador(

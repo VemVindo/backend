@@ -10,27 +10,31 @@ datasource db {
 }
 
 model Empresa {
-  id_empresa    Int     @id @default(autoincrement())
-  nome_fantasia String
-  email         String  @unique
-  telefone      String
-  CNPJ          String? @unique
-  cpf           String? @unique
-  cep           String
-  logradouro    String
-  numero        Int
-  complemento   String?
-  bairro        String
-  cidade        String
-  UF            String
-  razao_social  String?
-  senha         String
-  sessao_versao Int     @default(0)
+  id_empresa             Int      @id @default(autoincrement())
+  nome_fantasia          String
+  email                  String   @unique
+  telefone               String
+  CNPJ                   String?  @unique
+  cpf                    String?  @unique
+  cep                    String
+  logradouro             String
+  numero                 Int
+  complemento            String?
+  bairro                 String
+  cidade                 String
+  UF                     String
+  razao_social           String?
+  senha                  String
+  sessao_versao          Int      @default(0)
   // Falso: o recebedor ve so distancia e tempo estimado, sem o mapa (R-US03).
-  exibir_mapa   Boolean @default(true)
+  exibir_mapa            Boolean  @default(true)
   // Coordenada do endereco da empresa: ponto de saida no mapa da entrega.
-  origem_lat    Float?
-  origem_lng    Float?
+  origem_lat             Float?
+  origem_lng             Float?
+  // E-US02: a ultima atualizacao conta so a edicao do cadastro (E-US03), nao
+  // a troca de sessao nem as configuracoes.
+  criada_em              DateTime @default(now())
+  cadastro_atualizado_em DateTime @default(now())
 
   pedidos     Pedido[]
   metricas    MetricasPagamento[]
@@ -166,10 +170,12 @@ model Contrato {
 }
 
 model AcessoRecebedor {
-  idPedido         Int      @id
-  token_hash       String   @unique
-  codigo_recebedor String
-  data_criacao     DateTime @default(now()) @db.Timestamptz(3)
+  idPedido                Int       @id
+  token_hash              String    @unique
+  codigo_recebedor        String
+  data_criacao            DateTime  @default(now()) @db.Timestamptz(3)
+  tentativas_codigo       Int       @default(0)
+  ultima_tentativa_codigo DateTime?
 
   pedido Pedido @relation(fields: [idPedido], references: [id_pedido])
 }

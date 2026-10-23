@@ -6,6 +6,7 @@ import {
 import { StatusPedido } from '../../generated/prisma/enums';
 import { EntregadorRepository } from '../../entregador/entregador.repository';
 import { LocalizacaoService } from '../../mapa/localizacao.service';
+import { CodigoDoRecebedorService } from '../../rastreio/codigo-do-recebedor.service';
 import { PedidoComContatos, PedidoRepository } from '../pedido.repository';
 import { PedidoService } from '../pedido.service';
 
@@ -43,6 +44,7 @@ function montar(encontrado: PedidoComContatos | null = pedido()) {
     pedidos as unknown as PedidoRepository,
     {} as EntregadorRepository,
     {} as LocalizacaoService,
+    {} as CodigoDoRecebedorService,
   );
   return { service, pedidos };
 }
