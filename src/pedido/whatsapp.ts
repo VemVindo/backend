@@ -29,15 +29,11 @@ export function montarLinkWhatsapp(
   return `${URL_WHATSAPP}/${numero}?text=${encodeURIComponent(texto)}`;
 }
 
-export function textoDaEmpresaParaEntregador(
-  dados: DadosDaConversa,
-): string {
+export function textoDaEmpresaParaEntregador(dados: DadosDaConversa): string {
   return `Olá, ${dados.entregador}! Aqui é ${dados.empresa}, sobre a entrega do pedido #${dados.idPedido}.`;
 }
 
-export function textoDoEntregadorParaEmpresa(
-  dados: DadosDaConversa,
-): string {
+export function textoDoEntregadorParaEmpresa(dados: DadosDaConversa): string {
   return `Olá, ${dados.empresa}! Sou ${dados.entregador}, entregador do pedido #${dados.idPedido}.`;
 }
 
