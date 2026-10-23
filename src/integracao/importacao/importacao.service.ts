@@ -9,6 +9,10 @@ import {
 } from '../../generated/prisma/client';
 import { StatusFactory } from '../../pedido/factories/status.factory';
 import { violouUnicidade } from '../../prisma/prisma-errors';
+import {
+  RotaAteORecebedor,
+  RotaDeCarroService,
+} from '../../mapa/rota-de-carro.service';
 import { CalculoValorEntregaService } from '../../remuneracao/calculo-valor-entrega.service';
 import {
   AnalisePedidoExterno,
@@ -24,7 +28,7 @@ import {
   PendenciaJaConvertida,
 } from './importacao.repository';
 
-const DISTANCIA_SEM_API_DE_MAPAS = 0;
+const DISTANCIA_SEM_ROTA = 0;
 const VALOR_SEM_PARAMETROS_DE_REMUNERACAO = 0;
 const MOTIVO_ITEM_NAO_E_OBJETO = 'Pedido deve ser um objeto';
 const MOTIVO_ID_EXTERNO_INVALIDO =
@@ -63,6 +67,7 @@ export class ImportacaoService {
   constructor(
     private readonly importacoes: ImportacaoRepository,
     private readonly calculoValor: CalculoValorEntregaService,
+    private readonly rotaDeCarro: RotaDeCarroService,
   ) {}
 
   async importar(idEmpresa: number, itens: unknown[]) {
@@ -229,9 +234,10 @@ export class ImportacaoService {
       idEmpresa,
       new Date(),
     );
+    const rota = await this.rotaDeCarro.calcular(idEmpresa, analise.pedido);
     return {
       analise,
-      pedido: this.montarPedido(analise.pedido, metricas),
+      pedido: this.montarPedido(analise.pedido, metricas, rota),
       camposFaltantes,
     };
   }
@@ -239,7 +245,9 @@ export class ImportacaoService {
   private montarPedido(
     pedido: PedidoExternoDto,
     metricas: MetricasPagamento | null,
+    rota: RotaAteORecebedor | null,
   ): DadosNovoPedido {
+    const distancia = rota?.distanciaM ?? DISTANCIA_SEM_ROTA;
     return {
       nome_recebedor: pedido.nomeRecebedor,
       telefone_recebedor: pedido.telefoneRecebedor,
@@ -253,17 +261,22 @@ export class ImportacaoService {
       descricao: juntarObservacoes(pedido.descricao, pedido.observacoes),
       status: StatusFactory.criar(undefined),
       data_criacao: new Date(),
-      distancia: DISTANCIA_SEM_API_DE_MAPAS,
-      valor_entrega: this.valorDaEntrega(metricas),
+      distancia,
+      destino_lat: rota?.destino.lat ?? null,
+      destino_lng: rota?.destino.lng ?? null,
+      valor_entrega: this.valorDaEntrega(metricas, distancia),
     };
   }
 
-  private valorDaEntrega(metricas: MetricasPagamento | null): number {
+  private valorDaEntrega(
+    metricas: MetricasPagamento | null,
+    distancia: number,
+  ): number {
     if (!metricas) {
       return VALOR_SEM_PARAMETROS_DE_REMUNERACAO;
     }
     return this.calculoValor.calcular_valor_entrega({
-      distancia_metros: DISTANCIA_SEM_API_DE_MAPAS,
+      distancia_metros: distancia,
       taxa_fixa_centavos: metricas.taxa_fixa,
       coeficiente_centavos_km: metricas.coeficiente,
     });

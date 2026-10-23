@@ -8,6 +8,10 @@ import type {
   PedidoImportado,
 } from '../../generated/prisma/client';
 import { StatusPedido } from '../../generated/prisma/enums';
+import {
+  RotaAteORecebedor,
+  RotaDeCarroService,
+} from '../../mapa/rota-de-carro.service';
 import { CalculoValorEntregaService } from '../../remuneracao/calculo-valor-entrega.service';
 import {
   ImportacaoRepository,
@@ -43,6 +47,10 @@ const camposDoPedido = {
   descricao: 'Duas marmitas',
 };
 const completo = { idExterno: 'PED-1', ...camposDoPedido };
+const ROTA_DE_4_KM: RotaAteORecebedor = {
+  distanciaM: 4200,
+  destino: { lat: -15.75, lng: -47.88 },
+};
 
 function montar() {
   const importacoes = {
@@ -65,11 +73,20 @@ function montar() {
       pedido(43),
     ),
   };
+  const rotaDeCarro = {
+    calcular: jest
+      .fn<
+        Promise<RotaAteORecebedor | null>,
+        Parameters<RotaDeCarroService['calcular']>
+      >()
+      .mockResolvedValue(null),
+  };
   const service = new ImportacaoService(
     importacoes as unknown as ImportacaoRepository,
     new CalculoValorEntregaService(),
+    rotaDeCarro as unknown as RotaDeCarroService,
   );
-  return { service, importacoes };
+  return { service, importacoes, rotaDeCarro };
 }
 
 describe('ImportacaoService.importar', () => {
@@ -96,6 +113,54 @@ describe('ImportacaoService.importar', () => {
         complemento: null,
       }),
     );
+  });
+
+  it('cobra pelo km da rota de carro ate o recebedor e guarda o destino', async () => {
+    const { service, importacoes, rotaDeCarro } = montar();
+    rotaDeCarro.calcular.mockResolvedValue(ROTA_DE_4_KM);
+
+    await service.importar(CANTINA, [completo]);
+
+    expect(rotaDeCarro.calcular).toHaveBeenCalledWith(
+      CANTINA,
+      expect.objectContaining({
+        logradouro: 'SQN 210 Bloco K',
+        numero: 304,
+        cep: '70000000',
+      }),
+    );
+    expect(importacoes.criarPedidoImportado.mock.calls[0][3]).toEqual(
+      expect.objectContaining({
+        distancia: 4200,
+        valor_entrega: 1430,
+        destino_lat: -15.75,
+        destino_lng: -47.88,
+      }),
+    );
+  });
+
+  it('importa com distancia zero e so a taxa fixa quando a rota nao sai', async () => {
+    const { service, importacoes } = montar();
+
+    const { resultados } = await service.importar(CANTINA, [completo]);
+
+    expect(resultados[0].situacao).toBe('importado');
+    expect(importacoes.criarPedidoImportado.mock.calls[0][3]).toEqual(
+      expect.objectContaining({
+        distancia: 0,
+        valor_entrega: 800,
+        destino_lat: null,
+        destino_lng: null,
+      }),
+    );
+  });
+
+  it('nao gasta chamada ao Google com pedido incompleto', async () => {
+    const { service, rotaDeCarro } = montar();
+
+    await service.importar(CANTINA, [{ ...completo, cep: undefined }]);
+
+    expect(rotaDeCarro.calcular).not.toHaveBeenCalled();
   });
 
   it('usa sempre a empresa da credencial, mesmo com idEmpresa no corpo', async () => {
@@ -239,6 +304,25 @@ describe('ImportacaoService.completar', () => {
         telefone_recebedor: '61920000009',
         cep: '70000001',
       }),
+    );
+  });
+
+  it('calcula a rota com o endereco completado', async () => {
+    const { service, importacoes, rotaDeCarro } = montar();
+    importacoes.procurarPendencia.mockResolvedValue(pendencia);
+    rotaDeCarro.calcular.mockResolvedValue(ROTA_DE_4_KM);
+
+    await service.completar(CANTINA, 7, {
+      telefoneRecebedor: '61920000009',
+      cep: '70000001',
+    });
+
+    expect(rotaDeCarro.calcular).toHaveBeenCalledWith(
+      CANTINA,
+      expect.objectContaining({ cep: '70000001' }),
+    );
+    expect(importacoes.converterPendencia.mock.calls[0][3]).toEqual(
+      expect.objectContaining({ distancia: 4200, valor_entrega: 1430 }),
     );
   });
 
