@@ -1,4 +1,9 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  HttpStatus,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PedidoService } from '../pedido.service';
 import { PedidoRepository } from '../pedido.repository';
@@ -11,6 +16,10 @@ import {
   EntregadorIndisponivelError,
   PedidoAlteradoError,
 } from '../pedido.erros';
+import {
+  CodigoDoRecebedorService,
+  ConferenciaDoCodigo,
+} from '../../rastreio/codigo-do-recebedor.service';
 
 jest.mock('../../prisma/prisma.service', () => ({
   PrismaService: class {},
@@ -38,6 +47,7 @@ describe('PedidoService', () => {
             },
           },
           { provide: LocalizacaoService, useValue: {} },
+          { provide: CodigoDoRecebedorService, useValue: {} },
         ],
       }).compile();
       service = module.get<PedidoService>(PedidoService);
@@ -186,13 +196,23 @@ function montar() {
     aoTrocarEntregador: jest.fn().mockResolvedValue(undefined),
   };
 
+  const codigoDoRecebedor = {
+    conferir: jest
+      .fn<
+        Promise<ConferenciaDoCodigo>,
+        Parameters<CodigoDoRecebedorService['conferir']>
+      >()
+      .mockResolvedValue({ situacao: 'correto' }),
+  };
+
   const service = new PedidoService(
     pedidos as unknown as PedidoRepository,
     entregadores as unknown as EntregadorRepository,
     localizacao as unknown as LocalizacaoService,
+    codigoDoRecebedor as unknown as CodigoDoRecebedorService,
   );
 
-  return { service, pedidos, entregadores, localizacao };
+  return { service, pedidos, entregadores, localizacao, codigoDoRecebedor };
 }
 
 describe('PedidoService.atualizarStatus', () => {
@@ -204,7 +224,7 @@ describe('PedidoService.atualizarStatus', () => {
       service.atualizarStatus(
         CPF_ENTREGADOR,
         ID_PEDIDO,
-        StatusPedido.FINALIZADO,
+        StatusPedido.EM_ANDAMENTO,
       ),
     ).rejects.toThrow(NotFoundException);
   });
@@ -218,13 +238,30 @@ describe('PedidoService.atualizarStatus', () => {
     expect(pedidos.atualizarStatus).not.toHaveBeenCalled();
   });
 
+  it('recusa finalizar pela troca de status, que nao pede o codigo', async () => {
+    const { service, pedidos, codigoDoRecebedor } = montar();
+
+    await expect(
+      service.atualizarStatus(
+        CPF_ENTREGADOR,
+        ID_PEDIDO,
+        StatusPedido.FINALIZADO,
+      ),
+    ).rejects.toThrow(
+      'Para finalizar a entrega, informe o código do recebedor',
+    );
+    expect(codigoDoRecebedor.conferir).not.toHaveBeenCalled();
+    expect(pedidos.atualizarStatus).not.toHaveBeenCalled();
+  });
+
   it('busca o pedido usando o id e o cpf do entregador', async () => {
     const { service, pedidos } = montar();
+    pedidos.procurarAtribuidoAoEntregador.mockResolvedValue(pedidoPendente);
 
     await service.atualizarStatus(
       CPF_ENTREGADOR,
       ID_PEDIDO,
-      StatusPedido.FINALIZADO,
+      StatusPedido.EM_ANDAMENTO,
     );
 
     expect(pedidos.procurarAtribuidoAoEntregador).toHaveBeenCalledWith(
@@ -233,15 +270,68 @@ describe('PedidoService.atualizarStatus', () => {
     );
   });
 
-  it('grava condicionado ao status lido e libera o entregador ao finalizar', async () => {
+  it('grava condicionado ao status lido sem finalizar', async () => {
     const { service, pedidos } = montar();
+    pedidos.procurarAtribuidoAoEntregador.mockResolvedValue(pedidoPendente);
 
     await service.atualizarStatus(
       CPF_ENTREGADOR,
       ID_PEDIDO,
-      StatusPedido.FINALIZADO,
+      StatusPedido.EM_ANDAMENTO,
     );
 
+    expect(pedidos.atualizarStatus).toHaveBeenCalledWith({
+      idPedido: ID_PEDIDO,
+      cpfEntregador: CPF_ENTREGADOR,
+      statusAtual: StatusPedido.PENDENTE,
+      novoStatus: StatusPedido.EM_ANDAMENTO,
+      finalizar: false,
+    });
+  });
+
+  it('retorna o resumo do pedido no mesmo formato da reatribuicao', async () => {
+    const { service, pedidos } = montar();
+    pedidos.procurarAtribuidoAoEntregador.mockResolvedValue(pedidoPendente);
+
+    await expect(
+      service.atualizarStatus(
+        CPF_ENTREGADOR,
+        ID_PEDIDO,
+        StatusPedido.EM_ANDAMENTO,
+      ),
+    ).resolves.toEqual({
+      id: ID_PEDIDO,
+      recebedor: 'Carla Menezes',
+      entregador: 'Bruno Lima',
+      status: StatusPedido.EM_ANDAMENTO,
+      criadoEm: DATA_CRIACAO,
+    });
+  });
+
+  it('responde 409 quando o pedido mudou entre a leitura e a escrita', async () => {
+    const { service, pedidos } = montar();
+    pedidos.procurarAtribuidoAoEntregador.mockResolvedValue(pedidoPendente);
+    pedidos.atualizarStatus.mockRejectedValue(new PedidoAlteradoError());
+
+    await expect(
+      service.atualizarStatus(
+        CPF_ENTREGADOR,
+        ID_PEDIDO,
+        StatusPedido.EM_ANDAMENTO,
+      ),
+    ).rejects.toThrow(ConflictException);
+  });
+});
+
+describe('PedidoService.finalizar', () => {
+  const CODIGO = '482913';
+
+  it('confere o codigo do pedido e grava a finalizacao liberando o entregador', async () => {
+    const { service, pedidos, codigoDoRecebedor } = montar();
+
+    await service.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO);
+
+    expect(codigoDoRecebedor.conferir).toHaveBeenCalledWith(ID_PEDIDO, CODIGO);
     expect(pedidos.atualizarStatus).toHaveBeenCalledWith({
       idPedido: ID_PEDIDO,
       cpfEntregador: CPF_ENTREGADOR,
@@ -251,47 +341,111 @@ describe('PedidoService.atualizarStatus', () => {
     });
   });
 
-  it('retorna o resumo do pedido no mesmo formato da reatribuicao', async () => {
+  it('retorna o resumo do pedido finalizado', async () => {
     const { service } = montar();
 
     await expect(
-      service.atualizarStatus(
-        CPF_ENTREGADOR,
-        ID_PEDIDO,
-        StatusPedido.FINALIZADO,
-      ),
-    ).resolves.toEqual({
+      service.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO),
+    ).resolves.toMatchObject({
       id: ID_PEDIDO,
-      recebedor: 'Carla Menezes',
-      entregador: 'Bruno Lima',
       status: StatusPedido.FINALIZADO,
-      criadoEm: DATA_CRIACAO,
     });
   });
 
-  it('responde 409 quando o pedido mudou entre a leitura e a escrita', async () => {
-    const { service, pedidos } = montar();
-    pedidos.atualizarStatus.mockRejectedValue(new PedidoAlteradoError());
+  it('responde 404 quando o pedido nao esta atribuido ao entregador', async () => {
+    const { service, pedidos, codigoDoRecebedor } = montar();
+    pedidos.procurarAtribuidoAoEntregador.mockResolvedValue(null);
 
     await expect(
-      service.atualizarStatus(
-        CPF_ENTREGADOR,
-        ID_PEDIDO,
-        StatusPedido.FINALIZADO,
-      ),
+      service.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO),
+    ).rejects.toThrow(NotFoundException);
+    expect(codigoDoRecebedor.conferir).not.toHaveBeenCalled();
+  });
+
+  it('nao gasta tentativa quando o pedido nao esta em andamento', async () => {
+    const { service, pedidos, codigoDoRecebedor } = montar();
+    pedidos.procurarAtribuidoAoEntregador.mockResolvedValue(pedidoPendente);
+
+    await expect(
+      service.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO),
     ).rejects.toThrow(ConflictException);
+    expect(codigoDoRecebedor.conferir).not.toHaveBeenCalled();
+  });
+
+  it('responde 422 com as tentativas restantes quando o codigo esta errado', async () => {
+    const { service, pedidos, codigoDoRecebedor } = montar();
+    codigoDoRecebedor.conferir.mockResolvedValue({
+      situacao: 'incorreto',
+      tentativasRestantes: 3,
+    });
+
+    const erro = await service
+      .finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO)
+      .catch((falha: unknown) => falha);
+
+    expect(erro).toBeInstanceOf(UnprocessableEntityException);
+    expect((erro as UnprocessableEntityException).getResponse()).toEqual({
+      message: 'Código incorreto',
+      tentativasRestantes: 3,
+    });
+    expect(pedidos.atualizarStatus).not.toHaveBeenCalled();
+  });
+
+  it('responde 429 com o horario de liberacao quando esta bloqueado', async () => {
+    const { service, pedidos, codigoDoRecebedor } = montar();
+    const liberaEm = new Date('2026-10-22T15:00:00Z');
+    codigoDoRecebedor.conferir.mockResolvedValue({
+      situacao: 'bloqueado',
+      liberaEm,
+    });
+
+    const erro = await service
+      .finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO)
+      .catch((falha: unknown) => falha);
+
+    expect((erro as UnprocessableEntityException).getStatus()).toBe(
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
+    expect((erro as UnprocessableEntityException).getResponse()).toMatchObject({
+      liberaEm,
+    });
+    expect(pedidos.atualizarStatus).not.toHaveBeenCalled();
+  });
+
+  it('responde 409 quando o recebedor ainda nao tem codigo', async () => {
+    const { service, pedidos, codigoDoRecebedor } = montar();
+    codigoDoRecebedor.conferir.mockResolvedValue({ situacao: 'sem_codigo' });
+
+    await expect(
+      service.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO),
+    ).rejects.toThrow(ConflictException);
+    expect(pedidos.atualizarStatus).not.toHaveBeenCalled();
   });
 });
 
 describe('PedidoService.obterStatusDisponiveis', () => {
-  it('retorna os status disponiveis para o pedido', async () => {
+  it('tira a finalizacao dos botoes de status e indica que ela pede o codigo', async () => {
     const { service } = montar();
 
     await expect(
       service.obterStatusDisponiveis(CPF_ENTREGADOR, ID_PEDIDO),
     ).resolves.toEqual({
       statusAtual: StatusPedido.EM_ANDAMENTO,
-      statusDisponiveis: [StatusPedido.FINALIZADO],
+      statusDisponiveis: [],
+      podeFinalizarComCodigo: true,
+    });
+  });
+
+  it('nao oferece finalizar um pedido pendente', async () => {
+    const { service, pedidos } = montar();
+    pedidos.procurarAtribuidoAoEntregador.mockResolvedValue(pedidoPendente);
+
+    await expect(
+      service.obterStatusDisponiveis(CPF_ENTREGADOR, ID_PEDIDO),
+    ).resolves.toEqual({
+      statusAtual: StatusPedido.PENDENTE,
+      statusDisponiveis: [StatusPedido.EM_ANDAMENTO],
+      podeFinalizarComCodigo: false,
     });
   });
 
@@ -316,6 +470,7 @@ describe('PedidoService.obterStatusDisponiveis', () => {
     ).resolves.toEqual({
       statusAtual: StatusPedido.FINALIZADO,
       statusDisponiveis: [],
+      podeFinalizarComCodigo: false,
     });
   });
 });
@@ -630,14 +785,10 @@ describe('PedidoService listagens', () => {
 });
 
 describe('PedidoService e o rastreio em tempo real', () => {
-  it('avisa o rastreio depois de gravar a troca de status', async () => {
+  it('avisa o rastreio depois de gravar a finalizacao', async () => {
     const { service, pedidos, localizacao } = montar();
 
-    await service.atualizarStatus(
-      CPF_ENTREGADOR,
-      ID_PEDIDO,
-      StatusPedido.FINALIZADO,
-    );
+    await service.finalizar(CPF_ENTREGADOR, ID_PEDIDO, '482913');
 
     expect(localizacao.aoMudarStatus).toHaveBeenCalledWith(
       ID_PEDIDO,

@@ -170,10 +170,12 @@ model Contrato {
 }
 
 model AcessoRecebedor {
-  idPedido         Int      @id
-  token_hash       String   @unique
-  codigo_recebedor String
-  data_criacao     DateTime @default(now()) @db.Timestamptz(3)
+  idPedido                Int       @id
+  token_hash              String    @unique
+  codigo_recebedor        String
+  data_criacao            DateTime  @default(now()) @db.Timestamptz(3)
+  tentativas_codigo       Int       @default(0)
+  ultima_tentativa_codigo DateTime?
 
   pedido Pedido @relation(fields: [idPedido], references: [id_pedido])
 }

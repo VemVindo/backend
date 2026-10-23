@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
   Patch,
@@ -14,6 +16,7 @@ import type { UsuarioAutenticado } from '../auth/jwt.strategy';
 import { Cargo } from '../common/enums/cargo.enum';
 import { AtualizarStatusPedidoDto } from './dto/atualizar-status-pedido.dto';
 import { CriaPedidoReqDto, CriaPedidoResDto } from './dto/cria-pedido.dto';
+import { FinalizarPedidoDto } from './dto/finalizar-pedido.dto';
 import { ReatribuirPedidoDto } from './dto/reatribuir-pedido.dto';
 import { PedidoService } from './pedido.service';
 
@@ -69,6 +72,21 @@ export class PedidoController {
       usuario.usuarioId,
       idPedido,
       dto.status,
+    );
+  }
+
+  @Post(':id/finalizar')
+  @Cargos(Cargo.ENTREGADOR)
+  @HttpCode(HttpStatus.OK)
+  finalizar(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param('id', ParseIntPipe) idPedido: number,
+    @Body() dto: FinalizarPedidoDto,
+  ) {
+    return this.pedidoService.finalizar(
+      usuario.usuarioId,
+      idPedido,
+      dto.codigo,
     );
   }
 

@@ -1,5 +1,6 @@
 import { StatusPedido } from '../../generated/prisma/enums';
 import {
+  exigeCodigoDoRecebedor,
   obterStatusDisponiveis,
   statusFinal,
   transicaoPermitida,
@@ -12,10 +13,8 @@ describe('obterStatusDisponiveis', () => {
     ]);
   });
 
-  it('permite ir de EM_ANDAMENTO para FINALIZADO', () => {
-    expect(obterStatusDisponiveis(StatusPedido.EM_ANDAMENTO)).toEqual([
-      StatusPedido.FINALIZADO,
-    ]);
+  it('nao oferece FINALIZADO como troca simples, porque ele pede o codigo do recebedor', () => {
+    expect(obterStatusDisponiveis(StatusPedido.EM_ANDAMENTO)).toEqual([]);
   });
 
   it('nao permite novas transicoes a partir de FINALIZADO', () => {
@@ -25,6 +24,19 @@ describe('obterStatusDisponiveis', () => {
   it('nao permite novas transicoes a partir de CANCELADO', () => {
     expect(obterStatusDisponiveis(StatusPedido.CANCELADO)).toEqual([]);
   });
+});
+
+describe('exigeCodigoDoRecebedor', () => {
+  it('exige o codigo para finalizar', () => {
+    expect(exigeCodigoDoRecebedor(StatusPedido.FINALIZADO)).toBe(true);
+  });
+
+  it.each([StatusPedido.EM_ANDAMENTO, StatusPedido.CANCELADO])(
+    'nao exige o codigo para %s',
+    (status) => {
+      expect(exigeCodigoDoRecebedor(status)).toBe(false);
+    },
+  );
 });
 
 describe('transicaoPermitida', () => {

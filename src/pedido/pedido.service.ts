@@ -1,12 +1,19 @@
 import {
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { EntregadorRepository } from '../entregador/entregador.repository';
 import { Pedido } from '../generated/prisma/client';
 import { StatusPedido } from '../generated/prisma/enums';
 import { LocalizacaoService } from '../mapa/localizacao.service';
+import {
+  CodigoDoRecebedorService,
+  ConferenciaDoCodigo,
+} from '../rastreio/codigo-do-recebedor.service';
 import { CriaPedidoReqDto } from './dto/cria-pedido.dto';
 import {
   HistoricoEntregadorDto,
@@ -24,6 +31,7 @@ import {
 } from './pedido.erros';
 import { PedidoRepository } from './pedido.repository';
 import {
+  exigeCodigoDoRecebedor,
   obterStatusDisponiveis,
   statusFinal,
   transicaoPermitida,
@@ -44,6 +52,7 @@ export class PedidoService {
     private readonly pedidoRepository: PedidoRepository,
     private readonly entregadorRepository: EntregadorRepository,
     private readonly localizacao: LocalizacaoService,
+    private readonly codigoDoRecebedor: CodigoDoRecebedorService,
   ) {}
 
   async criar(idEmpresa: number, pedido: CriaPedidoReqDto): Promise<Pedido> {
@@ -90,48 +99,38 @@ export class PedidoService {
     idPedido: number,
     novoStatus: StatusPedido,
   ): Promise<PedidoResumoDto> {
-    const pedido = await this.pedidoRepository.procurarAtribuidoAoEntregador(
-      idPedido,
-      cpfEntregador,
-    );
-
-    if (!pedido) {
-      throw new NotFoundException('Pedido não encontrado');
-    }
-
-    if (!transicaoPermitida(pedido.status, novoStatus)) {
+    const pedido = await this.exigirPedidoDoEntregador(cpfEntregador, idPedido);
+    if (exigeCodigoDoRecebedor(novoStatus)) {
       throw new ConflictException(
-        `Não é permitido alterar o pedido de ${pedido.status} para ${novoStatus}`,
+        'Para finalizar a entrega, informe o código do recebedor',
       );
     }
+    exigirTransicao(pedido, novoStatus);
+    return this.aplicarStatus(cpfEntregador, pedido, novoStatus);
+  }
 
-    const atualizado = await this.comControleDeConcorrencia(() =>
-      this.pedidoRepository.atualizarStatus({
-        idPedido,
-        cpfEntregador,
-        statusAtual: pedido.status,
-        novoStatus,
-        finalizar: statusFinal(novoStatus),
-      }),
+  async finalizar(
+    cpfEntregador: string,
+    idPedido: number,
+    codigo: string,
+  ): Promise<PedidoResumoDto> {
+    const pedido = await this.exigirPedidoDoEntregador(cpfEntregador, idPedido);
+    exigirTransicao(pedido, StatusPedido.FINALIZADO);
+    exigirCodigoCorreto(
+      await this.codigoDoRecebedor.conferir(idPedido, codigo),
     );
-
-    await this.localizacao.aoMudarStatus(idPedido, novoStatus);
-    return paraPedidoResumo(atualizado);
+    return this.aplicarStatus(cpfEntregador, pedido, StatusPedido.FINALIZADO);
   }
 
   async obterStatusDisponiveis(cpfEntregador: string, idPedido: number) {
-    const pedido = await this.pedidoRepository.procurarAtribuidoAoEntregador(
-      idPedido,
-      cpfEntregador,
-    );
-
-    if (!pedido) {
-      throw new NotFoundException('Pedido não encontrado');
-    }
-
+    const pedido = await this.exigirPedidoDoEntregador(cpfEntregador, idPedido);
     return {
       statusAtual: pedido.status,
       statusDisponiveis: obterStatusDisponiveis(pedido.status),
+      podeFinalizarComCodigo: transicaoPermitida(
+        pedido.status,
+        StatusPedido.FINALIZADO,
+      ),
     };
   }
 
@@ -253,6 +252,38 @@ export class PedidoService {
     }
   }
 
+  private async exigirPedidoDoEntregador(
+    cpfEntregador: string,
+    idPedido: number,
+  ): Promise<Pedido> {
+    const pedido = await this.pedidoRepository.procurarAtribuidoAoEntregador(
+      idPedido,
+      cpfEntregador,
+    );
+    if (!pedido) {
+      throw new NotFoundException('Pedido não encontrado');
+    }
+    return pedido;
+  }
+
+  private async aplicarStatus(
+    cpfEntregador: string,
+    pedido: Pedido,
+    novoStatus: StatusPedido,
+  ): Promise<PedidoResumoDto> {
+    const atualizado = await this.comControleDeConcorrencia(() =>
+      this.pedidoRepository.atualizarStatus({
+        idPedido: pedido.id_pedido,
+        cpfEntregador,
+        statusAtual: pedido.status,
+        novoStatus,
+        finalizar: statusFinal(novoStatus),
+      }),
+    );
+    await this.localizacao.aoMudarStatus(pedido.id_pedido, novoStatus);
+    return paraPedidoResumo(atualizado);
+  }
+
   private async comControleDeConcorrencia<T>(
     escrita: () => Promise<T>,
   ): Promise<T> {
@@ -269,5 +300,37 @@ export class PedidoService {
       }
       throw erro;
     }
+  }
+}
+
+function exigirTransicao(pedido: Pedido, novoStatus: StatusPedido): void {
+  if (!transicaoPermitida(pedido.status, novoStatus)) {
+    throw new ConflictException(
+      `Não é permitido alterar o pedido de ${pedido.status} para ${novoStatus}`,
+    );
+  }
+}
+
+function exigirCodigoCorreto(conferencia: ConferenciaDoCodigo): void {
+  switch (conferencia.situacao) {
+    case 'correto':
+      return;
+    case 'sem_codigo':
+      throw new ConflictException(
+        'O recebedor ainda não tem o código: peça à empresa para enviar o link de rastreio',
+      );
+    case 'bloqueado':
+      throw new HttpException(
+        {
+          message: 'Muitas tentativas erradas. Tente de novo mais tarde',
+          liberaEm: conferencia.liberaEm,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    case 'incorreto':
+      throw new UnprocessableEntityException({
+        message: 'Código incorreto',
+        tentativasRestantes: conferencia.tentativasRestantes,
+      });
   }
 }

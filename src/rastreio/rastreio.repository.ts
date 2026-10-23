@@ -43,6 +43,21 @@ export class RastreioRepository {
     });
   }
 
+  procurarAcessoDoPedido(idPedido: number): Promise<AcessoRecebedor | null> {
+    return this.prisma.acessoRecebedor.findUnique({ where: { idPedido } });
+  }
+
+  async registrarTentativaErrada(
+    idPedido: number,
+    tentativas: number,
+    quando: Date,
+  ): Promise<void> {
+    await this.prisma.acessoRecebedor.update({
+      where: { idPedido },
+      data: { tentativas_codigo: tentativas, ultima_tentativa_codigo: quando },
+    });
+  }
+
   procurarPedidoDaEmpresa(
     idPedido: number,
     idEmpresa: number,
