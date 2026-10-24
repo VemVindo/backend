@@ -135,6 +135,9 @@ function montar() {
     procurarDetalheDaEmpresa: jest.fn().mockResolvedValue(null),
 
     criar: jest.fn().mockResolvedValue(pedidoPendente),
+    corrigir_distancia: jest
+      .fn()
+      .mockResolvedValue({ ...pedidoEmAndamento, entregador: null }),
 
     listarDaEmpresa: jest
       .fn()
@@ -308,6 +311,8 @@ describe('PedidoService.atualizarStatus', () => {
       status: StatusPedido.EM_ANDAMENTO,
       criadoEm: DATA_CRIACAO,
       valorEntrega: 1430,
+      ganhoConsolidadoCentavos: null,
+      distanciaConhecida: null,
       finalizadoEm: null,
       nota: null,
     });
@@ -575,6 +580,8 @@ describe('PedidoService.reatribuir', () => {
       status: StatusPedido.EM_ANDAMENTO,
       criadoEm: DATA_CRIACAO,
       valorEntrega: 1430,
+      ganhoConsolidadoCentavos: null,
+      distanciaConhecida: null,
       finalizadoEm: null,
       nota: null,
     });
@@ -767,6 +774,8 @@ describe('PedidoService listagens', () => {
         status: StatusPedido.PENDENTE,
         criadoEm: DATA_CRIACAO,
         valorEntrega: 1430,
+        ganhoConsolidadoCentavos: null,
+        distanciaConhecida: null,
         finalizadoEm: null,
         nota: null,
       },
@@ -798,6 +807,8 @@ describe('PedidoService listagens', () => {
       expect(pedido).toMatchObject({
         status: StatusPedido.FINALIZADO,
         valorEntrega: 1430,
+        ganhoConsolidadoCentavos: null,
+        distanciaConhecida: null,
         finalizadoEm,
         nota: notaEsperada,
       });
@@ -817,6 +828,8 @@ describe('PedidoService listagens', () => {
       recebedor: 'Carla Menezes',
       endereco: 'Rua das Flores, 10 - Centro, Brasilia/DF',
       valorEntrega: 1430,
+      ganhoConsolidadoCentavos: null,
+      distanciaConhecida: null,
       distancia: 4200,
       criadoEm: DATA_CRIACAO,
       iniciadoEm: DATA_CRIACAO,
@@ -871,6 +884,79 @@ describe('PedidoService e o rastreio em tempo real', () => {
   });
 });
 
+describe('PedidoService.corrigir_distancia', () => {
+  it('falha de localizacao apos commit nao provoca segunda consolidacao', async () => {
+    const {
+      service: servico_pedidos,
+      pedidos: repositorio_pedidos,
+      localizacao: servico_localizacao,
+    } = montar();
+    servico_localizacao.aoMudarStatus.mockRejectedValueOnce(
+      new Error('localizacao indisponivel'),
+    );
+    await expect(
+      servico_pedidos.finalizar(CPF_ENTREGADOR, ID_PEDIDO, '482913'),
+    ).rejects.toThrow('localizacao indisponivel');
+    repositorio_pedidos.procurarAtribuidoAoEntregador.mockResolvedValue({
+      ...pedidoEmAndamento,
+      status: StatusPedido.FINALIZADO,
+    });
+    await expect(
+      servico_pedidos.finalizar(CPF_ENTREGADOR, ID_PEDIDO, '482913'),
+    ).rejects.toThrow(ConflictException);
+    expect(repositorio_pedidos.atualizarStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it('nao permite acessar pedido de outra empresa', async () => {
+    const { service: servico_pedidos, pedidos: repositorio_pedidos } = montar();
+    repositorio_pedidos.procurarPorEmpresa.mockResolvedValue(null);
+    await expect(
+      servico_pedidos.corrigir_distancia(ID_EMPRESA, ID_PEDIDO, 0),
+    ).rejects.toThrow(NotFoundException);
+    expect(repositorio_pedidos.procurarPorEmpresa).toHaveBeenCalledWith(
+      ID_PEDIDO,
+      ID_EMPRESA,
+    );
+    expect(repositorio_pedidos.corrigir_distancia).not.toHaveBeenCalled();
+  });
+
+  it.each([StatusPedido.FINALIZADO, StatusPedido.CANCELADO])(
+    'bloqueia correcao em %s',
+    async (status) => {
+      const { service: servico_pedidos, pedidos: repositorio_pedidos } =
+        montar();
+      repositorio_pedidos.procurarPorEmpresa.mockResolvedValue({
+        ...pedidoEmAndamento,
+        status,
+      });
+      await expect(
+        servico_pedidos.corrigir_distancia(ID_EMPRESA, ID_PEDIDO, 4200),
+      ).rejects.toThrow(ConflictException);
+      expect(repositorio_pedidos.corrigir_distancia).not.toHaveBeenCalled();
+    },
+  );
+
+  it('permite confirmar distancia zero e preserva identidade da empresa', async () => {
+    const { service: servico_pedidos, pedidos: repositorio_pedidos } = montar();
+    await servico_pedidos.corrigir_distancia(ID_EMPRESA, ID_PEDIDO, 0);
+    expect(repositorio_pedidos.corrigir_distancia).toHaveBeenCalledWith(
+      ID_PEDIDO,
+      ID_EMPRESA,
+      0,
+    );
+  });
+
+  it('mapeia corrida com conclusao para conflito', async () => {
+    const { service: servico_pedidos, pedidos: repositorio_pedidos } = montar();
+    repositorio_pedidos.corrigir_distancia.mockRejectedValue(
+      new PedidoAlteradoError(),
+    );
+    await expect(
+      servico_pedidos.corrigir_distancia(ID_EMPRESA, ID_PEDIDO, 4200),
+    ).rejects.toThrow(ConflictException);
+  });
+});
+
 describe('PedidoService.detalhar', () => {
   const INICIO = new Date('2026-10-07T17:10:00Z');
   const completo = {
@@ -904,6 +990,8 @@ describe('PedidoService.detalhar', () => {
       endereco: { logradouro: 'SQN 210 Bloco K', numero: 304, uf: 'DF' },
       entregador: 'Bruno Lima',
       valorEntrega: 1250,
+      ganhoConsolidadoCentavos: null,
+      distanciaConhecida: null,
       linhaDoTempo: [
         { etapa: 'CRIADO', em: DATA_CRIACAO },
         { etapa: StatusPedido.EM_ANDAMENTO, em: INICIO },

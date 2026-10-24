@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { CalculoValorEntregaService } from './calculo-valor-entrega.service';
+import { GanhoEntregaService } from './ganho-entrega.service';
 import { RemuneracaoController } from './remuneracao.controller';
 import { RemuneracaoRepository } from './remuneracao.repository';
 import { RemuneracaoService } from './remuneracao.service';
@@ -8,9 +9,10 @@ import { RemuneracaoService } from './remuneracao.service';
   controllers: [RemuneracaoController],
   providers: [
     CalculoValorEntregaService,
+    GanhoEntregaService,
     RemuneracaoRepository,
     RemuneracaoService,
   ],
-  exports: [CalculoValorEntregaService],
+  exports: [CalculoValorEntregaService, GanhoEntregaService],
 })
 export class RemuneracaoModule {}

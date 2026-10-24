@@ -17,6 +17,7 @@ import { Cargo } from '../common/enums/cargo.enum';
 import { AtualizarStatusPedidoDto } from './dto/atualizar-status-pedido.dto';
 import { CriaPedidoReqDto, CriaPedidoResDto } from './dto/cria-pedido.dto';
 import { FinalizarPedidoDto } from './dto/finalizar-pedido.dto';
+import { CorrigirDistanciaDto } from './dto/corrigir-distancia.dto';
 import { ReatribuirPedidoDto } from './dto/reatribuir-pedido.dto';
 import { PedidoService } from './pedido.service';
 
@@ -101,6 +102,20 @@ export class PedidoController {
       Number(usuario.empresaId),
       idPedido,
       dto.cpfEntregador,
+    );
+  }
+
+  @Patch(':id/distancia')
+  @Cargos(Cargo.ESTABELECIMENTO)
+  corrigir_distancia(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param('id', ParseIntPipe) id_pedido: number,
+    @Body() correcao_distancia: CorrigirDistanciaDto,
+  ) {
+    return this.pedidoService.corrigir_distancia(
+      Number(usuario.empresaId),
+      id_pedido,
+      correcao_distancia.distanciaMetros,
     );
   }
 

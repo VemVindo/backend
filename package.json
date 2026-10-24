@@ -17,6 +17,7 @@
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "test": "jest",
+    "test:integration": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-integration.json --runInBand",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:ci": "mkdir -p reports && jest --ci --coverage --json --outputFile=reports/jest-results.json --reporters=default --reporters=jest-junit",

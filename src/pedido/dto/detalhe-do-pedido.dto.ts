@@ -19,6 +19,8 @@ export interface DetalheDoPedidoDto {
   };
   entregador: string | null;
   valorEntrega: number;
+  ganhoConsolidadoCentavos: number | null;
+  distanciaConhecida: boolean | null;
   distancia: number;
   criadoEm: Date;
   linhaDoTempo: MarcoDoPedido[];
@@ -46,6 +48,8 @@ export function paraDetalheDoPedido(
     },
     entregador: pedido.entregador?.nome ?? null,
     valorEntrega: pedido.valor_entrega,
+    ganhoConsolidadoCentavos: pedido.ganho_consolidado_centavos ?? null,
+    distanciaConhecida: pedido.distancia_conhecida ?? null,
     distancia: pedido.distancia,
     criadoEm: pedido.data_criacao,
     linhaDoTempo: linhaDoTempo(pedido),

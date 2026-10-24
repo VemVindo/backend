@@ -262,6 +262,7 @@ export class ImportacaoService {
       status: StatusFactory.criar(undefined),
       data_criacao: new Date(),
       distancia,
+      distancia_conhecida: rota !== null,
       destino_lat: rota?.destino.lat ?? null,
       destino_lng: rota?.destino.lng ?? null,
       valor_entrega: this.valorDaEntrega(metricas, distancia),
