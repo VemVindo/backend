@@ -1,7 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { TipoVeiculo } from '../../common/enums/tipo-veiculo.enum';
-import { CadastrarEntregadorDto } from './cadastrar-entregador.dto';
+import { CadastrarEntregadorDto } from '../dto/cadastrar-entregador.dto';
 
 const base = {
   nome: 'Entregador Teste',
