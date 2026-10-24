@@ -1,10 +1,13 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { TipoVeiculo } from '../common/enums/tipo-veiculo.enum';
+import { LocalizacaoService } from '../mapa/localizacao.service';
+import { PedidoAlteradoError } from '../pedido/pedido.erros';
 import { SenhaService } from '../common/security/senha.service';
 import { ContratoRepository } from '../contrato/contrato.repository';
 import { CadastrarEntregadorDto } from './dto/cadastrar-entregador.dto';
 import { EntregadorRepository } from './entregador.repository';
 import { EntregadorService, MENSAGEM_CONVITE } from './entregador.service';
+import { RemocaoDaFrotaRepository } from './remocao-da-frota.repository';
 
 jest.mock('../prisma/prisma.service', () => ({ PrismaService: class {} }));
 
@@ -40,16 +43,24 @@ function montar() {
   };
   const contratos = {
     criarConvite: jest.fn().mockResolvedValue({}),
-    encerrarPelaEmpresa: jest.fn().mockResolvedValue(true),
     primeiroDoEntregador: jest.fn().mockResolvedValue(null),
   };
   const senha = { hash: jest.fn().mockResolvedValue('hash') };
+  const remocao = {
+    remover: jest.fn().mockResolvedValue({ reatribuidos: [], pendentes: [] }),
+  };
+  const localizacao = {
+    aoTrocarEntregador: jest.fn().mockResolvedValue(undefined),
+    aoMudarStatus: jest.fn().mockResolvedValue(undefined),
+  };
   const service = new EntregadorService(
     entregadores as unknown as EntregadorRepository,
     contratos as unknown as ContratoRepository,
     senha as unknown as SenhaService,
+    remocao as unknown as RemocaoDaFrotaRepository,
+    localizacao as unknown as LocalizacaoService,
   );
-  return { service, entregadores, contratos };
+  return { service, entregadores, contratos, remocao, localizacao };
 }
 
 const dto: CadastrarEntregadorDto = {
@@ -179,23 +190,66 @@ describe('EntregadorService.listarFrota', () => {
 });
 
 describe('EntregadorService.desvincular', () => {
-  it('encerra o vinculo ativo da empresa', async () => {
-    const { service, contratos } = montar();
+  it('encerra o vinculo da empresa e devolve o resultado da reatribuicao', async () => {
+    const { service, remocao } = montar();
+    const resultado = {
+      reatribuidos: [
+        { idPedido: 10, entregador: { cpf: '11144477735', nome: 'Ana' } },
+      ],
+      pendentes: [{ idPedido: 11 }],
+    };
+    remocao.remover.mockResolvedValue(resultado);
+
+    await expect(service.desvincular(ID_EMPRESA, CPF_FICTICIO)).resolves.toBe(
+      resultado,
+    );
+    expect(remocao.remover).toHaveBeenCalledWith(ID_EMPRESA, CPF_FICTICIO);
+  });
+
+  it('reinicia o rastreio dos pedidos que trocaram de entregador', async () => {
+    const { service, remocao, localizacao } = montar();
+    remocao.remover.mockResolvedValue({
+      reatribuidos: [
+        { idPedido: 10, entregador: { cpf: '11144477735', nome: 'Ana' } },
+      ],
+      pendentes: [],
+    });
 
     await service.desvincular(ID_EMPRESA, CPF_FICTICIO);
 
-    expect(contratos.encerrarPelaEmpresa).toHaveBeenCalledWith(
-      ID_EMPRESA,
-      CPF_FICTICIO,
-    );
+    expect(localizacao.aoTrocarEntregador).toHaveBeenCalledWith(10);
+    expect(localizacao.aoMudarStatus).not.toHaveBeenCalled();
+  });
+
+  it('avisa o rastreio que o pedido sem entregador voltou para PENDENTE', async () => {
+    const { service, remocao, localizacao } = montar();
+    remocao.remover.mockResolvedValue({
+      reatribuidos: [],
+      pendentes: [{ idPedido: 11 }],
+    });
+
+    await service.desvincular(ID_EMPRESA, CPF_FICTICIO);
+
+    expect(localizacao.aoTrocarEntregador).toHaveBeenCalledWith(11);
+    expect(localizacao.aoMudarStatus).toHaveBeenCalledWith(11, 'PENDENTE');
   });
 
   it('responde 404 sem vinculo ativo', async () => {
-    const { service, contratos } = montar();
-    contratos.encerrarPelaEmpresa.mockResolvedValue(false);
+    const { service, remocao, localizacao } = montar();
+    remocao.remover.mockResolvedValue(null);
 
     await expect(service.desvincular(ID_EMPRESA, CPF_FICTICIO)).rejects.toThrow(
       NotFoundException,
+    );
+    expect(localizacao.aoTrocarEntregador).not.toHaveBeenCalled();
+  });
+
+  it('responde 409 se um pedido mudou durante a remocao', async () => {
+    const { service, remocao } = montar();
+    remocao.remover.mockRejectedValue(new PedidoAlteradoError());
+
+    await expect(service.desvincular(ID_EMPRESA, CPF_FICTICIO)).rejects.toThrow(
+      ConflictException,
     );
   });
 });

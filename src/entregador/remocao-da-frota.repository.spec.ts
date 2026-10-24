@@ -1,0 +1,221 @@
+import { StatusContrato, StatusPedido } from '../generated/prisma/enums';
+import { PedidoAlteradoError } from '../pedido/pedido.erros';
+import { PrismaService } from '../prisma/prisma.service';
+import { RemocaoDaFrotaRepository } from './remocao-da-frota.repository';
+
+jest.mock('../prisma/prisma.service', () => ({ PrismaService: class {} }));
+
+const ID_EMPRESA = 7;
+const CPF_REMOVIDO = '52998224725';
+const ANA = { cpf: '11144477735', nome: 'Ana' };
+const BRUNO = { cpf: '98765432100', nome: 'Bruno' };
+
+// Simula o PrismaService: $transaction executa o callback com o cliente tx.
+function montar({
+  contratoAtivo = true,
+  pedidos = [] as number[],
+  candidatos = [] as { cpf: string; nome: string }[],
+} = {}) {
+  const tx = {
+    contrato: {
+      updateMany: jest.fn().mockResolvedValue({ count: contratoAtivo ? 1 : 0 }),
+    },
+    pedido: {
+      findMany: jest
+        .fn()
+        .mockResolvedValue(pedidos.map((id_pedido) => ({ id_pedido }))),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      count: jest.fn().mockResolvedValue(0),
+    },
+    entregador: {
+      findMany: jest.fn().mockResolvedValue(candidatos),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      update: jest.fn().mockResolvedValue({}),
+    },
+    historicoPedidoEntregadores: {
+      create: jest.fn().mockResolvedValue({}),
+    },
+  };
+  const prisma = {
+    $transaction: jest.fn((callback: (cliente: typeof tx) => unknown) =>
+      callback(tx),
+    ),
+  };
+  const repository = new RemocaoDaFrotaRepository(
+    prisma as unknown as PrismaService,
+  );
+  return { repository, tx };
+}
+
+describe('RemocaoDaFrotaRepository.remover', () => {
+  it('encerra so o contrato ativo desta empresa', async () => {
+    const { repository, tx } = montar();
+
+    await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
+
+    expect(tx.contrato.updateMany).toHaveBeenCalledWith({
+      where: {
+        idEmpresa: ID_EMPRESA,
+        cpf_entregador: CPF_REMOVIDO,
+        status: StatusContrato.ATIVO,
+      },
+      data: {
+        status: StatusContrato.ENCERRADO,
+        data_fim: expect.any(Date) as Date,
+      },
+    });
+  });
+
+  it('devolve null e nao mexe em pedidos sem vinculo ativo', async () => {
+    const { repository, tx } = montar({ contratoAtivo: false });
+
+    await expect(
+      repository.remover(ID_EMPRESA, CPF_REMOVIDO),
+    ).resolves.toBeNull();
+    expect(tx.pedido.findMany).not.toHaveBeenCalled();
+  });
+
+  it('procura so as entregas em andamento desta empresa', async () => {
+    const { repository, tx } = montar();
+
+    await expect(repository.remover(ID_EMPRESA, CPF_REMOVIDO)).resolves.toEqual(
+      { reatribuidos: [], pendentes: [] },
+    );
+    expect(tx.pedido.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          idEmpresa: ID_EMPRESA,
+          cpf_entregador: CPF_REMOVIDO,
+          status: StatusPedido.EM_ANDAMENTO,
+        },
+      }),
+    );
+    expect(tx.entregador.findMany).not.toHaveBeenCalled();
+    expect(tx.entregador.update).not.toHaveBeenCalled();
+  });
+
+  it('busca candidatos livres da frota, sem o removido', async () => {
+    const { repository, tx } = montar({ pedidos: [1], candidatos: [ANA] });
+
+    await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
+
+    expect(tx.entregador.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          cpf: { not: CPF_REMOVIDO },
+          disponivel: true,
+          contratos: {
+            some: { idEmpresa: ID_EMPRESA, status: StatusContrato.ATIVO },
+          },
+        },
+      }),
+    );
+  });
+
+  it('passa o pedido para outro entregador livre e registra no historico', async () => {
+    const { repository, tx } = montar({ pedidos: [1], candidatos: [ANA] });
+
+    const resultado = await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
+
+    expect(resultado).toEqual({
+      reatribuidos: [{ idPedido: 1, entregador: ANA }],
+      pendentes: [],
+    });
+    expect(tx.entregador.updateMany).toHaveBeenCalledWith({
+      where: { cpf: ANA.cpf, disponivel: true },
+      data: { disponivel: false },
+    });
+    expect(tx.pedido.updateMany).toHaveBeenCalledWith({
+      where: {
+        id_pedido: 1,
+        cpf_entregador: CPF_REMOVIDO,
+        status: StatusPedido.EM_ANDAMENTO,
+      },
+      data: { cpf_entregador: ANA.cpf },
+    });
+    expect(tx.historicoPedidoEntregadores.create).toHaveBeenCalledWith({
+      data: {
+        id_pedido: 1,
+        cpf_entregador_antigo: CPF_REMOVIDO,
+        cpf_entregador_novo: ANA.cpf,
+        data: expect.any(Date) as Date,
+      },
+    });
+  });
+
+  it('pula o candidato que outra operacao ocupou', async () => {
+    const { repository, tx } = montar({
+      pedidos: [1],
+      candidatos: [ANA, BRUNO],
+    });
+    tx.entregador.updateMany
+      .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValueOnce({ count: 1 });
+
+    const resultado = await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
+
+    expect(resultado?.reatribuidos).toEqual([
+      { idPedido: 1, entregador: BRUNO },
+    ]);
+  });
+
+  it('da um pedido por entregador e devolve o resto para PENDENTE', async () => {
+    const { repository, tx } = montar({ pedidos: [1, 2], candidatos: [ANA] });
+
+    const resultado = await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
+
+    expect(resultado).toEqual({
+      reatribuidos: [{ idPedido: 1, entregador: ANA }],
+      pendentes: [{ idPedido: 2 }],
+    });
+    expect(tx.pedido.updateMany).toHaveBeenLastCalledWith({
+      where: {
+        id_pedido: 2,
+        cpf_entregador: CPF_REMOVIDO,
+        status: StatusPedido.EM_ANDAMENTO,
+      },
+      data: {
+        status: StatusPedido.PENDENTE,
+        cpf_entregador: null,
+        data_inicio_entrega: null,
+      },
+    });
+    expect(tx.historicoPedidoEntregadores.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('libera o removido quando ele fica sem entregas', async () => {
+    const { repository, tx } = montar({ pedidos: [1] });
+
+    await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
+
+    expect(tx.pedido.count).toHaveBeenCalledWith({
+      where: {
+        cpf_entregador: CPF_REMOVIDO,
+        status: StatusPedido.EM_ANDAMENTO,
+      },
+    });
+    expect(tx.entregador.update).toHaveBeenCalledWith({
+      where: { cpf: CPF_REMOVIDO },
+      data: { disponivel: true },
+    });
+  });
+
+  it('mantem o removido ocupado se ainda tem entrega de outra empresa', async () => {
+    const { repository, tx } = montar({ pedidos: [1] });
+    tx.pedido.count.mockResolvedValue(1);
+
+    await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
+
+    expect(tx.entregador.update).not.toHaveBeenCalled();
+  });
+
+  it('lanca PedidoAlteradoError se o pedido mudou depois da leitura', async () => {
+    const { repository, tx } = montar({ pedidos: [1], candidatos: [ANA] });
+    tx.pedido.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      repository.remover(ID_EMPRESA, CPF_REMOVIDO),
+    ).rejects.toBeInstanceOf(PedidoAlteradoError);
+    expect(tx.historicoPedidoEntregadores.create).not.toHaveBeenCalled();
+  });
+});
