@@ -8,12 +8,18 @@ import { expiracaoSenhaTemporaria } from '../common/security/senha-temporaria';
 import { SenhaService } from '../common/security/senha.service';
 import { ContratoRepository } from '../contrato/contrato.repository';
 import { Entregador } from '../generated/prisma/client';
-import { StatusContrato } from '../generated/prisma/enums';
+import { StatusContrato, StatusPedido } from '../generated/prisma/enums';
 import { TipoVeiculo } from '../common/enums/tipo-veiculo.enum';
+import { LocalizacaoService } from '../mapa/localizacao.service';
+import { PedidoAlteradoError } from '../pedido/pedido.erros';
 import { violouUnicidade } from '../prisma/prisma-errors';
 import { CadastrarEntregadorDto } from './dto/cadastrar-entregador.dto';
 import { dadosVisiveisParaEmpresa } from './dados-visiveis-empresa';
 import { EntregadorRepository } from './entregador.repository';
+import {
+  RemocaoDaFrotaRepository,
+  ResultadoDaRemocao,
+} from './remocao-da-frota.repository';
 
 export const MENSAGEM_CONVITE =
   'Se o CPF for de um entregador cadastrado, ele recebera o convite no app. ' +
@@ -25,6 +31,8 @@ export class EntregadorService {
     private readonly entregadores: EntregadorRepository,
     private readonly contratos: ContratoRepository,
     private readonly senha: SenhaService,
+    private readonly remocao: RemocaoDaFrotaRepository,
+    private readonly localizacao: LocalizacaoService,
   ) {}
 
   async cadastrar(idEmpresa: number, dto: CadastrarEntregadorDto) {
@@ -123,11 +131,36 @@ export class EntregadorService {
     return entregadores.map(dadosVisiveisParaEmpresa);
   }
 
-  async desvincular(idEmpresa: number, cpf: string) {
-    const encerrado = await this.contratos.encerrarPelaEmpresa(idEmpresa, cpf);
-    if (!encerrado) {
+  // E-US06: as entregas em andamento nesta empresa passam para outro
+  // entregador livre da frota; sem ninguem livre, voltam para PENDENTE.
+  async desvincular(
+    idEmpresa: number,
+    cpf: string,
+  ): Promise<ResultadoDaRemocao> {
+    let resultado: ResultadoDaRemocao | null;
+    try {
+      resultado = await this.remocao.remover(idEmpresa, cpf);
+    } catch (erro) {
+      if (erro instanceof PedidoAlteradoError) {
+        throw new ConflictException(
+          'Um pedido do entregador mudou durante a remocao; tente novamente',
+        );
+      }
+      throw erro;
+    }
+    if (!resultado) {
       throw new NotFoundException('Entregador nao esta na sua frota');
     }
+
+    // Depois do commit: a posicao era do entregador removido.
+    for (const { idPedido } of resultado.reatribuidos) {
+      await this.localizacao.aoTrocarEntregador(idPedido);
+    }
+    for (const { idPedido } of resultado.pendentes) {
+      await this.localizacao.aoTrocarEntregador(idPedido);
+      await this.localizacao.aoMudarStatus(idPedido, StatusPedido.PENDENTE);
+    }
+    return resultado;
   }
 
   private cpfJaCadastrado() {

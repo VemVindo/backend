@@ -3,10 +3,12 @@ import { Pedido, Prisma } from '../generated/prisma/client';
 import { StatusPedido } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CriaPedidoReqDto } from './dto/cria-pedido.dto';
+import { PedidoAlteradoError } from './pedido.erros';
 import {
-  EntregadorIndisponivelError,
-  PedidoAlteradoError,
-} from './pedido.erros';
+  liberarSeOcioso,
+  ocuparEntregador,
+  registrarTroca,
+} from './troca-de-entregador';
 
 export type PedidoComEntregador = Pedido & {
   entregador: { nome: string } | null;
@@ -82,17 +84,11 @@ export class PedidoRepository {
 
     return await this.prisma.$transaction(async (tx) => {
       const agora = new Date();
-      await this.ocuparEntregador(tx, cpfEntregador);
+      await ocuparEntregador(tx, cpfEntregador);
       const criado = await tx.pedido.create({
         data: { ...dados, data_inicio_entrega: agora },
       });
-      await this.registrarTroca(
-        tx,
-        criado.id_pedido,
-        null,
-        cpfEntregador,
-        agora,
-      );
+      await registrarTroca(tx, criado.id_pedido, null, cpfEntregador, agora);
       return criado;
     });
   }
@@ -182,7 +178,7 @@ export class PedidoRepository {
       }
 
       if (dados.finalizar) {
-        await this.liberarSeOcioso(tx, dados.cpfEntregador);
+        await liberarSeOcioso(tx, dados.cpfEntregador);
       }
 
       return tx.pedido.findUniqueOrThrow({
@@ -219,12 +215,12 @@ export class PedidoRepository {
         throw new PedidoAlteradoError();
       }
 
-      await this.ocuparEntregador(tx, cpfNovo);
+      await ocuparEntregador(tx, cpfNovo);
 
-      await this.registrarTroca(tx, idPedido, cpfAnterior, cpfNovo, agora);
+      await registrarTroca(tx, idPedido, cpfAnterior, cpfNovo, agora);
 
       if (cpfAnterior) {
-        await this.liberarSeOcioso(tx, cpfAnterior);
+        await liberarSeOcioso(tx, cpfAnterior);
       }
 
       return tx.pedido.findUniqueOrThrow({
@@ -246,57 +242,5 @@ export class PedidoRepository {
         entregadorNovo: { select: { nome: true } },
       },
     });
-  }
-
-  private async registrarTroca(
-    tx: Prisma.TransactionClient,
-    idPedido: number,
-    cpfAnterior: string | null,
-    cpfNovo: string,
-    data: Date,
-  ): Promise<void> {
-    await tx.historicoPedidoEntregadores.create({
-      data: {
-        id_pedido: idPedido,
-        cpf_entregador_antigo: cpfAnterior,
-        cpf_entregador_novo: cpfNovo,
-        data,
-      },
-    });
-  }
-
-  // So ocupa se ainda estiver disponivel: duas atribuicoes simultaneas nao
-  // conseguem pegar o mesmo entregador.
-  private async ocuparEntregador(
-    tx: Prisma.TransactionClient,
-    cpfEntregador: string,
-  ): Promise<void> {
-    const { count } = await tx.entregador.updateMany({
-      where: { cpf: cpfEntregador, disponivel: true },
-      data: { disponivel: false },
-    });
-    if (count === 0) {
-      throw new EntregadorIndisponivelError();
-    }
-  }
-
-  // A disponibilidade vale para todas as empresas do entregador, entao so
-  // volta a true quando nao sobra nenhuma entrega em andamento.
-  private async liberarSeOcioso(
-    tx: Prisma.TransactionClient,
-    cpfEntregador: string,
-  ): Promise<void> {
-    const emAndamento = await tx.pedido.count({
-      where: {
-        cpf_entregador: cpfEntregador,
-        status: StatusPedido.EM_ANDAMENTO,
-      },
-    });
-    if (emAndamento === 0) {
-      await tx.entregador.update({
-        where: { cpf: cpfEntregador },
-        data: { disponivel: true },
-      });
-    }
   }
 }
