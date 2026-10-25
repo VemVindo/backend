@@ -10,6 +10,11 @@ describe('cpfValido', () => {
     expect(cpfValido('11144477735')).toBe(true);
   });
 
+  it('usa 0 como digito quando o resto da conta e 10', () => {
+    expect(cpfValido('10000000108')).toBe(true);
+    expect(cpfValido('10000000118')).toBe(false);
+  });
+
   it('recusa CPF com pontos e traco', () => {
     expect(cpfValido('529.982.247-25')).toBe(false);
   });

@@ -43,8 +43,9 @@ export class GoogleMapsClient {
   private readonly logger = new Logger(GoogleMapsClient.name);
   private readonly chave: string | undefined;
 
-  constructor(config: ConfigService) {
-    this.chave = config.get<string>('GOOGLE_MAPS_SERVER_KEY') || undefined;
+  constructor(configuracao: ConfigService) {
+    this.chave =
+      configuracao.get<string>('GOOGLE_MAPS_SERVER_KEY') || undefined;
   }
 
   get habilitado(): boolean {

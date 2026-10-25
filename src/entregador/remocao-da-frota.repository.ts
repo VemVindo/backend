@@ -47,13 +47,15 @@ export class RemocaoDaFrotaRepository {
     idEmpresa: number,
     cpfEntregador: string,
   ): Promise<ResultadoDaRemocao | null> {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (transacao) => {
       const agora = new Date();
-      if (!(await encerrarContrato(tx, idEmpresa, cpfEntregador, agora))) {
+      if (
+        !(await encerrarContrato(transacao, idEmpresa, cpfEntregador, agora))
+      ) {
         return null;
       }
 
-      const pedidos = await tx.pedido.findMany({
+      const pedidos = await transacao.pedido.findMany({
         where: {
           idEmpresa,
           cpf_entregador: cpfEntregador,
@@ -67,33 +69,37 @@ export class RemocaoDaFrotaRepository {
       }
 
       const resultado = await this.redistribuir(
-        tx,
+        transacao,
         { idEmpresa, cpfEntregador, agora },
         pedidos.map(({ id_pedido: idPedido }) => idPedido),
       );
-      await liberarSeOcioso(tx, cpfEntregador);
+      await liberarSeOcioso(transacao, cpfEntregador);
       return resultado;
     });
   }
 
   private async redistribuir(
-    tx: Prisma.TransactionClient,
+    transacao: Prisma.TransactionClient,
     { idEmpresa, cpfEntregador, agora }: Remocao,
     idsPedidos: number[],
   ): Promise<ResultadoDaRemocao> {
     const resultado: ResultadoDaRemocao = { reatribuidos: [], pendentes: [] };
-    const candidatos = await this.candidatos(tx, idEmpresa, cpfEntregador);
+    const candidatos = await this.candidatos(
+      transacao,
+      idEmpresa,
+      cpfEntregador,
+    );
     let parametros: ParametrosCongelados | undefined;
     for (const idPedido of idsPedidos) {
-      const novo = await this.ocuparProximo(tx, candidatos);
+      const novo = await this.ocuparProximo(transacao, candidatos);
       if (novo) {
         parametros ??= await this.ganhos.capturarParametros(
-          tx,
+          transacao,
           idEmpresa,
           agora,
         );
         await this.passarPara(
-          tx,
+          transacao,
           {
             idPedido,
             cpfAnterior: cpfEntregador,
@@ -104,7 +110,7 @@ export class RemocaoDaFrotaRepository {
         );
         resultado.reatribuidos.push({ idPedido, entregador: novo });
       } else {
-        await this.devolverParaFila(tx, idPedido, cpfEntregador);
+        await this.devolverParaFila(transacao, idPedido, cpfEntregador);
         resultado.pendentes.push({ idPedido });
       }
     }
@@ -112,11 +118,11 @@ export class RemocaoDaFrotaRepository {
   }
 
   private candidatos(
-    tx: Prisma.TransactionClient,
+    transacao: Prisma.TransactionClient,
     idEmpresa: number,
     cpfRemovido: string,
   ): Promise<Candidato[]> {
-    return tx.entregador.findMany({
+    return transacao.entregador.findMany({
       where: {
         cpf: { not: cpfRemovido },
         disponivel: true,
@@ -128,12 +134,12 @@ export class RemocaoDaFrotaRepository {
   }
 
   private async ocuparProximo(
-    tx: Prisma.TransactionClient,
+    transacao: Prisma.TransactionClient,
     candidatos: Candidato[],
   ): Promise<Candidato | null> {
     let candidato = candidatos.shift();
     while (candidato) {
-      if (await tentarOcuparEntregador(tx, candidato.cpf)) {
+      if (await tentarOcuparEntregador(transacao, candidato.cpf)) {
         return candidato;
       }
       candidato = candidatos.shift();
@@ -142,23 +148,23 @@ export class RemocaoDaFrotaRepository {
   }
 
   private async passarPara(
-    tx: Prisma.TransactionClient,
+    transacao: Prisma.TransactionClient,
     troca: TrocaDeEntregador & { cpfAnterior: string },
     parametros: ParametrosCongelados,
   ): Promise<void> {
-    await this.alterarPedido(tx, troca.idPedido, troca.cpfAnterior, {
+    await this.alterarPedido(transacao, troca.idPedido, troca.cpfAnterior, {
       ...parametros,
       cpf_entregador: troca.cpfNovo,
     });
-    await registrarTroca(tx, troca);
+    await registrarTroca(transacao, troca);
   }
 
   private async devolverParaFila(
-    tx: Prisma.TransactionClient,
+    transacao: Prisma.TransactionClient,
     idPedido: number,
     cpfAnterior: string,
   ): Promise<void> {
-    await this.alterarPedido(tx, idPedido, cpfAnterior, {
+    await this.alterarPedido(transacao, idPedido, cpfAnterior, {
       ...SEM_PARAMETROS_CONGELADOS,
       status: StatusPedido.PENDENTE,
       cpf_entregador: null,
@@ -167,12 +173,12 @@ export class RemocaoDaFrotaRepository {
   }
 
   private async alterarPedido(
-    tx: Prisma.TransactionClient,
+    transacao: Prisma.TransactionClient,
     idPedido: number,
     cpfAnterior: string,
     data: Prisma.PedidoUncheckedUpdateManyInput,
   ): Promise<void> {
-    const { count } = await tx.pedido.updateMany({
+    const { count } = await transacao.pedido.updateMany({
       where: {
         id_pedido: idPedido,
         cpf_entregador: cpfAnterior,
@@ -188,12 +194,12 @@ export class RemocaoDaFrotaRepository {
 }
 
 async function encerrarContrato(
-  tx: Prisma.TransactionClient,
+  transacao: Prisma.TransactionClient,
   idEmpresa: number,
   cpfEntregador: string,
   agora: Date,
 ): Promise<boolean> {
-  const { count } = await tx.contrato.updateMany({
+  const { count } = await transacao.contrato.updateMany({
     where: {
       idEmpresa,
       cpf_entregador: cpfEntregador,

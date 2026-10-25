@@ -96,20 +96,20 @@ function montar({ habilitado = true, encontrado = pedido() } = {}) {
     publicar: jest.fn<void, [number, string, unknown]>(),
     encerrarSala: jest.fn(),
   };
-  const service = new LocalizacaoService(
+  const servico = new LocalizacaoService(
     repositorio as unknown as LocalizacaoRepository,
     maps as unknown as GoogleMapsClient,
     gateway as unknown as RastreioGateway,
   );
-  return { service, repositorio, maps, gateway };
+  return { servico, repositorio, maps, gateway };
 }
 
 describe('LocalizacaoService.registrarPosicao', () => {
   it('responde 404 para pedido que nao e do entregador', async () => {
-    const { service, repositorio } = montar({ encontrado: null as never });
+    const { servico, repositorio } = montar({ encontrado: null as never });
 
     await expect(
-      service.registrarPosicao(CPF, ID_PEDIDO, POSICAO, AGORA),
+      servico.registrarPosicao(CPF, ID_PEDIDO, POSICAO, AGORA),
     ).rejects.toThrow(NotFoundException);
     expect(repositorio.salvarPosicao).not.toHaveBeenCalled();
   });
@@ -119,20 +119,20 @@ describe('LocalizacaoService.registrarPosicao', () => {
     StatusPedido.FINALIZADO,
     StatusPedido.CANCELADO,
   ])('recusa posicao com o pedido %s', async (status) => {
-    const { service, repositorio } = montar({
+    const { servico, repositorio } = montar({
       encontrado: pedido({ status }),
     });
 
     await expect(
-      service.registrarPosicao(CPF, ID_PEDIDO, POSICAO, AGORA),
+      servico.registrarPosicao(CPF, ID_PEDIDO, POSICAO, AGORA),
     ).rejects.toThrow(ConflictException);
     expect(repositorio.salvarPosicao).not.toHaveBeenCalled();
   });
 
   it('calcula a rota no Google na primeira posicao', async () => {
-    const { service, repositorio, maps } = montar();
+    const { servico, repositorio, maps } = montar();
 
-    const visao = await service.registrarPosicao(
+    const visao = await servico.registrarPosicao(
       CPF,
       ID_PEDIDO,
       POSICAO,
@@ -172,11 +172,11 @@ describe('LocalizacaoService.registrarPosicao', () => {
   });
 
   it('mantem a rota do Google entre recalculos sem chamar a API', async () => {
-    const { service, repositorio, maps } = montar({
+    const { servico, repositorio, maps } = montar({
       encontrado: pedido({ localizacao: localizacaoAnterior() }),
     });
 
-    await service.registrarPosicao(CPF, ID_PEDIDO, POSICAO, AGORA);
+    await servico.registrarPosicao(CPF, ID_PEDIDO, POSICAO, AGORA);
 
     expect(maps.calcularRota).not.toHaveBeenCalled();
     expect(repositorio.salvarPosicao).toHaveBeenCalledWith(
@@ -191,10 +191,10 @@ describe('LocalizacaoService.registrarPosicao', () => {
   });
 
   it('cai na estimativa em linha reta quando o Google falha', async () => {
-    const { service, repositorio, maps } = montar();
+    const { servico, repositorio, maps } = montar();
     maps.calcularRota.mockResolvedValue(null);
 
-    const visao = await service.registrarPosicao(
+    const visao = await servico.registrarPosicao(
       CPF,
       ID_PEDIDO,
       POSICAO,
@@ -214,7 +214,7 @@ describe('LocalizacaoService.registrarPosicao', () => {
   });
 
   it('depois de uma falha, espera o intervalo antes de tentar o Google de novo', async () => {
-    const { service, maps, repositorio } = montar({
+    const { servico, maps, repositorio } = montar({
       encontrado: pedido({
         localizacao: localizacaoAnterior({
           estimado: true,
@@ -223,7 +223,7 @@ describe('LocalizacaoService.registrarPosicao', () => {
       }),
     });
 
-    await service.registrarPosicao(CPF, ID_PEDIDO, POSICAO, AGORA);
+    await servico.registrarPosicao(CPF, ID_PEDIDO, POSICAO, AGORA);
 
     expect(maps.calcularRota).not.toHaveBeenCalled();
     expect(repositorio.salvarPosicao.mock.calls[0][1]).toMatchObject({
@@ -233,9 +233,9 @@ describe('LocalizacaoService.registrarPosicao', () => {
   });
 
   it('sem chave do Google, estima a cada posicao', async () => {
-    const { service, maps } = montar({ habilitado: false });
+    const { servico, maps } = montar({ habilitado: false });
 
-    const visao = await service.registrarPosicao(
+    const visao = await servico.registrarPosicao(
       CPF,
       ID_PEDIDO,
       POSICAO,
@@ -249,12 +249,35 @@ describe('LocalizacaoService.registrarPosicao', () => {
     );
   });
 
+  it('aceita posicao sem precisao e usa o relogio do sistema', async () => {
+    jest.useFakeTimers({ now: AGORA });
+    const { servico, repositorio } = montar({
+      habilitado: false,
+      encontrado: pedido({ entregador: null }),
+    });
+
+    await servico.registrarPosicao(CPF, ID_PEDIDO, {
+      lat: POSICAO.lat,
+      lng: POSICAO.lng,
+    });
+
+    expect(repositorio.salvarPosicao).toHaveBeenCalledWith(
+      ID_PEDIDO,
+      expect.objectContaining({
+        precisao_m: null,
+        registrada_em: AGORA,
+        distancia_restante_m: estimarTrajeto(POSICAO, DESTINO, '').distanciaM,
+      }),
+    );
+    jest.useRealTimers();
+  });
+
   it('geocodifica o destino uma vez e guarda no pedido', async () => {
-    const { service, repositorio, maps } = montar({
+    const { servico, repositorio, maps } = montar({
       encontrado: pedido({ destino_lat: null, destino_lng: null }),
     });
 
-    const visao = await service.registrarPosicao(
+    const visao = await servico.registrarPosicao(
       CPF,
       ID_PEDIDO,
       POSICAO,
@@ -272,18 +295,18 @@ describe('LocalizacaoService.registrarPosicao', () => {
   });
 
   it('sem destino, guarda so a posicao e nao insiste na geocodificacao', async () => {
-    const { service, repositorio, maps } = montar({
+    const { servico, repositorio, maps } = montar({
       encontrado: pedido({ destino_lat: null, destino_lng: null }),
     });
     maps.geocodificar.mockResolvedValue(null);
 
-    const visao = await service.registrarPosicao(
+    const visao = await servico.registrarPosicao(
       CPF,
       ID_PEDIDO,
       POSICAO,
       AGORA,
     );
-    await service.registrarPosicao(
+    await servico.registrarPosicao(
       CPF,
       ID_PEDIDO,
       POSICAO,
@@ -301,9 +324,9 @@ describe('LocalizacaoService.registrarPosicao', () => {
   });
 
   it('publica para o recebedor com o mapa', async () => {
-    const { service, gateway } = montar();
+    const { servico, gateway } = montar();
 
-    await service.registrarPosicao(CPF, ID_PEDIDO, POSICAO, AGORA);
+    await servico.registrarPosicao(CPF, ID_PEDIDO, POSICAO, AGORA);
 
     const [idPedido, evento, publicada] = gateway.publicar.mock.calls[0];
     expect([idPedido, evento]).toEqual([ID_PEDIDO, EVENTO_LOCALIZACAO]);
@@ -314,11 +337,11 @@ describe('LocalizacaoService.registrarPosicao', () => {
   });
 
   it('com o mapa desligado, o recebedor nao recebe coordenada nenhuma', async () => {
-    const { service, gateway } = montar({
+    const { servico, gateway } = montar({
       encontrado: pedido({ empresa: { ...EMPRESA, exibir_mapa: false } }),
     });
 
-    const visaoDoEntregador = await service.registrarPosicao(
+    const visaoDoEntregador = await servico.registrarPosicao(
       CPF,
       ID_PEDIDO,
       POSICAO,
@@ -338,7 +361,7 @@ describe('LocalizacaoService.registrarPosicao', () => {
     expect(visaoDoEntregador.entregador).not.toBeNull();
   });
   it('ignora posicao repetida em menos de 2 s, sem gravar nem publicar', async () => {
-    const { service, repositorio, maps, gateway } = montar({
+    const { servico, repositorio, maps, gateway } = montar({
       encontrado: pedido({
         localizacao: localizacaoAnterior({
           registrada_em: new Date(AGORA.getTime() - 1_000),
@@ -346,7 +369,7 @@ describe('LocalizacaoService.registrarPosicao', () => {
       }),
     });
 
-    const visao = await service.registrarPosicao(
+    const visao = await servico.registrarPosicao(
       CPF,
       ID_PEDIDO,
       POSICAO,
@@ -365,9 +388,9 @@ describe('LocalizacaoService.registrarPosicao', () => {
 
 describe('LocalizacaoService ponto de saida da empresa', () => {
   it('devolve a origem ja gravada sem geocodificar', async () => {
-    const { service, maps } = montar();
+    const { servico, maps } = montar();
 
-    const visao = await service.registrarPosicao(
+    const visao = await servico.registrarPosicao(
       CPF,
       ID_PEDIDO,
       POSICAO,
@@ -379,14 +402,14 @@ describe('LocalizacaoService ponto de saida da empresa', () => {
   });
 
   it('geocodifica o endereco da empresa uma vez e grava', async () => {
-    const { service, maps, repositorio } = montar({
+    const { servico, maps, repositorio } = montar({
       encontrado: pedido({
         empresa: { ...EMPRESA, origem_lat: null, origem_lng: null },
       }),
     });
     maps.geocodificar.mockResolvedValue(ORIGEM);
 
-    const visao = await service.registrarPosicao(
+    const visao = await servico.registrarPosicao(
       CPF,
       ID_PEDIDO,
       POSICAO,
@@ -401,11 +424,11 @@ describe('LocalizacaoService ponto de saida da empresa', () => {
   });
 
   it('com o mapa desligado, a origem tambem nao vai para o recebedor', async () => {
-    const { service } = montar({
+    const { servico } = montar({
       encontrado: pedido({ empresa: { ...EMPRESA, exibir_mapa: false } }),
     });
 
-    const visao = await service.consultarParaRecebedor(ID_PEDIDO);
+    const visao = await servico.consultarParaRecebedor(ID_PEDIDO);
 
     expect(visao.origem).toBeNull();
   });
@@ -413,11 +436,11 @@ describe('LocalizacaoService ponto de saida da empresa', () => {
 
 describe('LocalizacaoService.consultarParaEntregador', () => {
   it('devolve destino e ultima posicao sem chamar a rota', async () => {
-    const { service, maps } = montar({
+    const { servico, maps } = montar({
       encontrado: pedido({ localizacao: localizacaoAnterior() }),
     });
 
-    const visao = await service.consultarParaEntregador(CPF, ID_PEDIDO);
+    const visao = await servico.consultarParaEntregador(CPF, ID_PEDIDO);
 
     expect(maps.calcularRota).not.toHaveBeenCalled();
     expect(visao).toMatchObject({
@@ -428,7 +451,7 @@ describe('LocalizacaoService.consultarParaEntregador', () => {
   });
 
   it('entrega encerrada nao gasta geocodificacao', async () => {
-    const { service, maps } = montar({
+    const { servico, maps } = montar({
       encontrado: pedido({
         status: StatusPedido.FINALIZADO,
         destino_lat: null,
@@ -436,27 +459,27 @@ describe('LocalizacaoService.consultarParaEntregador', () => {
       }),
     });
 
-    const visao = await service.consultarParaEntregador(CPF, ID_PEDIDO);
+    const visao = await servico.consultarParaEntregador(CPF, ID_PEDIDO);
 
     expect(maps.geocodificar).not.toHaveBeenCalled();
     expect(visao).toMatchObject({ status: 'FINALIZADO', destino: null });
   });
 
   it('responde 404 para pedido de outro entregador', async () => {
-    const { service } = montar({ encontrado: null as never });
+    const { servico } = montar({ encontrado: null as never });
     await expect(
-      service.consultarParaEntregador(CPF, ID_PEDIDO),
+      servico.consultarParaEntregador(CPF, ID_PEDIDO),
     ).rejects.toThrow(NotFoundException);
   });
 });
 
 describe('LocalizacaoService.consultarParaEmpresa', () => {
   it('busca so entre os pedidos da empresa e mostra o mapa completo', async () => {
-    const { service, repositorio, maps } = montar({
+    const { servico, repositorio, maps } = montar({
       encontrado: pedido({ localizacao: localizacaoAnterior() }),
     });
 
-    const visao = await service.consultarParaEmpresa(7, ID_PEDIDO);
+    const visao = await servico.consultarParaEmpresa(7, ID_PEDIDO);
 
     expect(repositorio.procurarDaEmpresa).toHaveBeenCalledWith(ID_PEDIDO, 7);
     expect(maps.calcularRota).not.toHaveBeenCalled();
@@ -464,9 +487,9 @@ describe('LocalizacaoService.consultarParaEmpresa', () => {
   });
 
   it('responde 404 para pedido de outra empresa', async () => {
-    const { service } = montar({ encontrado: null as never });
+    const { servico } = montar({ encontrado: null as never });
 
-    await expect(service.consultarParaEmpresa(7, ID_PEDIDO)).rejects.toThrow(
+    await expect(servico.consultarParaEmpresa(7, ID_PEDIDO)).rejects.toThrow(
       NotFoundException,
     );
   });
@@ -474,14 +497,14 @@ describe('LocalizacaoService.consultarParaEmpresa', () => {
 
 describe('LocalizacaoService.consultarParaRecebedor', () => {
   it('esconde as coordenadas quando a empresa desligou o mapa', async () => {
-    const { service } = montar({
+    const { servico } = montar({
       encontrado: pedido({
         empresa: { ...EMPRESA, exibir_mapa: false },
         localizacao: localizacaoAnterior(),
       }),
     });
 
-    const visao = await service.consultarParaRecebedor(ID_PEDIDO);
+    const visao = await servico.consultarParaRecebedor(ID_PEDIDO);
 
     expect(visao).toMatchObject({
       exibirMapa: false,
@@ -494,9 +517,9 @@ describe('LocalizacaoService.consultarParaRecebedor', () => {
   });
 
   it('sem posicao ainda, devolve so o destino', async () => {
-    const { service } = montar();
+    const { servico } = montar();
 
-    const visao = await service.consultarParaRecebedor(ID_PEDIDO);
+    const visao = await servico.consultarParaRecebedor(ID_PEDIDO);
 
     expect(visao).toMatchObject({
       exibirMapa: true,
@@ -507,8 +530,8 @@ describe('LocalizacaoService.consultarParaRecebedor', () => {
   });
 
   it('responde 404 quando o pedido sumiu', async () => {
-    const { service } = montar({ encontrado: null as never });
-    await expect(service.consultarParaRecebedor(ID_PEDIDO)).rejects.toThrow(
+    const { servico } = montar({ encontrado: null as never });
+    await expect(servico.consultarParaRecebedor(ID_PEDIDO)).rejects.toThrow(
       NotFoundException,
     );
   });
@@ -524,10 +547,10 @@ describe('LocalizacaoService ganchos do pedido', () => {
   });
 
   it('ao iniciar a entrega so avisa o novo status', async () => {
-    const { service, gateway, repositorio } = montar();
+    const { servico, gateway, repositorio } = montar();
 
     const agora = new Date('2026-10-20T12:10:00Z');
-    await service.aoMudarStatus(ID_PEDIDO, StatusPedido.EM_ANDAMENTO, agora);
+    await servico.aoMudarStatus(ID_PEDIDO, StatusPedido.EM_ANDAMENTO, agora);
 
     expect(gateway.publicar).toHaveBeenCalledWith(ID_PEDIDO, EVENTO_STATUS, {
       status: StatusPedido.EM_ANDAMENTO,
@@ -540,9 +563,9 @@ describe('LocalizacaoService ganchos do pedido', () => {
   it.each([StatusPedido.FINALIZADO, StatusPedido.CANCELADO])(
     'com o pedido %s apaga a posicao e fecha a sala',
     async (status) => {
-      const { service, gateway, repositorio } = montar();
+      const { servico, gateway, repositorio } = montar();
 
-      await service.aoMudarStatus(ID_PEDIDO, status);
+      await servico.aoMudarStatus(ID_PEDIDO, status);
 
       expect(repositorio.apagarPosicao).toHaveBeenCalledWith(ID_PEDIDO);
       expect(gateway.encerrarSala).toHaveBeenCalledWith(ID_PEDIDO);
@@ -550,18 +573,18 @@ describe('LocalizacaoService ganchos do pedido', () => {
   );
 
   it('uma falha ao encerrar nao estoura para quem mudou o status', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
     repositorio.apagarPosicao.mockRejectedValue(new Error('banco fora'));
 
     await expect(
-      service.aoMudarStatus(ID_PEDIDO, StatusPedido.FINALIZADO),
+      servico.aoMudarStatus(ID_PEDIDO, StatusPedido.FINALIZADO),
     ).resolves.toBeUndefined();
   });
 
   it('ao trocar o entregador apaga a posicao antiga e avisa o recebedor', async () => {
-    const { service, gateway, repositorio } = montar();
+    const { servico, gateway, repositorio } = montar();
 
-    await service.aoTrocarEntregador(ID_PEDIDO);
+    await servico.aoTrocarEntregador(ID_PEDIDO);
 
     expect(repositorio.apagarPosicao).toHaveBeenCalledWith(ID_PEDIDO);
     expect(gateway.publicar).toHaveBeenCalledWith(
@@ -572,11 +595,11 @@ describe('LocalizacaoService ganchos do pedido', () => {
   });
 
   it('uma falha ao trocar o entregador tambem nao estoura', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
     repositorio.apagarPosicao.mockRejectedValue(new Error('banco fora'));
 
     await expect(
-      service.aoTrocarEntregador(ID_PEDIDO),
+      servico.aoTrocarEntregador(ID_PEDIDO),
     ).resolves.toBeUndefined();
   });
 });

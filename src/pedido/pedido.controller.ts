@@ -15,7 +15,7 @@ import { UsuarioAtual } from '../auth/decorators/usuario-atual.decorator';
 import type { UsuarioAutenticado } from '../auth/jwt.strategy';
 import { Cargo } from '../common/enums/cargo.enum';
 import { AtualizarStatusPedidoDto } from './dto/atualizar-status-pedido.dto';
-import { CriaPedidoReqDto, CriaPedidoResDto } from './dto/cria-pedido.dto';
+import { CriarPedidoDto, PedidoCriadoDto } from './dto/criar-pedido.dto';
 import { FinalizarPedidoDto } from './dto/finalizar-pedido.dto';
 import { CorrigirDistanciaDto } from './dto/corrigir-distancia.dto';
 import { ReatribuirPedidoDto } from './dto/reatribuir-pedido.dto';
@@ -33,13 +33,13 @@ export class PedidoController {
   @Cargos(Cargo.ESTABELECIMENTO)
   async criar(
     @UsuarioAtual() usuario: UsuarioAutenticado,
-    @Body() pedidoDto: CriaPedidoReqDto,
-  ): Promise<CriaPedidoResDto> {
+    @Body() pedidoDto: CriarPedidoDto,
+  ): Promise<PedidoCriadoDto> {
     const pedido = await this.pedidoService.criar(
       Number(usuario.empresaId),
       pedidoDto,
     );
-    return plainToInstance(CriaPedidoResDto, pedido);
+    return plainToInstance(PedidoCriadoDto, pedido);
   }
 
   @Get()

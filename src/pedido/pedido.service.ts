@@ -8,7 +8,7 @@ import { Pedido } from '../generated/prisma/client';
 import { StatusPedido } from '../generated/prisma/enums';
 import { LocalizacaoService } from '../mapa/localizacao.service';
 import { CodigoDoRecebedorService } from '../rastreio/codigo-do-recebedor.service';
-import { CriaPedidoReqDto } from './dto/cria-pedido.dto';
+import { CriarPedidoDto } from './dto/criar-pedido.dto';
 import {
   HistoricoEntregadorDto,
   paraHistoricoEntregador,
@@ -50,7 +50,7 @@ export class PedidoService {
     private readonly codigoDoRecebedor: CodigoDoRecebedorService,
   ) {}
 
-  async criar(idEmpresa: number, pedido: CriaPedidoReqDto): Promise<Pedido> {
+  async criar(idEmpresa: number, pedido: CriarPedidoDto): Promise<Pedido> {
     if (pedido.cpf_entregador) {
       await this.exigirEntregadorDisponivel(idEmpresa, pedido.cpf_entregador);
     }

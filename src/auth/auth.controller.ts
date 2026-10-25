@@ -10,10 +10,13 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
-import { definirCookieAuth, limparCookieAuth } from './auth-cookie';
+import {
+  definirCookieDeAutenticacao,
+  limparCookieDeAutenticacao,
+} from './auth-cookie';
 import { Cargos } from './decorators/cargos.decorator';
 import { PermitirSenhaTemporaria } from './decorators/permitir-senha-temporaria.decorator';
-import { Public } from './decorators/public.decorator';
+import { RotaPublica } from './decorators/rota-publica.decorator';
 import { UsuarioAtual } from './decorators/usuario-atual.decorator';
 import { Cargo } from '../common/enums/cargo.enum';
 import type { UsuarioAutenticado } from './jwt.strategy';
@@ -35,59 +38,59 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   private responderComCookie<Usuario>(
-    res: Response,
+    resposta: Response,
     { tokenAcesso, expiraEm, usuario }: RespostaComToken<Usuario>,
   ) {
-    definirCookieAuth(res, tokenAcesso, expiraEm);
+    definirCookieDeAutenticacao(resposta, tokenAcesso, expiraEm);
     return { usuario };
   }
 
-  @Public()
+  @RotaPublica()
   @Throttle(LIMITE_TENTATIVAS_COM_SENHA)
   @Post('cadastrar/empresa')
   async cadastrarEmpresa(
     @Body() dto: CadastrarEmpresaDto,
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) resposta: Response,
   ) {
     return this.responderComCookie(
-      res,
+      resposta,
       await this.authService.cadastrarEmpresa(dto),
     );
   }
 
-  @Public()
+  @RotaPublica()
   @Throttle(LIMITE_TENTATIVAS_COM_SENHA)
   @Post('login/empresa')
   @HttpCode(HttpStatus.OK)
   async loginEmpresa(
     @Body() dto: LoginEmpresaDto,
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) resposta: Response,
   ) {
     return this.responderComCookie(
-      res,
+      resposta,
       await this.authService.loginEmpresa(dto),
     );
   }
 
-  @Public()
+  @RotaPublica()
   @Throttle(LIMITE_TENTATIVAS_COM_SENHA)
   @Post('login/entregador')
   @HttpCode(HttpStatus.OK)
   async loginEntregador(
     @Body() dto: LoginEntregadorDto,
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) resposta: Response,
   ) {
     return this.responderComCookie(
-      res,
+      resposta,
       await this.authService.loginEntregador(dto),
     );
   }
 
-  @Public()
+  @RotaPublica()
   @Post('sair')
   @HttpCode(HttpStatus.NO_CONTENT)
-  sair(@Res({ passthrough: true }) res: Response) {
-    limparCookieAuth(res);
+  sair(@Res({ passthrough: true }) resposta: Response) {
+    limparCookieDeAutenticacao(resposta);
   }
 
   @PermitirSenhaTemporaria()
@@ -95,10 +98,10 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async sairDeTodosOsAparelhos(
     @UsuarioAtual() usuario: UsuarioAutenticado,
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) resposta: Response,
   ) {
     await this.authService.sairDeTodosOsAparelhos(usuario);
-    limparCookieAuth(res);
+    limparCookieDeAutenticacao(resposta);
   }
 
   @PermitirSenhaTemporaria()
@@ -115,10 +118,10 @@ export class AuthController {
   async trocarSenha(
     @UsuarioAtual() usuario: UsuarioAutenticado,
     @Body() dto: TrocarSenhaDto,
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) resposta: Response,
   ) {
     return this.responderComCookie(
-      res,
+      resposta,
       await this.authService.trocarSenhaEntregador(usuario, dto),
     );
   }

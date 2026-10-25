@@ -2,7 +2,7 @@ import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from '../src/auth/auth.service';
-import { JwtPayload, JwtStrategy } from '../src/auth/jwt.strategy';
+import { ConteudoDoToken, JwtStrategy } from '../src/auth/jwt.strategy';
 import { TipoVeiculo } from '../src/common/enums/tipo-veiculo.enum';
 import { SenhaService } from '../src/common/security/senha.service';
 import { ContratoRepository } from '../src/contrato/contrato.repository';
@@ -46,7 +46,7 @@ descreverComBanco(
     }
 
     function validar(tokenAcesso: string) {
-      return estrategia.validate(jwt.decode<JwtPayload>(tokenAcesso));
+      return estrategia.validate(jwt.decode<ConteudoDoToken>(tokenAcesso));
     }
 
     function gravado(cpf: string) {

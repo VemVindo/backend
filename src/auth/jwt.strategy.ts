@@ -7,7 +7,7 @@ import { EmpresaRepository } from '../empresa/empresa.repository';
 import { EntregadorRepository } from '../entregador/entregador.repository';
 import { extrairTokenDoCookie } from './auth-cookie';
 
-export interface JwtPayload {
+export interface ConteudoDoToken {
   sub: string;
   cargo: Cargo;
   empresaId?: string;
@@ -25,7 +25,7 @@ export interface UsuarioAutenticado {
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
-    config: ConfigService,
+    configuracao: ConfigService,
     private readonly empresas: EmpresaRepository,
     private readonly entregadores: EntregadorRepository,
   ) {
@@ -36,31 +36,40 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ]),
       ignoreExpiration: false,
       algorithms: ['HS256'],
-      secretOrKey: config.getOrThrow<string>('JWT_SECRET'),
+      secretOrKey: configuracao.getOrThrow<string>('JWT_SECRET'),
     });
   }
 
-  async validate(payload: JwtPayload): Promise<UsuarioAutenticado> {
-    if (!payload?.sub || !Object.values(Cargo).includes(payload.cargo)) {
+  async validate(
+    conteudoDoToken: ConteudoDoToken,
+  ): Promise<UsuarioAutenticado> {
+    if (
+      !conteudoDoToken?.sub ||
+      !Object.values(Cargo).includes(conteudoDoToken.cargo)
+    ) {
       throw new UnauthorizedException();
     }
     const empresaSemEstabelecimento =
-      payload.cargo === Cargo.ESTABELECIMENTO && !payload.empresaId;
-    if (empresaSemEstabelecimento || typeof payload.versao !== 'number') {
+      conteudoDoToken.cargo === Cargo.ESTABELECIMENTO &&
+      !conteudoDoToken.empresaId;
+    if (
+      empresaSemEstabelecimento ||
+      typeof conteudoDoToken.versao !== 'number'
+    ) {
       throw new UnauthorizedException();
     }
     const versaoAtual =
-      payload.cargo === Cargo.ESTABELECIMENTO
-        ? await this.empresas.versaoSessao(Number(payload.empresaId))
-        : await this.entregadores.versaoSessao(payload.sub);
-    if (versaoAtual !== payload.versao) {
+      conteudoDoToken.cargo === Cargo.ESTABELECIMENTO
+        ? await this.empresas.versaoSessao(Number(conteudoDoToken.empresaId))
+        : await this.entregadores.versaoSessao(conteudoDoToken.sub);
+    if (versaoAtual !== conteudoDoToken.versao) {
       throw new UnauthorizedException('Sessao encerrada; entre novamente');
     }
     return {
-      usuarioId: payload.sub,
-      cargo: payload.cargo,
-      empresaId: payload.empresaId,
-      senhaTemporaria: payload.senhaTemporaria,
+      usuarioId: conteudoDoToken.sub,
+      cargo: conteudoDoToken.cargo,
+      empresaId: conteudoDoToken.empresaId,
+      senhaTemporaria: conteudoDoToken.senhaTemporaria,
     };
   }
 }

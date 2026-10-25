@@ -15,7 +15,7 @@ import {
 import { EntregadorRepository } from '../entregador/entregador.repository';
 import { Empresa, Entregador } from '../generated/prisma/client';
 import { violouUnicidade } from '../prisma/prisma-errors';
-import { UsuarioAutenticado, JwtPayload } from './jwt.strategy';
+import { UsuarioAutenticado, ConteudoDoToken } from './jwt.strategy';
 import { CadastrarEmpresaDto } from './dto/cadastrar-empresa.dto';
 import { LoginEmpresaDto } from './dto/login-empresa.dto';
 import { LoginEntregadorDto } from './dto/login-entregador.dto';
@@ -208,8 +208,8 @@ export class AuthService {
     );
   }
 
-  private assinar(payload: JwtPayload) {
-    const tokenAcesso = this.jwtService.sign(payload);
+  private assinar(conteudoDoToken: ConteudoDoToken) {
+    const tokenAcesso = this.jwtService.sign(conteudoDoToken);
     const { exp } = this.jwtService.decode<{ exp: number }>(tokenAcesso);
     return { tokenAcesso, expiraEm: new Date(exp * 1000) };
   }

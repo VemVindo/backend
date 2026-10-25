@@ -20,9 +20,12 @@ export function cnpjValido(cnpj: unknown): boolean {
 
   const valores = cnpj
     .split('')
-    .map((c) => c.charCodeAt(0) - CODIGO_ASCII_DO_ZERO);
+    .map((caractere) => caractere.charCodeAt(0) - CODIGO_ASCII_DO_ZERO);
   const verificador = (pesos: number[]) => {
-    const soma = pesos.reduce((acc, peso, i) => acc + valores[i] * peso, 0);
+    const soma = pesos.reduce(
+      (somaParcial, peso, posicao) => somaParcial + valores[posicao] * peso,
+      0,
+    );
     const resto = soma % 11;
     return resto < 2 ? 0 : 11 - resto;
   };

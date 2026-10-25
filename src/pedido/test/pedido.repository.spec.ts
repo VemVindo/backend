@@ -1,8 +1,6 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { PedidoRepository } from '../pedido.repository';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Pedido } from '../../generated/prisma/client';
-import { CriaPedidoReqDto } from '../dto/cria-pedido.dto';
+import { CriarPedidoDto } from '../dto/criar-pedido.dto';
 import { StatusPedido } from '../../generated/prisma/enums';
 import { GanhoEntregaService } from '../../remuneracao/ganho-entrega.service';
 import { RemuneracaoRepository } from '../../remuneracao/remuneracao.repository';
@@ -11,39 +9,6 @@ import {
   EntregadorIndisponivelError,
   PedidoAlteradoError,
 } from '../pedido.erros';
-
-describe('PedidoRepository', () => {
-  let service: PedidoRepository;
-  let prisma: PrismaService;
-
-  describe('CRIAR', () => {
-    beforeEach(async () => {
-      const module: TestingModule = await Test.createTestingModule({
-        providers: [
-          PedidoRepository,
-          { provide: GanhoEntregaService, useValue: {} },
-          {
-            provide: PrismaService,
-            useValue: {
-              pedido: {
-                create: jest.fn(),
-              },
-            },
-          },
-        ],
-      }).compile();
-      service = module.get<PedidoRepository>(PedidoRepository);
-      prisma = module.get<PrismaService>(PrismaService);
-    });
-    it('CAIXA CINZA: Fluxo Completo', () => {
-      const dummyReq = {} as CriaPedidoReqDto;
-      const dummyRes = {} as Pedido;
-      jest.spyOn(prisma.pedido, 'create').mockResolvedValue(dummyRes);
-      const result = service.criar(dummyReq, 1);
-      expect(result).toBeInstanceOf(Promise<Pedido>);
-    });
-  });
-});
 
 const CPF_ANTERIOR = '52998224725';
 const CPF_NOVO = '11144477735';
@@ -67,7 +32,7 @@ function montar() {
     distancia_conhecida: true,
     ...parametrosCongelados,
   };
-  const tx = {
+  const transacao = {
     $queryRaw: jest.fn().mockResolvedValue([{ id_pedido: ID_PEDIDO }]),
     metricasPagamento: {
       findFirst: jest.fn().mockResolvedValue({
@@ -97,21 +62,22 @@ function montar() {
     pedido: {
       create: jest.fn().mockResolvedValue({ id_pedido: ID_PEDIDO }),
       findMany: jest.fn().mockResolvedValue([]),
+      findFirst: jest.fn().mockResolvedValue(null),
     },
     historicoPedidoEntregadores: { findMany: jest.fn().mockResolvedValue([]) },
-    $transaction: jest.fn((callback: (cliente: typeof tx) => unknown) =>
-      callback(tx),
+    $transaction: jest.fn((callback: (cliente: typeof transacao) => unknown) =>
+      callback(transacao),
     ),
   };
   const ganhos = new GanhoEntregaService(
     new RemuneracaoRepository(prisma as unknown as PrismaService),
     new CalculoValorEntregaService(),
   );
-  const repository = new PedidoRepository(
+  const repositorio = new PedidoRepository(
     prisma as unknown as PrismaService,
     ganhos,
   );
-  return { repository, prisma, tx };
+  return { repositorio, prisma, transacao };
 }
 
 function argumento<T = Record<string, Record<string, unknown>>>(
@@ -122,21 +88,21 @@ function argumento<T = Record<string, Record<string, unknown>>>(
 }
 
 describe('PedidoRepository.criar', () => {
-  const pedido = { status: StatusPedido.PENDENTE } as CriaPedidoReqDto;
+  const pedido = { status: StatusPedido.PENDENTE } as CriarPedidoDto;
 
   it('grava a empresa recebida do token, sem transacao quando nao ha entregador', async () => {
-    const { repository, prisma } = montar();
+    const { repositorio, prisma } = montar();
 
-    await repository.criar(pedido, ID_EMPRESA);
+    await repositorio.criar(pedido, ID_EMPRESA);
 
     expect(argumento(prisma.pedido.create).data.idEmpresa).toBe(ID_EMPRESA);
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('ocupa o entregador e marca o inicio da entrega ao criar com entregador', async () => {
-    const { repository, tx } = montar();
+    const { repositorio, transacao } = montar();
 
-    await repository.criar(
+    await repositorio.criar(
       {
         ...pedido,
         status: StatusPedido.EM_ANDAMENTO,
@@ -145,39 +111,42 @@ describe('PedidoRepository.criar', () => {
       ID_EMPRESA,
     );
 
-    expect(tx.entregador.updateMany).toHaveBeenCalledWith({
+    expect(transacao.entregador.updateMany).toHaveBeenCalledWith({
       where: { cpf: CPF_NOVO, disponivel: true },
       data: { disponivel: false },
     });
-    expect(argumento(tx.pedido.create).data.data_inicio_entrega).toBeInstanceOf(
-      Date,
-    );
+    expect(
+      argumento(transacao.pedido.create).data.data_inicio_entrega,
+    ).toBeInstanceOf(Date);
   });
 
   it('abre o historico com o entregador da criacao', async () => {
-    const { repository, tx } = montar();
+    const { repositorio, transacao } = montar();
 
-    await repository.criar({ ...pedido, cpf_entregador: CPF_NOVO }, ID_EMPRESA);
+    await repositorio.criar(
+      { ...pedido, cpf_entregador: CPF_NOVO },
+      ID_EMPRESA,
+    );
 
-    const { data } = argumento(tx.historicoPedidoEntregadores.create);
+    const { data } = argumento(transacao.historicoPedidoEntregadores.create);
     expect(data).toMatchObject({
       id_pedido: ID_PEDIDO,
       cpf_entregador_antigo: null,
       cpf_entregador_novo: CPF_NOVO,
     });
     expect(data.data).toEqual(
-      argumento(tx.pedido.create).data.data_inicio_entrega,
+      argumento(transacao.pedido.create).data.data_inicio_entrega,
     );
   });
 
   it('nao cria o pedido se o entregador foi ocupado por outra operacao', async () => {
-    const { repository, tx } = montar();
-    tx.entregador.updateMany.mockResolvedValue({ count: 0 });
+    const { repositorio, transacao } = montar();
+    transacao.entregador.updateMany.mockResolvedValue({ count: 0 });
 
     await expect(
-      repository.criar({ ...pedido, cpf_entregador: CPF_NOVO }, ID_EMPRESA),
+      repositorio.criar({ ...pedido, cpf_entregador: CPF_NOVO }, ID_EMPRESA),
     ).rejects.toBeInstanceOf(EntregadorIndisponivelError);
-    expect(tx.pedido.create).not.toHaveBeenCalled();
+    expect(transacao.pedido.create).not.toHaveBeenCalled();
   });
 });
 
@@ -190,11 +159,11 @@ describe('PedidoRepository.reatribuir', () => {
   };
 
   it('so altera o pedido se status e entregador seguem os mesmos', async () => {
-    const { repository, tx } = montar();
+    const { repositorio, transacao } = montar();
 
-    await repository.reatribuir(reatribuicao);
+    await repositorio.reatribuir(reatribuicao);
 
-    expect(tx.pedido.updateMany).toHaveBeenCalledWith({
+    expect(transacao.pedido.updateMany).toHaveBeenCalledWith({
       where: {
         id_pedido: ID_PEDIDO,
         status: StatusPedido.EM_ANDAMENTO,
@@ -209,42 +178,42 @@ describe('PedidoRepository.reatribuir', () => {
   });
 
   it('lanca PedidoAlteradoError e nao grava historico se o pedido mudou', async () => {
-    const { repository, tx } = montar();
-    tx.pedido.updateMany.mockResolvedValue({ count: 0 });
+    const { repositorio, transacao } = montar();
+    transacao.pedido.updateMany.mockResolvedValue({ count: 0 });
 
-    await expect(repository.reatribuir(reatribuicao)).rejects.toBeInstanceOf(
+    await expect(repositorio.reatribuir(reatribuicao)).rejects.toBeInstanceOf(
       PedidoAlteradoError,
     );
-    expect(tx.historicoPedidoEntregadores.create).not.toHaveBeenCalled();
+    expect(transacao.historicoPedidoEntregadores.create).not.toHaveBeenCalled();
   });
 
   it('ocupa o novo entregador apenas se ele ainda estiver disponivel', async () => {
-    const { repository, tx } = montar();
+    const { repositorio, transacao } = montar();
 
-    await repository.reatribuir(reatribuicao);
+    await repositorio.reatribuir(reatribuicao);
 
-    expect(tx.entregador.updateMany).toHaveBeenCalledWith({
+    expect(transacao.entregador.updateMany).toHaveBeenCalledWith({
       where: { cpf: CPF_NOVO, disponivel: true },
       data: { disponivel: false },
     });
   });
 
   it('lanca EntregadorIndisponivelError se outro pedido ocupou o entregador', async () => {
-    const { repository, tx } = montar();
-    tx.entregador.updateMany.mockResolvedValue({ count: 0 });
+    const { repositorio, transacao } = montar();
+    transacao.entregador.updateMany.mockResolvedValue({ count: 0 });
 
-    await expect(repository.reatribuir(reatribuicao)).rejects.toBeInstanceOf(
+    await expect(repositorio.reatribuir(reatribuicao)).rejects.toBeInstanceOf(
       EntregadorIndisponivelError,
     );
-    expect(tx.historicoPedidoEntregadores.create).not.toHaveBeenCalled();
+    expect(transacao.historicoPedidoEntregadores.create).not.toHaveBeenCalled();
   });
 
   it('registra entregador anterior, novo e data no historico', async () => {
-    const { repository, tx } = montar();
+    const { repositorio, transacao } = montar();
 
-    await repository.reatribuir(reatribuicao);
+    await repositorio.reatribuir(reatribuicao);
 
-    const { data } = argumento(tx.historicoPedidoEntregadores.create);
+    const { data } = argumento(transacao.historicoPedidoEntregadores.create);
     expect(data).toMatchObject({
       id_pedido: ID_PEDIDO,
       cpf_entregador_antigo: CPF_ANTERIOR,
@@ -254,46 +223,46 @@ describe('PedidoRepository.reatribuir', () => {
   });
 
   it('libera o entregador anterior quando ele fica sem entregas', async () => {
-    const { repository, tx } = montar();
+    const { repositorio, transacao } = montar();
 
-    await repository.reatribuir(reatribuicao);
+    await repositorio.reatribuir(reatribuicao);
 
-    expect(tx.pedido.count).toHaveBeenCalledWith({
+    expect(transacao.pedido.count).toHaveBeenCalledWith({
       where: {
         cpf_entregador: CPF_ANTERIOR,
         status: StatusPedido.EM_ANDAMENTO,
       },
     });
-    expect(tx.entregador.update).toHaveBeenCalledWith({
+    expect(transacao.entregador.update).toHaveBeenCalledWith({
       where: { cpf: CPF_ANTERIOR },
       data: { disponivel: true },
     });
   });
 
   it('mantem o entregador anterior ocupado se ainda tem outra entrega', async () => {
-    const { repository, tx } = montar();
-    tx.pedido.count.mockResolvedValue(1);
+    const { repositorio, transacao } = montar();
+    transacao.pedido.count.mockResolvedValue(1);
 
-    await repository.reatribuir(reatribuicao);
+    await repositorio.reatribuir(reatribuicao);
 
-    expect(tx.entregador.update).not.toHaveBeenCalled();
+    expect(transacao.entregador.update).not.toHaveBeenCalled();
   });
 
   it('atribui pedido pendente, marca o inicio e grava antigo como nulo', async () => {
-    const { repository, tx } = montar();
-    tx.pedido.findUniqueOrThrow.mockResolvedValueOnce({
-      ...(await tx.pedido.findUniqueOrThrow()),
+    const { repositorio, transacao } = montar();
+    transacao.pedido.findUniqueOrThrow.mockResolvedValueOnce({
+      ...(await transacao.pedido.findUniqueOrThrow()),
       status: StatusPedido.PENDENTE,
       cpf_entregador: null,
     });
 
-    await repository.reatribuir({
+    await repositorio.reatribuir({
       ...reatribuicao,
       statusAtual: StatusPedido.PENDENTE,
       cpfAnterior: null,
     });
 
-    const { where, data } = argumento(tx.pedido.updateMany);
+    const { where, data } = argumento(transacao.pedido.updateMany);
     expect(where).toEqual({
       id_pedido: ID_PEDIDO,
       status: StatusPedido.PENDENTE,
@@ -306,10 +275,10 @@ describe('PedidoRepository.reatribuir', () => {
     });
     expect(data.data_inicio_entrega).toBeInstanceOf(Date);
     expect(
-      argumento(tx.historicoPedidoEntregadores.create).data
+      argumento(transacao.historicoPedidoEntregadores.create).data
         .cpf_entregador_antigo,
     ).toBeNull();
-    expect(tx.pedido.count).not.toHaveBeenCalled();
+    expect(transacao.pedido.count).not.toHaveBeenCalled();
   });
 });
 
@@ -323,11 +292,11 @@ describe('PedidoRepository.atualizarStatus', () => {
   };
 
   it('so altera o pedido se o status lido continua o mesmo', async () => {
-    const { repository, tx } = montar();
+    const { repositorio, transacao } = montar();
 
-    await repository.atualizarStatus(atualizacao);
+    await repositorio.atualizarStatus(atualizacao);
 
-    const { where, data } = argumento(tx.pedido.updateMany);
+    const { where, data } = argumento(transacao.pedido.updateMany);
     expect(where).toEqual({
       id_pedido: ID_PEDIDO,
       cpf_entregador: CPF_ANTERIOR,
@@ -338,53 +307,53 @@ describe('PedidoRepository.atualizarStatus', () => {
   });
 
   it('lanca PedidoAlteradoError se nenhuma linha foi alterada', async () => {
-    const { repository, tx } = montar();
-    tx.pedido.updateMany.mockResolvedValue({ count: 0 });
+    const { repositorio, transacao } = montar();
+    transacao.pedido.updateMany.mockResolvedValue({ count: 0 });
 
     await expect(
-      repository.atualizarStatus(atualizacao),
+      repositorio.atualizarStatus(atualizacao),
     ).rejects.toBeInstanceOf(PedidoAlteradoError);
-    expect(tx.entregador.update).not.toHaveBeenCalled();
+    expect(transacao.entregador.update).not.toHaveBeenCalled();
   });
 
   it('ao finalizar grava a data e libera o entregador', async () => {
-    const { repository, tx } = montar();
+    const { repositorio, transacao } = montar();
 
-    await repository.atualizarStatus(atualizacao);
+    await repositorio.atualizarStatus(atualizacao);
 
-    const { data } = argumento(tx.pedido.updateMany);
+    const { data } = argumento(transacao.pedido.updateMany);
     expect(data.data_finalizacao).toBeInstanceOf(Date);
-    expect(tx.entregador.update).toHaveBeenCalledWith({
+    expect(transacao.entregador.update).toHaveBeenCalledWith({
       where: { cpf: CPF_ANTERIOR },
       data: { disponivel: true },
     });
   });
 
   it('fora de status final nao grava data nem mexe na disponibilidade', async () => {
-    const { repository, tx } = montar();
-    tx.pedido.findUniqueOrThrow.mockResolvedValueOnce({
-      ...(await tx.pedido.findUniqueOrThrow()),
+    const { repositorio, transacao } = montar();
+    transacao.pedido.findUniqueOrThrow.mockResolvedValueOnce({
+      ...(await transacao.pedido.findUniqueOrThrow()),
       status: StatusPedido.PENDENTE,
     });
 
-    await repository.atualizarStatus({
+    await repositorio.atualizarStatus({
       ...atualizacao,
       statusAtual: StatusPedido.PENDENTE,
       novoStatus: StatusPedido.EM_ANDAMENTO,
       finalizar: false,
     });
 
-    expect(argumento(tx.pedido.updateMany).data).toEqual({
+    expect(argumento(transacao.pedido.updateMany).data).toEqual({
       status: StatusPedido.EM_ANDAMENTO,
     });
-    expect(tx.pedido.count).not.toHaveBeenCalled();
-    expect(tx.entregador.update).not.toHaveBeenCalled();
+    expect(transacao.pedido.count).not.toHaveBeenCalled();
+    expect(transacao.entregador.update).not.toHaveBeenCalled();
   });
 });
 
 describe('E-US16: snapshot e consolidacao no repository', () => {
   it('correcao de distancia filtra empresa e estado financeiro sem alterar valor ou snapshot', async () => {
-    const { repository: repositorioPedidos, tx: clienteTransacional } =
+    const { repositorio: repositorioPedidos, transacao: clienteTransacional } =
       montar();
     await repositorioPedidos.corrigirDistancia(ID_PEDIDO, ID_EMPRESA, 0);
     expect(argumento(clienteTransacional.pedido.updateMany)).toEqual({
@@ -399,7 +368,7 @@ describe('E-US16: snapshot e consolidacao no repository', () => {
   });
 
   it('correcao concorrente com conclusao nao sobrescreve a entrega encerrada', async () => {
-    const { repository: repositorioPedidos, tx: clienteTransacional } =
+    const { repositorio: repositorioPedidos, transacao: clienteTransacional } =
       montar();
     clienteTransacional.pedido.updateMany.mockResolvedValue({ count: 0 });
     await expect(
@@ -422,10 +391,10 @@ describe('E-US16: snapshot e consolidacao no repository', () => {
   };
 
   it('captura parametros na criacao com entregador na mesma transacao', async () => {
-    const { repository: repositorioPedidos, tx: clienteTransacional } =
+    const { repositorio: repositorioPedidos, transacao: clienteTransacional } =
       montar();
     await repositorioPedidos.criar(
-      { cpf_entregador: CPF_NOVO } as CriaPedidoReqDto,
+      { cpf_entregador: CPF_NOVO } as CriarPedidoDto,
       ID_EMPRESA,
     );
     const { data: dadosPersistidos } = argumento(
@@ -451,12 +420,12 @@ describe('E-US16: snapshot e consolidacao no repository', () => {
   });
 
   it('bloqueia criacao atribuida sem parametros antes de ocupar entregador', async () => {
-    const { repository: repositorioPedidos, tx: clienteTransacional } =
+    const { repositorio: repositorioPedidos, transacao: clienteTransacional } =
       montar();
     clienteTransacional.metricasPagamento.findFirst.mockResolvedValue(null);
     await expect(
       repositorioPedidos.criar(
-        { cpf_entregador: CPF_NOVO } as CriaPedidoReqDto,
+        { cpf_entregador: CPF_NOVO } as CriarPedidoDto,
         ID_EMPRESA,
       ),
     ).rejects.toThrow('Configure os parâmetros');
@@ -465,7 +434,7 @@ describe('E-US16: snapshot e consolidacao no repository', () => {
   });
 
   it('reatribuicao captura a nova configuracao da empresa do pedido', async () => {
-    const { repository: repositorioPedidos, tx: clienteTransacional } =
+    const { repositorio: repositorioPedidos, transacao: clienteTransacional } =
       montar();
     clienteTransacional.metricasPagamento.findFirst.mockResolvedValue({
       taxa_fixa: 950,
@@ -486,7 +455,7 @@ describe('E-US16: snapshot e consolidacao no repository', () => {
   });
 
   it('nao altera atribuicao quando a captura falha', async () => {
-    const { repository: repositorioPedidos, tx: clienteTransacional } =
+    const { repositorio: repositorioPedidos, transacao: clienteTransacional } =
       montar();
     clienteTransacional.metricasPagamento.findFirst.mockRejectedValue(
       new Error('falha banco'),
@@ -501,7 +470,7 @@ describe('E-US16: snapshot e consolidacao no repository', () => {
   });
 
   it('consolida com snapshot, preserva valor_entrega e nao consulta parametros vigentes', async () => {
-    const { repository: repositorioPedidos, tx: clienteTransacional } =
+    const { repositorio: repositorioPedidos, transacao: clienteTransacional } =
       montar();
     await repositorioPedidos.atualizarStatus(conclusao);
     expect(argumento(clienteTransacional.pedido.updateMany).data).toMatchObject(
@@ -526,8 +495,10 @@ describe('E-US16: snapshot e consolidacao no repository', () => {
   it.each([StatusPedido.FINALIZADO, StatusPedido.CANCELADO])(
     'nao recalcula pedido %s, inclusive legado',
     async (status) => {
-      const { repository: repositorioPedidos, tx: clienteTransacional } =
-        montar();
+      const {
+        repositorio: repositorioPedidos,
+        transacao: clienteTransacional,
+      } = montar();
       clienteTransacional.pedido.findUniqueOrThrow.mockResolvedValueOnce({
         ...(await clienteTransacional.pedido.findUniqueOrThrow()),
         status,
@@ -543,7 +514,7 @@ describe('E-US16: snapshot e consolidacao no repository', () => {
   );
 
   it('nao conclui nem reatribui um ganho ja consolidado', async () => {
-    const { repository: repositorioPedidos, tx: clienteTransacional } =
+    const { repositorio: repositorioPedidos, transacao: clienteTransacional } =
       montar();
     clienteTransacional.pedido.findUniqueOrThrow.mockResolvedValue({
       ...(await clienteTransacional.pedido.findUniqueOrThrow()),
@@ -559,7 +530,7 @@ describe('E-US16: snapshot e consolidacao no repository', () => {
   });
 
   it('nao conclui por entregador diferente', async () => {
-    const { repository: repositorioPedidos, tx: clienteTransacional } =
+    const { repositorio: repositorioPedidos, transacao: clienteTransacional } =
       montar();
     await expect(
       repositorioPedidos.atualizarStatus({
@@ -579,8 +550,10 @@ describe('E-US16: snapshot e consolidacao no repository', () => {
   ])(
     'nao escreve status ou libera entregador quando calculo falha: %j',
     async (campos) => {
-      const { repository: repositorioPedidos, tx: clienteTransacional } =
-        montar();
+      const {
+        repositorio: repositorioPedidos,
+        transacao: clienteTransacional,
+      } = montar();
       clienteTransacional.pedido.findUniqueOrThrow.mockResolvedValueOnce({
         ...(await clienteTransacional.pedido.findUniqueOrThrow()),
         ...campos,
@@ -594,7 +567,7 @@ describe('E-US16: snapshot e consolidacao no repository', () => {
   );
 
   it('repassa falha de persistencia sem liberar o entregador', async () => {
-    const { repository: repositorioPedidos, tx: clienteTransacional } =
+    const { repositorio: repositorioPedidos, transacao: clienteTransacional } =
       montar();
     clienteTransacional.pedido.updateMany.mockRejectedValue(
       new Error('falha persistencia'),
@@ -608,9 +581,9 @@ describe('E-US16: snapshot e consolidacao no repository', () => {
 
 describe('PedidoRepository.listarHistoricoDeEntregadores', () => {
   it('busca o historico do pedido em ordem cronologica, so com nomes', async () => {
-    const { repository, prisma } = montar();
+    const { repositorio, prisma } = montar();
 
-    await repository.listarHistoricoDeEntregadores(ID_PEDIDO);
+    await repositorio.listarHistoricoDeEntregadores(ID_PEDIDO);
 
     expect(prisma.historicoPedidoEntregadores.findMany).toHaveBeenCalledWith({
       where: { id_pedido: ID_PEDIDO },
@@ -626,9 +599,9 @@ describe('PedidoRepository.listarHistoricoDeEntregadores', () => {
 
 describe('PedidoRepository listagens', () => {
   it('lista os pedidos da empresa com o nome do entregador e a nota, mais novos primeiro', async () => {
-    const { repository, prisma } = montar();
+    const { repositorio, prisma } = montar();
 
-    await repository.listarDaEmpresa(ID_EMPRESA);
+    await repositorio.listarDaEmpresa(ID_EMPRESA);
 
     expect(prisma.pedido.findMany).toHaveBeenCalledWith({
       where: { idEmpresa: ID_EMPRESA },
@@ -641,14 +614,63 @@ describe('PedidoRepository listagens', () => {
   });
 
   it('lista os pedidos atribuidos ao entregador com o nome da empresa', async () => {
-    const { repository, prisma } = montar();
+    const { repositorio, prisma } = montar();
 
-    await repository.listarDoEntregador(CPF_NOVO);
+    await repositorio.listarDoEntregador(CPF_NOVO);
 
     expect(prisma.pedido.findMany).toHaveBeenCalledWith({
       where: { cpf_entregador: CPF_NOVO },
       include: { empresa: { select: { nome_fantasia: true } } },
       orderBy: { data_criacao: 'desc' },
+    });
+  });
+});
+
+describe('PedidoRepository buscas de um pedido', () => {
+  it('procura o pedido so entre os da empresa', async () => {
+    const { repositorio, prisma } = montar();
+
+    await repositorio.procurarPorEmpresa(ID_PEDIDO, ID_EMPRESA);
+
+    expect(prisma.pedido.findFirst).toHaveBeenCalledWith({
+      where: { id_pedido: ID_PEDIDO, idEmpresa: ID_EMPRESA },
+    });
+  });
+
+  it('traz o detalhe da empresa com o nome do entregador', async () => {
+    const { repositorio, prisma } = montar();
+
+    await repositorio.procurarDetalheDaEmpresa(ID_PEDIDO, ID_EMPRESA);
+
+    expect(prisma.pedido.findFirst).toHaveBeenCalledWith({
+      where: { id_pedido: ID_PEDIDO, idEmpresa: ID_EMPRESA },
+      include: { entregador: { select: { nome: true } } },
+    });
+  });
+
+  it('procura o pedido so entre os atribuidos ao entregador', async () => {
+    const { repositorio, prisma } = montar();
+
+    await repositorio.procurarAtribuidoAoEntregador(ID_PEDIDO, CPF_NOVO);
+
+    expect(prisma.pedido.findFirst).toHaveBeenCalledWith({
+      where: { id_pedido: ID_PEDIDO, cpf_entregador: CPF_NOVO },
+    });
+  });
+
+  it('traz os telefones da empresa e do entregador filtrando pelo dono', async () => {
+    const { repositorio, prisma } = montar();
+
+    await repositorio.procurarComContatos(ID_PEDIDO, {
+      cpf_entregador: CPF_NOVO,
+    });
+
+    expect(prisma.pedido.findFirst).toHaveBeenCalledWith({
+      where: { id_pedido: ID_PEDIDO, cpf_entregador: CPF_NOVO },
+      include: {
+        empresa: { select: { nome_fantasia: true, telefone: true } },
+        entregador: { select: { nome: true, telefone: true } },
+      },
     });
   });
 });

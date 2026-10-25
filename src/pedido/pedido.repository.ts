@@ -3,7 +3,7 @@ import { Pedido, Prisma } from '../generated/prisma/client';
 import { StatusPedido } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { GanhoEntregaService } from '../remuneracao/ganho-entrega.service';
-import { CriaPedidoReqDto } from './dto/cria-pedido.dto';
+import { CriarPedidoDto } from './dto/criar-pedido.dto';
 import {
   bloquearPedido,
   COM_NOME_DO_ENTREGADOR,
@@ -51,7 +51,7 @@ export class PedidoRepository {
     private readonly ganhos: GanhoEntregaService,
   ) {}
 
-  async criar(pedido: CriaPedidoReqDto, idEmpresa: number): Promise<Pedido> {
+  async criar(pedido: CriarPedidoDto, idEmpresa: number): Promise<Pedido> {
     const dados = dadosDoNovoPedido(pedido, idEmpresa);
     const cpfEntregador = pedido.cpf_entregador;
 
@@ -169,7 +169,7 @@ export class PedidoRepository {
     pedido: Pedido,
     dados: DadosAtualizacaoStatus,
   ): Promise<void> {
-    const data: Prisma.PedidoUncheckedUpdateManyInput =
+    const alteracoes: Prisma.PedidoUncheckedUpdateManyInput =
       dados.novoStatus === StatusPedido.FINALIZADO
         ? {
             status: dados.novoStatus,
@@ -184,7 +184,7 @@ export class PedidoRepository {
         status: dados.statusAtual,
         ganho_consolidado_centavos: null,
       },
-      data,
+      data: alteracoes,
     });
     if (count === 0) {
       throw new PedidoAlteradoError();
@@ -286,7 +286,7 @@ export class PedidoRepository {
 }
 
 function dadosDoNovoPedido(
-  pedido: CriaPedidoReqDto,
+  pedido: CriarPedidoDto,
   idEmpresa: number,
 ): Prisma.PedidoUncheckedCreateInput {
   return {

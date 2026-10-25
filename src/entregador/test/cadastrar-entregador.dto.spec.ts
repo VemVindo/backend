@@ -45,6 +45,13 @@ describe('CadastrarEntregadorDto', () => {
     ).toEqual(['placa']);
   });
 
+  it('recusa placa que nao e texto sem tentar normalizar', () => {
+    const resultado = erros({ tipoVeiculo: TipoVeiculo.CARRO, placa: 1234 });
+
+    expect(resultado.dto.placa).toBe(1234);
+    expect(resultado.campos).toEqual(['placa']);
+  });
+
   it('recusa telefone com mascara e nome so com espacos', () => {
     expect(
       erros({

@@ -27,16 +27,19 @@ export const INTERVALO_MINIMO_RECALCULO_MS = 60_000;
 export const INTERVALO_MAXIMO_RECALCULO_MS = 5 * 60_000;
 export const DESLOCAMENTO_MINIMO_RECALCULO_M = 50;
 
-export function distanciaEmMetros(a: Coordenada, b: Coordenada): number {
+export function distanciaEmMetros(
+  origem: Coordenada,
+  destino: Coordenada,
+): number {
   const radianos = (graus: number) => (graus * Math.PI) / 180;
-  const dLat = radianos(b.lat - a.lat);
-  const dLng = radianos(b.lng - a.lng);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(radianos(a.lat)) *
-      Math.cos(radianos(b.lat)) *
-      Math.sin(dLng / 2) ** 2;
-  return 2 * RAIO_DA_TERRA_M * Math.asin(Math.sqrt(h));
+  const variacaoLat = radianos(destino.lat - origem.lat);
+  const variacaoLng = radianos(destino.lng - origem.lng);
+  const haversine =
+    Math.sin(variacaoLat / 2) ** 2 +
+    Math.cos(radianos(origem.lat)) *
+      Math.cos(radianos(destino.lat)) *
+      Math.sin(variacaoLng / 2) ** 2;
+  return 2 * RAIO_DA_TERRA_M * Math.asin(Math.sqrt(haversine));
 }
 
 export function estimarTrajeto(

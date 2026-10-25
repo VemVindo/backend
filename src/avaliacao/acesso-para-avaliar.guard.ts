@@ -11,8 +11,10 @@ import { ValidadorDeLink } from '../rastreio/validador-de-link';
 export class AcessoParaAvaliarGuard implements CanActivate {
   constructor(private readonly validador: ValidadorDeLink) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requisicao = context.switchToHttp().getRequest<RequisicaoRecebedor>();
+  async canActivate(contexto: ExecutionContext): Promise<boolean> {
+    const requisicao = contexto
+      .switchToHttp()
+      .getRequest<RequisicaoRecebedor>();
     const token = requisicao.params?.token;
     const acesso = await this.validador.procurarAcesso(
       typeof token === 'string' ? token : '',

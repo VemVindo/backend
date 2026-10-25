@@ -80,13 +80,15 @@ describe('Fluxo da entrega (e2e)', () => {
   let token: string;
   let codigoRecebedor: string;
 
+  // Sobe a aplicacao e encadeia varios hashes bcrypt de custo 12 (logins,
+  // cadastro e troca de senha), o que passa dos 5 s padrao em maquina carregada.
   beforeAll(async () => {
     app = await subirAplicacao();
     cantina = await entrarComoEmpresa(app, CANTINA.email);
     padaria = await entrarComoEmpresa(app, PADARIA.email);
     ({ cpf: cpfEntregador, sessao: entregador } =
       await cadastrarEntregadorPronto(app, cantina));
-  });
+  }, 30_000);
 
   afterAll(async () => {
     await app.close();

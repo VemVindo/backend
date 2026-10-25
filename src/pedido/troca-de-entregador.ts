@@ -10,10 +10,10 @@ export interface TrocaDeEntregador {
 }
 
 export async function registrarTroca(
-  tx: Prisma.TransactionClient,
+  transacao: Prisma.TransactionClient,
   { idPedido, cpfAnterior, cpfNovo, data }: TrocaDeEntregador,
 ): Promise<void> {
-  await tx.historicoPedidoEntregadores.create({
+  await transacao.historicoPedidoEntregadores.create({
     data: {
       id_pedido: idPedido,
       cpf_entregador_antigo: cpfAnterior,
@@ -24,10 +24,10 @@ export async function registrarTroca(
 }
 
 export async function tentarOcuparEntregador(
-  tx: Prisma.TransactionClient,
+  transacao: Prisma.TransactionClient,
   cpfEntregador: string,
 ): Promise<boolean> {
-  const { count } = await tx.entregador.updateMany({
+  const { count } = await transacao.entregador.updateMany({
     where: { cpf: cpfEntregador, disponivel: true },
     data: { disponivel: false },
   });
@@ -35,26 +35,26 @@ export async function tentarOcuparEntregador(
 }
 
 export async function ocuparEntregador(
-  tx: Prisma.TransactionClient,
+  transacao: Prisma.TransactionClient,
   cpfEntregador: string,
 ): Promise<void> {
-  if (!(await tentarOcuparEntregador(tx, cpfEntregador))) {
+  if (!(await tentarOcuparEntregador(transacao, cpfEntregador))) {
     throw new EntregadorIndisponivelError();
   }
 }
 
 export async function liberarSeOcioso(
-  tx: Prisma.TransactionClient,
+  transacao: Prisma.TransactionClient,
   cpfEntregador: string,
 ): Promise<void> {
-  const emAndamento = await tx.pedido.count({
+  const emAndamento = await transacao.pedido.count({
     where: {
       cpf_entregador: cpfEntregador,
       status: StatusPedido.EM_ANDAMENTO,
     },
   });
   if (emAndamento === 0) {
-    await tx.entregador.update({
+    await transacao.entregador.update({
       where: { cpf: cpfEntregador },
       data: { disponivel: true },
     });

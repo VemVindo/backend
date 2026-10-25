@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PedidoController } from '../pedido.controller';
 import { ConversaDoPedidoService } from '../conversa-do-pedido.service';
 import { PedidoService } from '../pedido.service';
-import { CriaPedidoReqDto, CriaPedidoResDto } from '../dto/cria-pedido.dto';
+import { CriarPedidoDto, PedidoCriadoDto } from '../dto/criar-pedido.dto';
 import { Pedido } from '../../generated/prisma/client';
 import { StatusPedido } from '../../generated/prisma/enums';
 import { Cargo } from '../../common/enums/cargo.enum';
@@ -18,35 +18,43 @@ const EMPRESA: UsuarioAutenticado = {
   empresaId: '7',
 };
 
-describe('PedidoController', () => {
-  let controller: PedidoController;
-  let service: PedidoService;
+describe('PedidoController.criar', () => {
+  const dadosDoPedido = {
+    nome_recebedor: 'Carla Menezes',
+    cidade: 'Brasilia',
+  } as CriarPedidoDto;
+  const pedidoGravado = {
+    id_pedido: 1,
+    nome_recebedor: 'Carla Menezes',
+    cidade: 'Brasilia',
+    status: StatusPedido.PENDENTE,
+    idEmpresa: 7,
+  } as Pedido;
+  let controlador: PedidoController;
+  let criar: jest.Mock;
 
-  describe('CRIAR', () => {
-    beforeEach(async () => {
-      const module: TestingModule = await Test.createTestingModule({
-        controllers: [PedidoController],
-        providers: [
-          {
-            provide: PedidoService,
-            useValue: {
-              criar: jest.fn(),
-            },
-          },
-          { provide: ConversaDoPedidoService, useValue: {} },
-        ],
-      }).compile();
+  beforeEach(async () => {
+    criar = jest.fn().mockResolvedValue(pedidoGravado);
+    const modulo: TestingModule = await Test.createTestingModule({
+      controllers: [PedidoController],
+      providers: [
+        { provide: PedidoService, useValue: { criar } },
+        { provide: ConversaDoPedidoService, useValue: {} },
+      ],
+    }).compile();
 
-      controller = module.get<PedidoController>(PedidoController);
-      service = module.get<PedidoService>(PedidoService);
-    });
+    controlador = modulo.get<PedidoController>(PedidoController);
+  });
 
-    it('CAIXA CINZA: Fluxo Completo', async () => {
-      const dummyReq = {} as CriaPedidoReqDto;
-      const dummyRes = {} as Promise<Pedido>;
-      jest.spyOn(service, 'criar').mockImplementation(() => dummyRes);
-      const result = await controller.criar(EMPRESA, dummyReq);
-      expect(result).toBeInstanceOf(CriaPedidoResDto);
+  it('cria com a empresa do token e devolve o pedido como PedidoCriadoDto', async () => {
+    const pedidoCriado = await controlador.criar(EMPRESA, dadosDoPedido);
+
+    expect(criar).toHaveBeenCalledWith(7, dadosDoPedido);
+    expect(pedidoCriado).toBeInstanceOf(PedidoCriadoDto);
+    expect(pedidoCriado).toMatchObject({
+      id_pedido: 1,
+      nome_recebedor: 'Carla Menezes',
+      status: StatusPedido.PENDENTE,
     });
   });
 });
@@ -57,7 +65,7 @@ describe('PedidoController rotas de entregador e reatribuicao', () => {
     cargo: Cargo.ENTREGADOR,
   };
   function montar() {
-    const service = {
+    const servico = {
       obterStatusDisponiveis: jest.fn().mockResolvedValue({}),
       atualizarStatus: jest.fn().mockResolvedValue({}),
       reatribuir: jest.fn().mockResolvedValue({}),
@@ -67,27 +75,28 @@ describe('PedidoController rotas de entregador e reatribuicao', () => {
       listarDaEmpresa: jest.fn().mockResolvedValue([]),
       listarDoEntregador: jest.fn().mockResolvedValue([]),
       detalhar: jest.fn().mockResolvedValue({}),
+      finalizar: jest.fn().mockResolvedValue({}),
     };
-    const controller = new PedidoController(
-      service as unknown as PedidoService,
+    const controlador = new PedidoController(
+      servico as unknown as PedidoService,
       {} as ConversaDoPedidoService,
     );
-    return { controller, service };
+    return { controlador, servico };
   }
 
   it('consulta status disponiveis com o cpf do entregador logado', async () => {
-    const { controller, service } = montar();
+    const { controlador, servico } = montar();
 
-    await controller.obterStatusDisponiveis(entregador, 1);
+    await controlador.obterStatusDisponiveis(entregador, 1);
 
-    expect(service.obterStatusDisponiveis).toHaveBeenCalledWith(
+    expect(servico.obterStatusDisponiveis).toHaveBeenCalledWith(
       '52998224725',
       1,
     );
   });
 
   it('corrige distancia usando a empresa do token', async () => {
-    const { controller: controladorPedidos, service: servicoPedidos } =
+    const { controlador: controladorPedidos, servico: servicoPedidos } =
       montar();
     await controladorPedidos.corrigirDistancia(EMPRESA, 1, {
       distanciaMetros: 0,
@@ -96,65 +105,73 @@ describe('PedidoController rotas de entregador e reatribuicao', () => {
   });
 
   it('atualiza status com o cpf do entregador logado', async () => {
-    const { controller, service } = montar();
+    const { controlador, servico } = montar();
 
-    await controller.atualizarStatus(entregador, 1, {
+    await controlador.atualizarStatus(entregador, 1, {
       status: StatusPedido.FINALIZADO,
     });
 
-    expect(service.atualizarStatus).toHaveBeenCalledWith(
+    expect(servico.atualizarStatus).toHaveBeenCalledWith(
       '52998224725',
       1,
       StatusPedido.FINALIZADO,
     );
   });
 
+  it('finaliza com o cpf do entregador logado e o codigo do recebedor', async () => {
+    const { controlador, servico } = montar();
+
+    await controlador.finalizar(entregador, 1, { codigo: '123456' });
+
+    expect(servico.finalizar).toHaveBeenCalledWith('52998224725', 1, '123456');
+  });
+
   it('reatribui usando a empresa do token, nunca a do corpo', async () => {
-    const { controller, service } = montar();
+    const { controlador, servico } = montar();
 
-    await controller.reatribuir(EMPRESA, 1, { cpfEntregador: '11144477735' });
+    await controlador.reatribuir(EMPRESA, 1, { cpfEntregador: '11144477735' });
 
-    expect(service.reatribuir).toHaveBeenCalledWith(7, 1, '11144477735');
+    expect(servico.reatribuir).toHaveBeenCalledWith(7, 1, '11144477735');
   });
 
   it('atribui usando a empresa do token, nunca a do corpo', async () => {
-    const { controller, service } = montar();
+    const { controlador, servico } = montar();
 
-    await controller.atribuir(EMPRESA, 1, { cpfEntregador: '11144477735' });
+    await controlador.atribuir(EMPRESA, 1, { cpfEntregador: '11144477735' });
 
-    expect(service.atribuir).toHaveBeenCalledWith(7, 1, '11144477735');
+    expect(servico.atribuir).toHaveBeenCalledWith(7, 1, '11144477735');
   });
 
   it('lista o historico usando a empresa do token', async () => {
-    const { controller, service } = montar();
+    const { controlador, servico } = montar();
 
-    await controller.listarHistoricoDeEntregadores(EMPRESA, 1);
+    await controlador.listarHistoricoDeEntregadores(EMPRESA, 1);
 
-    expect(service.listarHistoricoDeEntregadores).toHaveBeenCalledWith(7, 1);
+    expect(servico.listarHistoricoDeEntregadores).toHaveBeenCalledWith(7, 1);
   });
 
   it('lista os pedidos da empresa do token', async () => {
-    const { controller, service } = montar();
+    const { controlador, servico } = montar();
 
-    await controller.listarDaEmpresa(EMPRESA);
+    await controlador.listarDaEmpresa(EMPRESA);
 
-    expect(service.listarDaEmpresa).toHaveBeenCalledWith(7);
+    expect(servico.listarDaEmpresa).toHaveBeenCalledWith(7);
   });
 
   it('detalha o pedido usando a empresa do token', async () => {
-    const { controller, service } = montar();
+    const { controlador, servico } = montar();
 
-    await controller.detalhar(EMPRESA, 1);
+    await controlador.detalhar(EMPRESA, 1);
 
-    expect(service.detalhar).toHaveBeenCalledWith(7, 1);
+    expect(servico.detalhar).toHaveBeenCalledWith(7, 1);
   });
 
   it('lista as entregas do entregador logado', async () => {
-    const { controller, service } = montar();
+    const { controlador, servico } = montar();
 
-    await controller.listarDoEntregador(entregador);
+    await controlador.listarDoEntregador(entregador);
 
-    expect(service.listarDoEntregador).toHaveBeenCalledWith('52998224725');
+    expect(servico.listarDoEntregador).toHaveBeenCalledWith('52998224725');
   });
 });
 
@@ -164,42 +181,42 @@ describe('PedidoController conversa pelo WhatsApp', () => {
     cargo: Cargo.ENTREGADOR,
   };
   function montar() {
-    const service = {
+    const servico = {
       conversaComEntregador: jest.fn().mockResolvedValue({}),
       conversaComEstabelecimento: jest.fn().mockResolvedValue({}),
       conversaComRecebedor: jest.fn().mockResolvedValue({}),
     };
-    const controller = new PedidoController(
+    const controlador = new PedidoController(
       {} as PedidoService,
-      service as unknown as ConversaDoPedidoService,
+      servico as unknown as ConversaDoPedidoService,
     );
-    return { controller, service };
+    return { controlador, servico };
   }
 
   it('a empresa abre a conversa com a empresa do token', async () => {
-    const { controller, service } = montar();
+    const { controlador, servico } = montar();
 
-    await controller.conversaComEntregador(EMPRESA, 1);
+    await controlador.conversaComEntregador(EMPRESA, 1);
 
-    expect(service.conversaComEntregador).toHaveBeenCalledWith(7, 1);
+    expect(servico.conversaComEntregador).toHaveBeenCalledWith(7, 1);
   });
 
   it('o entregador abre a conversa com o cpf do token', async () => {
-    const { controller, service } = montar();
+    const { controlador, servico } = montar();
 
-    await controller.conversaComEstabelecimento(entregador, 1);
+    await controlador.conversaComEstabelecimento(entregador, 1);
 
-    expect(service.conversaComEstabelecimento).toHaveBeenCalledWith(
+    expect(servico.conversaComEstabelecimento).toHaveBeenCalledWith(
       '52998224725',
       1,
     );
   });
 
   it('a empresa abre a conversa com o recebedor usando a empresa do token', async () => {
-    const { controller, service } = montar();
+    const { controlador, servico } = montar();
 
-    await controller.conversaComRecebedor(EMPRESA, 1);
+    await controlador.conversaComRecebedor(EMPRESA, 1);
 
-    expect(service.conversaComRecebedor).toHaveBeenCalledWith(7, 1);
+    expect(servico.conversaComRecebedor).toHaveBeenCalledWith(7, 1);
   });
 });

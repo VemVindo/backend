@@ -19,7 +19,7 @@ jest.mock('../prisma/prisma.service', () => ({ PrismaService: class {} }));
 
 const ACESSO = { idPedido: 42 } as AcessoComPedido;
 
-function service() {
+function servico() {
   return {
     consultar: jest.fn().mockResolvedValue({}),
     avaliar: jest.fn().mockResolvedValue({}),
@@ -30,14 +30,14 @@ function service() {
 
 describe('AvaliacaoDoRecebedorController', () => {
   it('usa o pedido do link, nunca um id do corpo', async () => {
-    const avaliacoes = service();
-    const controller = new AvaliacaoDoRecebedorController(
+    const avaliacoes = servico();
+    const controlador = new AvaliacaoDoRecebedorController(
       avaliacoes as unknown as AvaliacaoService,
     );
 
-    await controller.consultar(ACESSO);
-    await controller.avaliar(ACESSO, { nota: 5 });
-    await controller.comentar(ACESSO, { comentario: 'Otimo' });
+    await controlador.consultar(ACESSO);
+    await controlador.avaliar(ACESSO, { nota: 5 });
+    await controlador.comentar(ACESSO, { comentario: 'Otimo' });
 
     expect(avaliacoes.consultar).toHaveBeenCalledWith(ACESSO);
     expect(avaliacoes.avaliar).toHaveBeenCalledWith(ACESSO, 5);
@@ -47,8 +47,8 @@ describe('AvaliacaoDoRecebedorController', () => {
 
 describe('AvaliacaoDaEmpresaController', () => {
   it('lista com a empresa do token', async () => {
-    const avaliacoes = service();
-    const controller = new AvaliacaoDaEmpresaController(
+    const avaliacoes = servico();
+    const controlador = new AvaliacaoDaEmpresaController(
       avaliacoes as unknown as AvaliacaoService,
     );
     const usuario: UsuarioAutenticado = {
@@ -57,7 +57,7 @@ describe('AvaliacaoDaEmpresaController', () => {
       empresaId: '3',
     };
 
-    await controller.listar(usuario, { notas: [1] });
+    await controlador.listar(usuario, { notas: [1] });
 
     expect(avaliacoes.listarDaEmpresa).toHaveBeenCalledWith(3, { notas: [1] });
   });
@@ -125,6 +125,24 @@ describe('DTOs da avaliacao', () => {
     expect(validateSync(filtro)).toEqual([]);
     expect(filtro.notas).toEqual([1, 2]);
     expect(filtro.de).toEqual(new Date('2026-10-01T00:00:00Z'));
+  });
+
+  it('converte a data final e mantem valores que ja chegam tipados', () => {
+    const ate = new Date('2026-10-31T23:59:59Z');
+    const filtro = plainToInstance(FiltroAvaliacoesDto, {
+      notas: [0, 5],
+      de: ate,
+      ate: '2026-10-31T23:59:59Z',
+    });
+
+    expect(validateSync(filtro)).toEqual([]);
+    expect(filtro.notas).toEqual([0, 5]);
+    expect(filtro.de).toEqual(ate);
+    expect(filtro.ate).toEqual(ate);
+  });
+
+  it('recusa data final que nao e data', () => {
+    expect(erros(FiltroAvaliacoesDto, { ate: 123 })).toEqual(['ate']);
   });
 
   it('recusa nota e data invalidas no filtro', () => {

@@ -1,14 +1,14 @@
 import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
-import { Public } from './auth/decorators/public.decorator';
+import { RotaPublica } from './auth/decorators/rota-publica.decorator';
 
 @Controller()
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
-  @Public()
+  @RotaPublica()
   @Get()
-  getHello() {
-    return this.appService.getHello();
+  saudar() {
+    return this.appService.saudar();
   }
 }

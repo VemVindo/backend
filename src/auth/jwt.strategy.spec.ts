@@ -3,18 +3,18 @@ import { ConfigService } from '@nestjs/config';
 import { Cargo } from '../common/enums/cargo.enum';
 import { EmpresaRepository } from '../empresa/empresa.repository';
 import { EntregadorRepository } from '../entregador/entregador.repository';
-import { JwtPayload, JwtStrategy } from './jwt.strategy';
+import { ConteudoDoToken, JwtStrategy } from './jwt.strategy';
 
 jest.mock('../prisma/prisma.service', () => ({ PrismaService: class {} }));
 
 function montar() {
-  const config = {
+  const configuracao = {
     getOrThrow: () => 'segredo-de-teste-com-mais-de-32-caracteres',
   } as unknown as ConfigService;
   const empresas = { versaoSessao: jest.fn().mockResolvedValue(0) };
   const entregadores = { versaoSessao: jest.fn().mockResolvedValue(0) };
   const strategy = new JwtStrategy(
-    config,
+    configuracao,
     empresas as unknown as EmpresaRepository,
     entregadores as unknown as EntregadorRepository,
   );
@@ -24,14 +24,14 @@ function montar() {
 describe('JwtStrategy.validate', () => {
   it('aceita token de empresa com empresaId e versao em dia', async () => {
     const { strategy, empresas } = montar();
-    const payload: JwtPayload = {
+    const conteudoDoToken: ConteudoDoToken = {
       sub: '1',
       cargo: Cargo.ESTABELECIMENTO,
       empresaId: '1',
       versao: 0,
     };
 
-    await expect(strategy.validate(payload)).resolves.toEqual({
+    await expect(strategy.validate(conteudoDoToken)).resolves.toEqual({
       usuarioId: '1',
       cargo: Cargo.ESTABELECIMENTO,
       empresaId: '1',
@@ -42,14 +42,14 @@ describe('JwtStrategy.validate', () => {
 
   it('aceita token de entregador sem empresaId', async () => {
     const { strategy, entregadores } = montar();
-    const payload: JwtPayload = {
+    const conteudoDoToken: ConteudoDoToken = {
       sub: '52998224725',
       cargo: Cargo.ENTREGADOR,
       senhaTemporaria: false,
       versao: 0,
     };
 
-    const usuario = await strategy.validate(payload);
+    const usuario = await strategy.validate(conteudoDoToken);
 
     expect(usuario.usuarioId).toBe('52998224725');
     expect(entregadores.versaoSessao).toHaveBeenCalledWith('52998224725');
@@ -87,7 +87,7 @@ describe('JwtStrategy.validate', () => {
     const antigo = { sub: '1', cargo: Cargo.ESTABELECIMENTO, empresaId: '1' };
 
     await expect(
-      strategy.validate(antigo as unknown as JwtPayload),
+      strategy.validate(antigo as unknown as ConteudoDoToken),
     ).rejects.toThrow(UnauthorizedException);
     expect(empresas.versaoSessao).not.toHaveBeenCalled();
   });
@@ -105,7 +105,10 @@ describe('JwtStrategy.validate', () => {
       strategy.validate({ sub: '1', cargo: 'ADMIN' as Cargo, versao: 0 }),
     ).rejects.toThrow(UnauthorizedException);
     await expect(
-      strategy.validate({ cargo: Cargo.ENTREGADOR, versao: 0 } as JwtPayload),
+      strategy.validate({
+        cargo: Cargo.ENTREGADOR,
+        versao: 0,
+      } as ConteudoDoToken),
     ).rejects.toThrow(UnauthorizedException);
   });
 
@@ -118,7 +121,7 @@ describe('JwtStrategy.validate', () => {
       versao: 0,
     };
     await expect(
-      strategy.validate(antigo as unknown as JwtPayload),
+      strategy.validate(antigo as unknown as ConteudoDoToken),
     ).rejects.toThrow(UnauthorizedException);
   });
 });

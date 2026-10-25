@@ -31,17 +31,17 @@ function montar() {
           }),
       ),
   };
-  const service = new RemuneracaoService(
+  const servico = new RemuneracaoService(
     repositorio as unknown as RemuneracaoRepository,
   );
-  return { service, repositorio };
+  return { servico, repositorio };
 }
 
 describe('RemuneracaoService', () => {
   it('devolve os parametros vigentes da empresa', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
 
-    await expect(service.consultar(3, AGORA)).resolves.toEqual({
+    await expect(servico.consultar(3, AGORA)).resolves.toEqual({
       taxaFixa: 800,
       coeficienteKm: 150,
       vigenteDesde: VIGENTES.data,
@@ -49,11 +49,27 @@ describe('RemuneracaoService', () => {
     expect(repositorio.procurarVigentes).toHaveBeenCalledWith(3, AGORA);
   });
 
+  it('usa o momento atual quando a data nao e informada', async () => {
+    jest.useFakeTimers().setSystemTime(AGORA);
+    const { servico, repositorio } = montar();
+
+    await servico.consultar(3);
+    await servico.salvar(3, { taxaFixa: 950, coeficienteKm: 210 });
+
+    expect(repositorio.procurarVigentes).toHaveBeenCalledWith(3, AGORA);
+    expect(repositorio.registrar).toHaveBeenCalledWith(
+      3,
+      { taxaFixa: 950, coeficienteKm: 210 },
+      AGORA,
+    );
+    jest.useRealTimers();
+  });
+
   it('devolve campos vazios quando a empresa ainda nao configurou', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
     repositorio.procurarVigentes.mockResolvedValue(null);
 
-    await expect(service.consultar(3, AGORA)).resolves.toEqual({
+    await expect(servico.consultar(3, AGORA)).resolves.toEqual({
       taxaFixa: null,
       coeficienteKm: null,
       vigenteDesde: null,
@@ -61,9 +77,9 @@ describe('RemuneracaoService', () => {
   });
 
   it('registra os novos valores valendo a partir de agora', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
 
-    const salvos = await service.salvar(
+    const salvos = await servico.salvar(
       3,
       { taxaFixa: 950, coeficienteKm: 210 },
       AGORA,
@@ -82,21 +98,21 @@ describe('RemuneracaoService', () => {
   });
 
   it('responde 409 quando dois salvamentos caem no mesmo instante', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
     repositorio.registrar.mockRejectedValue({ code: 'P2002' });
 
     await expect(
-      service.salvar(3, { taxaFixa: 950, coeficienteKm: 210 }, AGORA),
+      servico.salvar(3, { taxaFixa: 950, coeficienteKm: 210 }, AGORA),
     ).rejects.toThrow(ConflictException);
   });
 
   it('repassa outros erros do banco', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
     const falha = new Error('conexao perdida');
     repositorio.registrar.mockRejectedValue(falha);
 
     await expect(
-      service.salvar(3, { taxaFixa: 950, coeficienteKm: 210 }, AGORA),
+      servico.salvar(3, { taxaFixa: 950, coeficienteKm: 210 }, AGORA),
     ).rejects.toBe(falha);
   });
 });

@@ -2,10 +2,10 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import { UsuarioAutenticado } from '../jwt.strategy';
 
 export const UsuarioAtual = createParamDecorator(
-  (_data: unknown, ctx: ExecutionContext): UsuarioAutenticado => {
-    const request = ctx
+  (_dados: unknown, contexto: ExecutionContext): UsuarioAutenticado => {
+    const requisicao = contexto
       .switchToHttp()
       .getRequest<{ user: UsuarioAutenticado }>();
-    return request.user;
+    return requisicao.user;
   },
 );

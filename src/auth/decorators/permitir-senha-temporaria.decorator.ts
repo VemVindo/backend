@@ -1,6 +1,6 @@
 import { SetMetadata } from '@nestjs/common';
 
-export const PERMITIR_SENHA_TEMPORARIA_KEY = 'permitirSenhaTemporaria';
+export const CHAVE_PERMITIR_SENHA_TEMPORARIA = 'permitirSenhaTemporaria';
 
 export const PermitirSenhaTemporaria = () =>
-  SetMetadata(PERMITIR_SENHA_TEMPORARIA_KEY, true);
+  SetMetadata(CHAVE_PERMITIR_SENHA_TEMPORARIA, true);

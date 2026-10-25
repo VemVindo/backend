@@ -22,7 +22,7 @@ import { CadastrarEntregadorDto } from './dto/cadastrar-entregador.dto';
 import { VincularEntregadorDto } from './dto/vincular-entregador.dto';
 import { EntregadorService } from './entregador.service';
 import { RemocaoDaFrotaService } from './remocao-da-frota.service';
-import { EditarEntregadorReqDto } from './dto/editar-entregador.dto';
+import { EditarEntregadorDto } from './dto/editar-entregador.dto';
 
 // Cadastro e convite recebem CPF de terceiros; o limite dificulta varrer CPFs.
 const LIMITE_OPERACOES_POR_CPF = { default: { limit: 10, ttl: 60_000 } };
@@ -98,14 +98,13 @@ export class EntregadorController {
   }
 
   @Patch()
-  async editar(
+  editar(
     @UsuarioAtual() usuario: UsuarioAutenticado,
-    @Body() editarEntregadorDto: EditarEntregadorReqDto,
+    @Body() dadosDoEntregador: EditarEntregadorDto,
   ): Promise<boolean> {
-    const result = this.entregadorService.editar(
+    return this.entregadorService.editar(
       Number(usuario.empresaId),
-      editarEntregadorDto,
+      dadosDoEntregador,
     );
-    return result;
   }
 }
