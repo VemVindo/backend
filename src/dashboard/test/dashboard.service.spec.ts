@@ -1,151 +1,118 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { DashboardService } from '../dashboard.service';
-import { DashboardRepository } from '../dashboard.repository';
-import { DashboardReqDto } from '../dto/dashboard.dto';
 import { StatusPedido } from '../../generated/prisma/enums';
+import {
+  DashboardRepository,
+  EntregadorComPedidos,
+} from '../dashboard.repository';
+import { DashboardService } from '../dashboard.service';
+
+jest.mock('../../prisma/prisma.service', () => ({ PrismaService: class {} }));
+
+const INICIO = new Date('2026-10-01T00:00:00Z');
+
+const TOTAL_POR_STATUS: Record<string, number> = {
+  [StatusPedido.PENDENTE]: 2,
+  [StatusPedido.EM_ANDAMENTO]: 3,
+  [StatusPedido.FINALIZADO]: 4,
+  [StatusPedido.CANCELADO]: 1,
+};
+
+const ENTREGADOR: EntregadorComPedidos = {
+  cpf: '52998224725',
+  nome: 'Entregador Teste',
+  pedidos: [
+    { status: StatusPedido.FINALIZADO, valor_entrega: 1000 },
+    { status: StatusPedido.FINALIZADO, valor_entrega: 1501 },
+    { status: StatusPedido.EM_ANDAMENTO, valor_entrega: 900 },
+  ],
+};
+
+function montar() {
+  const repositorio = {
+    contarPedidos: jest.fn((_filtro: unknown, status?: StatusPedido) =>
+      Promise.resolve(status ? TOTAL_POR_STATUS[status] : 10),
+    ),
+    mediaDasAvaliacoes: jest.fn().mockResolvedValue(4.5),
+    listarDuracoesDeEntrega: jest.fn().mockResolvedValue([
+      {
+        data_inicio_entrega: new Date('2026-10-10T12:00:00Z'),
+        data_finalizacao: new Date('2026-10-10T12:20:00Z'),
+      },
+      {
+        data_inicio_entrega: new Date('2026-10-11T12:00:00Z'),
+        data_finalizacao: new Date('2026-10-11T12:40:00Z'),
+      },
+    ]),
+    somarDistanciaPercorrida: jest.fn().mockResolvedValue(1500),
+    listarEntregadoresAtivos: jest.fn().mockResolvedValue([ENTREGADOR]),
+  };
+  return {
+    servico: new DashboardService(
+      repositorio as unknown as DashboardRepository,
+    ),
+    repositorio,
+  };
+}
 
 describe('DashboardService', () => {
-  let service: DashboardService;
-  let repository: DashboardRepository;
-  const dummyIdEmpresa = 1 as number;
-  const dummyTotalPedidos = [] as any[];
-  const dummyTotalPedidosPendentes = [] as any[];
-  const dummyTotalPedidosAndamento = [] as any[];
-  const dummyTotalPedidosConcluidos = [] as any[];
-  const dummyTotalPedidosCancelados = [] as any[];
-  const dummyMediaAvaliacoes = [{ avaliacao_entrega: 5 }] as {
-    avaliacao_entrega: number;
-  }[];
-  const dummyTempoMedioEntrega = [
-    {
-      data_inicio_entrega: new Date(),
-      data_finalizacao: new Date(),
-    },
-  ];
-  const dummyTotalDistanciaPercorrida = [{ distancia: 10 }] as {
-    distancia: number;
-  }[];
-  const dummyRelatorioPorEntregador = [
-    {
-      cpf: '12345678901',
-      nome: 'Entregador Teste',
-      pedidos: [
+  it('monta o resumo da empresa no periodo pedido', async () => {
+    const { servico, repositorio } = montar();
+
+    await expect(
+      servico.montarDashboard(7, { dataInicio: INICIO }),
+    ).resolves.toEqual({
+      idEmpresa: 7,
+      totalPedidos: 10,
+      totalPedidosPendentes: 2,
+      totalPedidosAndamento: 3,
+      totalPedidosConcluidos: 4,
+      totalPedidosCancelados: 1,
+      mediaAvaliacoes: 4.5,
+      tempoMedioEntregaMinutos: 30,
+      totalDistanciaPercorrida: 1500,
+      relatorioPorEntregador: [
         {
-          status: StatusPedido.FINALIZADO,
-          valor_entrega: 15.0,
-          data_inicio_entrega: new Date(),
-          data_finalizacao: new Date(),
+          cpf: '52998224725',
+          nome: 'Entregador Teste',
+          totalPedidosAndamento: 1,
+          totalPedidosConcluidos: 2,
+          valorMedioEntrega: 1250.5,
         },
       ],
-    },
-  ] as any[];
-
-  describe('MONTADASHBOARD', () => {
-    let mockDefinirAtributos: jest.Mock;
-    let mockTotalPedidos: jest.Mock;
-    let mockTotalPedidosPendentes: jest.Mock;
-    let mockTotalPedidosAndamento: jest.Mock;
-    let mockTotalPedidosConcluidos: jest.Mock;
-    let mockTotalPedidosCancelados: jest.Mock;
-    let mockAvaliacoes: jest.Mock;
-    let mockTempoMedioEntrega: jest.Mock;
-    let mockTotalDistanciaPercorrida: jest.Mock;
-    let mockRelatorioPorEntregador: jest.Mock;
-
-    beforeEach(async () => {
-      mockDefinirAtributos = jest.fn();
-      mockTotalPedidos = jest.fn().mockResolvedValue(dummyTotalPedidos);
-      mockTotalPedidosPendentes = jest
-        .fn()
-        .mockResolvedValue(dummyTotalPedidosPendentes);
-      mockTotalPedidosAndamento = jest
-        .fn()
-        .mockResolvedValue(dummyTotalPedidosAndamento);
-      mockTotalPedidosConcluidos = jest
-        .fn()
-        .mockResolvedValue(dummyTotalPedidosConcluidos);
-      mockTotalPedidosCancelados = jest
-        .fn()
-        .mockResolvedValue(dummyTotalPedidosCancelados);
-      mockAvaliacoes = jest.fn().mockResolvedValue(dummyMediaAvaliacoes);
-      mockTempoMedioEntrega = jest
-        .fn()
-        .mockResolvedValue(dummyTempoMedioEntrega);
-      mockTotalDistanciaPercorrida = jest
-        .fn()
-        .mockResolvedValue(dummyTotalDistanciaPercorrida);
-      mockRelatorioPorEntregador = jest
-        .fn()
-        .mockResolvedValue(dummyRelatorioPorEntregador);
-
-      const module: TestingModule = await Test.createTestingModule({
-        providers: [
-          DashboardService,
-          {
-            provide: DashboardRepository,
-            useValue: {
-              definirAtributos: mockDefinirAtributos,
-              totalPedidos: mockTotalPedidos,
-              totalPedidosPendentes: mockTotalPedidosPendentes,
-              totalPedidosAndamento: mockTotalPedidosAndamento,
-              totalPedidosConcluidos: mockTotalPedidosConcluidos,
-              totalPedidosCancelados: mockTotalPedidosCancelados,
-              avaliacoes: mockAvaliacoes,
-              tempoMedioEntrega: mockTempoMedioEntrega,
-              totalDistanciaPercorrida: mockTotalDistanciaPercorrida,
-              relatorioPorEntregador: mockRelatorioPorEntregador,
-            },
-          },
-        ],
-      }).compile();
-
-      service = module.get<DashboardService>(DashboardService);
-      repository = module.get<DashboardRepository>(DashboardRepository);
     });
+    const filtro = { idEmpresa: 7, dataInicio: INICIO };
+    expect(repositorio.contarPedidos).toHaveBeenCalledWith(filtro);
+    expect(repositorio.contarPedidos).toHaveBeenCalledTimes(5);
+    expect(repositorio.listarEntregadoresAtivos).toHaveBeenCalledWith(filtro);
+  });
 
-    it('CAIXA CINZA: Fluxo Completo de montagem do dashboard', async () => {
-      const dummyReqDto = {} as DashboardReqDto;
+  it('zera as medias quando nao ha avaliacao nem entrega concluida', async () => {
+    const { servico, repositorio } = montar();
+    repositorio.mediaDasAvaliacoes.mockResolvedValue(null);
+    repositorio.listarDuracoesDeEntrega.mockResolvedValue([]);
+    repositorio.listarEntregadoresAtivos.mockResolvedValue([
+      {
+        ...ENTREGADOR,
+        pedidos: [{ status: StatusPedido.EM_ANDAMENTO, valor_entrega: 900 }],
+      },
+    ]);
 
-      const result = await service.montaDashboard(dummyIdEmpresa, dummyReqDto);
+    const resumo = await servico.montarDashboard(7, {});
 
-      expect(result).not.toBeNull();
-      expect(result).not.toBeUndefined();
+    expect(resumo.mediaAvaliacoes).toBe(0);
+    expect(resumo.tempoMedioEntregaMinutos).toBe(0);
+    expect(resumo.relatorioPorEntregador[0]).toMatchObject({
+      totalPedidosAndamento: 1,
+      totalPedidosConcluidos: 0,
+      valorMedioEntrega: 0,
     });
+  });
 
-    it('CAIXA BRANCA: Tratamento de valores vazios nas métricas de avaliações e tempo', async () => {
-      const dummyEmpresaId = 1;
-      const dummyReqDto = {} as DashboardReqDto;
+  it('devolve relatorio vazio para empresa sem entregador ativo', async () => {
+    const { servico, repositorio } = montar();
+    repositorio.listarEntregadoresAtivos.mockResolvedValue([]);
 
-      jest.spyOn(repository, 'avaliacoes').mockResolvedValue([]);
-      jest.spyOn(repository, 'tempoMedioEntrega').mockResolvedValue([]);
-      jest.spyOn(repository, 'totalDistanciaPercorrida').mockResolvedValue([]);
-      jest.spyOn(repository, 'relatorioPorEntregador').mockResolvedValue([]);
+    const resumo = await servico.montarDashboard(7, {});
 
-      const result = await service.montaDashboard(dummyEmpresaId, dummyReqDto);
-
-      expect(result.mediaAvaliacoes).toBe(0);
-      expect(result.tempoMediaEntrega).toBe(0);
-      expect(result.totalDistanciaPercorrida).toBeNull();
-      expect(result.relatorioPorEntregador).toBeNull();
-    });
-
-    it('CAIXA PRETA: Contrato de retorno da estrutura do DashboardResDto', async () => {
-      const dummyEmpresaId = 1;
-      const dummyReqDto = {} as DashboardReqDto;
-
-      const result = await service.montaDashboard(dummyEmpresaId, dummyReqDto);
-
-      // Validamos a tipagem e os valores checando propriedade por propriedade de forma estrita
-      expect(typeof result.idEmpresa).toBe('number');
-      expect(typeof result.totalPedidos).toBe('number');
-      expect(typeof result.totalPedidosPendentes).toBe('number');
-      expect(typeof result.totalPedidosAndamento).toBe('number');
-      expect(typeof result.totalPedidosConcluidos).toBe('number');
-      expect(typeof result.totalPedidosCancelados).toBe('number');
-      expect(typeof result.mediaAvaliacoes).toBe('number');
-      expect(typeof result.tempoMediaEntrega).toBe('number');
-      expect(typeof result.totalDistanciaPercorrida).toBe('number');
-      expect(Array.isArray(result.relatorioPorEntregador)).toBe(true);
-    });
+    expect(resumo.relatorioPorEntregador).toEqual([]);
   });
 });

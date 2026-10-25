@@ -1,77 +1,191 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { DashboardRepository } from '../dashboard.repository';
+import { StatusContrato, StatusPedido } from '../../generated/prisma/enums';
 import { PrismaService } from '../../prisma/prisma.service';
-import { DashboardReqDto } from '../dto/dashboard.dto';
+import {
+  DashboardRepository,
+  FiltroDoDashboard,
+} from '../dashboard.repository';
+
+jest.mock('../../prisma/prisma.service', () => ({ PrismaService: class {} }));
+
+const INICIO = new Date('2026-10-01T00:00:00Z');
+const FIM = new Date('2026-10-31T23:59:59Z');
+const SEM_PERIODO: FiltroDoDashboard = { idEmpresa: 7 };
+const OUTUBRO: FiltroDoDashboard = {
+  idEmpresa: 7,
+  dataInicio: INICIO,
+  dataFinal: FIM,
+};
+
+function montar() {
+  const prisma = {
+    pedido: {
+      count: jest.fn().mockResolvedValue(4),
+      findMany: jest.fn().mockResolvedValue([]),
+      aggregate: jest.fn().mockResolvedValue({ _sum: { distancia: 1500 } }),
+    },
+    avaliacao: {
+      aggregate: jest
+        .fn()
+        .mockResolvedValue({ _avg: { avaliacao_entrega: 4.5 } }),
+    },
+    entregador: { findMany: jest.fn().mockResolvedValue([]) },
+  };
+  return {
+    repo: new DashboardRepository(prisma as unknown as PrismaService),
+    prisma,
+  };
+}
 
 describe('DashboardRepository', () => {
-  let repository: DashboardRepository;
-  let prisma: PrismaService;
+  describe('contarPedidos', () => {
+    it('conta todos os pedidos da empresa quando nao ha periodo', async () => {
+      const { repo, prisma } = montar();
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        DashboardRepository,
-        {
-          provide: PrismaService,
-          useValue: {
-            pedido: {
-              findMany: jest.fn().mockResolvedValue([]),
-            },
-            avaliacao: {
-              findMany: jest.fn().mockResolvedValue([]),
-            },
-            entregador: {
-              findMany: jest.fn().mockResolvedValue([]),
-            },
-          },
+      await expect(repo.contarPedidos(SEM_PERIODO)).resolves.toBe(4);
+      expect(prisma.pedido.count).toHaveBeenCalledWith({
+        where: { idEmpresa: 7, status: undefined },
+      });
+    });
+
+    it('sem status, filtra o periodo pela data de criacao', async () => {
+      const { repo, prisma } = montar();
+
+      await repo.contarPedidos(OUTUBRO);
+
+      expect(prisma.pedido.count).toHaveBeenCalledWith({
+        where: {
+          idEmpresa: 7,
+          status: undefined,
+          data_criacao: { gte: INICIO, lte: FIM },
         },
-      ],
-    }).compile();
+      });
+    });
 
-    repository = module.get<DashboardRepository>(DashboardRepository);
-    prisma = module.get<PrismaService>(PrismaService);
-  });
+    it.each([
+      [StatusPedido.PENDENTE, 'data_criacao'],
+      [StatusPedido.EM_ANDAMENTO, 'data_inicio_entrega'],
+      [StatusPedido.FINALIZADO, 'data_finalizacao'],
+      [StatusPedido.CANCELADO, 'data_criacao'],
+    ])('%s entra no periodo por %s', async (status, campoData) => {
+      const { repo, prisma } = montar();
 
-  describe('DEFINIR ATRIBUTOS', () => {
-    it('CAIXA BRANCA: Atribuição correta de estado interno da classe', () => {
-      const dummyEmpresaId = {} as number;
-      const dummyDto = {
-        dataInicio: '2026-01-01',
-        dataFinal: '2026-01-31',
-      } as DashboardReqDto;
+      await repo.contarPedidos(OUTUBRO, status);
 
-      repository.definirAtributos(dummyEmpresaId, dummyDto);
+      expect(prisma.pedido.count).toHaveBeenCalledWith({
+        where: {
+          idEmpresa: 7,
+          status,
+          [campoData]: { gte: INICIO, lte: FIM },
+        },
+      });
+    });
 
-      expect(repository.idEmpresa).toBe(dummyEmpresaId);
-      expect(repository.dataInicio).toBe(dummyDto.dataInicio);
-      expect(repository.dataFinal).toBe(dummyDto.dataFinal);
+    it('aceita periodo aberto em uma das pontas', async () => {
+      const { repo, prisma } = montar();
+
+      await repo.contarPedidos({ idEmpresa: 7, dataInicio: INICIO });
+      await repo.contarPedidos({ idEmpresa: 7, dataFinal: FIM });
+
+      expect(prisma.pedido.count).toHaveBeenNthCalledWith(1, {
+        where: {
+          idEmpresa: 7,
+          status: undefined,
+          data_criacao: { gte: INICIO, lte: undefined },
+        },
+      });
+      expect(prisma.pedido.count).toHaveBeenNthCalledWith(2, {
+        where: {
+          idEmpresa: 7,
+          status: undefined,
+          data_criacao: { gte: undefined, lte: FIM },
+        },
+      });
     });
   });
 
-  describe('TOTAL PEDIDOS', () => {
-    it('CAIXA CINZA: Execução de busca no Prisma com filtros aplicados', async () => {
-      const dummyEmpresaId = {} as number;
-      const dummyDto = {} as DashboardReqDto;
-      repository.definirAtributos(dummyEmpresaId, dummyDto);
+  it('calcula a media das notas dos pedidos da empresa no periodo', async () => {
+    const { repo, prisma } = montar();
 
-      const spyFindMany = jest.spyOn(prisma.pedido, 'findMany');
-
-      const result = await repository.totalPedidos();
-
-      expect(spyFindMany).toHaveBeenCalled();
-      expect(result).toEqual([]);
+    await expect(repo.mediaDasAvaliacoes(OUTUBRO)).resolves.toBe(4.5);
+    expect(prisma.avaliacao.aggregate).toHaveBeenCalledWith({
+      where: {
+        pedido: { idEmpresa: 7 },
+        data: { gte: INICIO, lte: FIM },
+      },
+      _avg: { avaliacao_entrega: true },
     });
   });
 
-  describe('RELATORIO POR ENTREGADOR', () => {
-    it('CAIXA PRETA: Contrato de retorno da listagem de entregadores', async () => {
-      const dummyEmpresaId = {} as number;
-      const dummyDto = {} as DashboardReqDto;
-      repository.definirAtributos(dummyEmpresaId, dummyDto);
+  it('lista inicio e fim das entregas concluidas', async () => {
+    const { repo, prisma } = montar();
 
-      const result = await repository.relatorioPorEntregador();
+    await expect(repo.listarDuracoesDeEntrega(SEM_PERIODO)).resolves.toEqual(
+      [],
+    );
+    expect(prisma.pedido.findMany).toHaveBeenCalledWith({
+      where: {
+        idEmpresa: 7,
+        status: StatusPedido.FINALIZADO,
+        data_inicio_entrega: { not: null },
+        data_finalizacao: { not: null },
+      },
+      select: { data_inicio_entrega: true, data_finalizacao: true },
+    });
+  });
 
-      expect(Array.isArray(result)).toBe(true);
+  it('soma a distancia das entregas concluidas no periodo', async () => {
+    const { repo, prisma } = montar();
+
+    await expect(repo.somarDistanciaPercorrida(OUTUBRO)).resolves.toBe(1500);
+    expect(prisma.pedido.aggregate).toHaveBeenCalledWith({
+      where: {
+        idEmpresa: 7,
+        status: StatusPedido.FINALIZADO,
+        data_inicio_entrega: { not: null },
+        data_finalizacao: { gte: INICIO, lte: FIM },
+      },
+      _sum: { distancia: true },
+    });
+  });
+
+  it('soma zero quando nao ha entrega concluida', async () => {
+    const { repo, prisma } = montar();
+    prisma.pedido.aggregate.mockResolvedValue({ _sum: { distancia: null } });
+
+    await expect(repo.somarDistanciaPercorrida(SEM_PERIODO)).resolves.toBe(0);
+  });
+
+  it('lista os entregadores com contrato ativo e so os campos do relatorio', async () => {
+    const { repo, prisma } = montar();
+
+    await repo.listarEntregadoresAtivos(OUTUBRO);
+
+    expect(prisma.entregador.findMany).toHaveBeenCalledWith({
+      where: {
+        contratos: {
+          some: { status: StatusContrato.ATIVO, idEmpresa: 7 },
+        },
+      },
+      select: {
+        cpf: true,
+        nome: true,
+        pedidos: {
+          where: {
+            idEmpresa: 7,
+            OR: [
+              {
+                status: StatusPedido.EM_ANDAMENTO,
+                data_inicio_entrega: { gte: INICIO, lte: FIM },
+              },
+              {
+                status: StatusPedido.FINALIZADO,
+                data_finalizacao: { gte: INICIO, lte: FIM },
+              },
+            ],
+          },
+          select: { status: true, valor_entrega: true },
+        },
+      },
     });
   });
 });

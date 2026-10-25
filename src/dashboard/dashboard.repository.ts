@@ -1,195 +1,129 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '../generated/prisma/client';
+import { StatusContrato, StatusPedido } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
-import { DashboardReqDto } from './dto/dashboard.dto';
-import { StatusPedido } from '../generated/prisma/enums';
-import { Pedido } from '../generated/prisma/client';
-import { EntregadorEPedidos } from './type/entregador-pedido.type';
+
+export interface FiltroDoDashboard {
+  idEmpresa: number;
+  dataInicio?: Date;
+  dataFinal?: Date;
+}
+
+export interface DuracaoDaEntrega {
+  data_inicio_entrega: Date | null;
+  data_finalizacao: Date | null;
+}
+
+export interface EntregadorComPedidos {
+  cpf: string;
+  nome: string;
+  pedidos: { status: StatusPedido; valor_entrega: number }[];
+}
+
+// Cada status entra no periodo pela data da etapa que ele representa. O pedido
+// cancelado nao guarda a data do cancelamento, entao entra pela criacao.
+const DATA_DA_ETAPA: Record<StatusPedido, string> = {
+  [StatusPedido.PENDENTE]: 'data_criacao',
+  [StatusPedido.EM_ANDAMENTO]: 'data_inicio_entrega',
+  [StatusPedido.FINALIZADO]: 'data_finalizacao',
+  [StatusPedido.CANCELADO]: 'data_criacao',
+};
+
+function filtroDePeriodo(
+  campoData: string,
+  { dataInicio, dataFinal }: FiltroDoDashboard,
+) {
+  if (!dataInicio && !dataFinal) return {};
+  return { [campoData]: { gte: dataInicio, lte: dataFinal } };
+}
+
+function entregasConcluidas(
+  filtro: FiltroDoDashboard,
+): Prisma.PedidoWhereInput {
+  return {
+    idEmpresa: filtro.idEmpresa,
+    status: StatusPedido.FINALIZADO,
+    data_inicio_entrega: { not: null },
+    data_finalizacao: { not: null },
+    ...filtroDePeriodo('data_finalizacao', filtro),
+  };
+}
 
 @Injectable()
 export class DashboardRepository {
-  idEmpresa!: number;
-  dataInicio: string | null = null;
-  dataFinal: string | null = null;
   constructor(private readonly prisma: PrismaService) {}
 
-  definirAtributos(idEmpresa: number, dashboardDto: DashboardReqDto) {
-    this.idEmpresa = idEmpresa;
-    this.dataInicio = dashboardDto.dataInicio;
-    this.dataFinal = dashboardDto.dataFinal;
-  }
-
-  // Helper privado para gerar o filtro de data (trata os 4 cenários: vazio, gte, lte, gte+lte)
-  private obterFiltroData(campoData: string) {
-    if (!this.dataInicio && !this.dataFinal) return {};
-
-    return {
-      [campoData]: {
-        ...(this.dataInicio && { gte: this.dataInicio }),
-        ...(this.dataFinal && { lte: this.dataFinal }),
-      },
-    };
-  }
-
-  async totalPedidos(): Promise<Pedido[]> {
-    const resultado = await this.prisma.pedido.findMany({
+  contarPedidos(
+    filtro: FiltroDoDashboard,
+    status?: StatusPedido,
+  ): Promise<number> {
+    const campoData = status ? DATA_DA_ETAPA[status] : 'data_criacao';
+    return this.prisma.pedido.count({
       where: {
-        idEmpresa: this.idEmpresa,
-        ...this.obterFiltroData('data_criacao'),
+        idEmpresa: filtro.idEmpresa,
+        status,
+        ...filtroDePeriodo(campoData, filtro),
       },
     });
-    return resultado;
   }
 
-  async totalPedidosPendentes(): Promise<Pedido[]> {
-    const resultado = await this.prisma.pedido.findMany({
+  async mediaDasAvaliacoes(filtro: FiltroDoDashboard): Promise<number | null> {
+    const { _avg: media } = await this.prisma.avaliacao.aggregate({
       where: {
-        idEmpresa: this.idEmpresa,
-        status: StatusPedido.PENDENTE,
-        ...this.obterFiltroData('data_criacao'),
+        pedido: { idEmpresa: filtro.idEmpresa },
+        ...filtroDePeriodo('data', filtro),
       },
+      _avg: { avaliacao_entrega: true },
     });
-    return resultado;
+    return media.avaliacao_entrega;
   }
 
-  async totalPedidosAndamento(): Promise<Pedido[]> {
-    const resultado = await this.prisma.pedido.findMany({
-      where: {
-        idEmpresa: this.idEmpresa,
-        status: StatusPedido.EM_ANDAMENTO,
-        ...this.obterFiltroData('data_inicio_entrega'),
-      },
+  listarDuracoesDeEntrega(
+    filtro: FiltroDoDashboard,
+  ): Promise<DuracaoDaEntrega[]> {
+    return this.prisma.pedido.findMany({
+      where: entregasConcluidas(filtro),
+      select: { data_inicio_entrega: true, data_finalizacao: true },
     });
-    return resultado;
   }
 
-  async totalPedidosConcluidos(): Promise<Pedido[]> {
-    const resultado = await this.prisma.pedido.findMany({
-      where: {
-        idEmpresa: this.idEmpresa,
-        status: StatusPedido.FINALIZADO,
-        ...this.obterFiltroData('data_finalizacao'),
-      },
+  async somarDistanciaPercorrida(filtro: FiltroDoDashboard): Promise<number> {
+    const { _sum: soma } = await this.prisma.pedido.aggregate({
+      where: entregasConcluidas(filtro),
+      _sum: { distancia: true },
     });
-    return resultado;
+    return soma.distancia ?? 0;
   }
 
-  async totalPedidosCancelados(): Promise<Pedido[]> {
-    const resultado = await this.prisma.pedido.findMany({
+  listarEntregadoresAtivos(
+    filtro: FiltroDoDashboard,
+  ): Promise<EntregadorComPedidos[]> {
+    return this.prisma.entregador.findMany({
       where: {
-        idEmpresa: this.idEmpresa,
-        status: StatusPedido.CANCELADO,
-        ...this.obterFiltroData('data_cancelamento'),
-      },
-    });
-    return resultado;
-  }
-
-  async avaliacoes(): Promise<{ avaliacao_entrega: number }[]> {
-    const resultado = await this.prisma.avaliacao.findMany({
-      where: {
-        ...this.obterFiltroData('data'),
-        pedido: {
-          idEmpresa: this.idEmpresa,
+        contratos: {
+          some: { status: StatusContrato.ATIVO, idEmpresa: filtro.idEmpresa },
         },
       },
       select: {
-        avaliacao_entrega: true,
-      },
-    });
-
-    return resultado;
-  }
-
-  async tempoMedioEntrega(): Promise<
-    {
-      data_inicio_entrega: Date | null;
-      data_finalizacao: Date | null;
-    }[]
-  > {
-    const resultado = await this.prisma.pedido.findMany({
-      where: {
-        idEmpresa: this.idEmpresa,
-        status: StatusPedido.FINALIZADO,
-        data_inicio_entrega: { not: null },
-        data_finalizacao: { not: null },
-        ...this.obterFiltroData('data_finalizacao'),
-      },
-      select: {
-        data_inicio_entrega: true,
-        data_finalizacao: true,
-      },
-    });
-    return resultado;
-  }
-
-  async totalDistanciaPercorrida(): Promise<{ distancia: number }[]> {
-    const resultado = await this.prisma.pedido.findMany({
-      where: {
-        idEmpresa: this.idEmpresa,
-        status: StatusPedido.FINALIZADO,
-        data_inicio_entrega: { not: null },
-        data_finalizacao: { not: null },
-        ...this.obterFiltroData('data_finalizacao'),
-      },
-      select: {
-        distancia: true,
-      },
-    });
-    return resultado;
-  }
-
-  async relatorioPorEntregador(): Promise<EntregadorEPedidos[]> {
-    // Monta o filtro de data condicional para o relatório por entregador
-    const filtroDataPedido =
-      this.dataInicio || this.dataFinal
-        ? {
+        cpf: true,
+        nome: true,
+        pedidos: {
+          where: {
+            idEmpresa: filtro.idEmpresa,
             OR: [
               {
                 status: StatusPedido.EM_ANDAMENTO,
-                data_inicio_entrega: {
-                  ...(this.dataInicio && { gte: this.dataInicio }),
-                  ...(this.dataFinal && { lte: this.dataFinal }),
-                },
+                ...filtroDePeriodo('data_inicio_entrega', filtro),
               },
               {
                 status: StatusPedido.FINALIZADO,
-                data_finalizacao: {
-                  ...(this.dataInicio && { gte: this.dataInicio }),
-                  ...(this.dataFinal && { lte: this.dataFinal }),
-                },
+                ...filtroDePeriodo('data_finalizacao', filtro),
               },
             ],
-          }
-        : {};
-
-    const entregadores = await this.prisma.entregador.findMany({
-      where: {
-        contratos: {
-          some: {
-            status: 'ATIVO',
-            idEmpresa: this.idEmpresa,
           },
-        },
-      },
-      include: {
-        pedidos: {
-          where: {
-            idEmpresa: this.idEmpresa,
-            status: {
-              in: [StatusPedido.EM_ANDAMENTO, StatusPedido.FINALIZADO],
-            },
-            ...filtroDataPedido,
-          },
-          select: {
-            status: true,
-            valor_entrega: true,
-            data_inicio_entrega: true,
-            data_finalizacao: true,
-          },
+          select: { status: true, valor_entrega: true },
         },
       },
     });
-
-    return entregadores;
   }
 }
