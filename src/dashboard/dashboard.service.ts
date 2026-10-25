@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { DashboardReqDto, DashboardResDto } from './dto/dashboard.dto';
 import { DashboardRepository } from './dashboard.repository';
-import { StatusPedido } from '../generated/prisma';
+import { StatusPedido } from '../generated/prisma/enums';
+import { EntregadorEPedidos } from './type/entregador-pedido.type';
 
 @Injectable()
 export class DashboardService {
@@ -121,7 +122,7 @@ export class DashboardService {
   }
 
   private async relatorioPorEntregador() {
-    const entregadores =
+    const entregadores: EntregadorEPedidos[] =
       await this.dashboardRepository.relatorioPorEntregador();
 
     if (entregadores.length === 0) return null;
