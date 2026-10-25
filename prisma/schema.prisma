@@ -79,6 +79,7 @@ model Pedido {
   data_criacao        DateTime  @db.Timestamptz(3)
   data_inicio_entrega DateTime? @db.Timestamptz(3)
   data_finalizacao    DateTime? @db.Timestamptz(3)
+  data_cancelamento    DateTime? @db.Timestamptz(3)
   valor_entrega       Int
   idEmpresa           Int
   cpf_entregador      String?
@@ -91,11 +92,11 @@ model Pedido {
   // Igual a FK da migration: entregador com pedido nao pode ser apagado.
   entregador Entregador? @relation(fields: [cpf_entregador], references: [cpf], onDelete: Restrict)
 
-  avaliacao       Avaliacao?
-  historicos      HistoricoPedidoEntregadores[]
-  importacao      PedidoImportado?
-  acessoRecebedor AcessoRecebedor?
-  localizacao     LocalizacaoEntrega?
+  avaliacao          Avaliacao?
+  historicos         HistoricoPedidoEntregadores[]
+  importacao         PedidoImportado?
+  acessoRecebedor    AcessoRecebedor?
+  localizacao        LocalizacaoEntrega?
 }
 
 model MetricasPagamento {

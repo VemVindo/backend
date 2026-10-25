@@ -13,7 +13,7 @@ export class DashboardResDto {
   mediaAvaliacoes!: number | null;
   tempoMediaEntrega!: number | null;
   totalDistanciaPercorrida!: number | null;
-  pedidosPorEntregador!:
+  relatorioPorEntregador!:
     | null
     | {
         cpf: string;
