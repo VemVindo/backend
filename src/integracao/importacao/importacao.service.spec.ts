@@ -259,6 +259,14 @@ describe('ImportacaoService.importar', () => {
     expect(resultados[0].situacao).toBe('duplicado');
   });
 
+  it('propaga erro do banco que nao e de pedido duplicado', async () => {
+    const { service, importacoes } = montar();
+    const falha = new Error('banco fora do ar');
+    importacoes.criarPedidoImportado.mockRejectedValue(falha);
+
+    await expect(service.importar(CANTINA, [completo])).rejects.toBe(falha);
+  });
+
   it('recusa item sem idExterno valido ou que nao e objeto', async () => {
     const { service, importacoes } = montar();
 
@@ -361,6 +369,20 @@ describe('ImportacaoService.completar', () => {
       NotFoundException,
     );
     expect(importacoes.procurarPendencia).toHaveBeenCalledWith(7, PADARIA);
+  });
+
+  it('propaga erro do banco ao converter a pendencia', async () => {
+    const { service, importacoes } = montar();
+    const falha = new Error('banco fora do ar');
+    importacoes.procurarPendencia.mockResolvedValue(pendencia);
+    importacoes.converterPendencia.mockRejectedValue(falha);
+
+    await expect(
+      service.completar(CANTINA, 7, {
+        telefoneRecebedor: '61920000009',
+        cep: '70000001',
+      }),
+    ).rejects.toBe(falha);
   });
 
   it('responde 404 se outra requisicao converteu a pendencia antes', async () => {

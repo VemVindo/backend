@@ -209,7 +209,7 @@ Cada PR para a `main` roda `.github/workflows/ci.yml`. O merge só é liberado c
 | Lint e formatacao | ESLint ou Prettier apontam erro |
 | Typecheck | `tsc` falha, inclusive nos testes |
 | Testes unitarios | algum teste falha, linhas abaixo de 60% ou queda de mais de 1 ponto em relação à main |
-| Testes e2e e de API | migrations ou seed falham num banco limpo, o e2e do Jest falha ou a coleção do Postman (`test/postman/`) falha |
+| Testes e2e e de API | migrations ou seed falham num banco limpo, o e2e do Jest falha, um teste de integração (`test/*.integration-spec.ts`) falha ou a coleção do Postman (`test/postman/`) falha |
 | Schema e migrations | o `schema.prisma` mudou sem migration |
 | Seguranca | vulnerabilidade alta em dependência de produção, ou dependência nova com vulnerabilidade ou licença GPL/AGPL |
 | Imagem Docker | o build falha ou o Trivy acha vulnerabilidade crítica com correção |

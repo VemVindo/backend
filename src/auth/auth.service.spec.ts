@@ -19,6 +19,7 @@ const ONTEM = new Date(Date.now() - 24 * 60 * 60 * 1000);
 function montar() {
   const empresas = {
     procurarPorEmail: jest.fn().mockResolvedValue(null),
+    procurarPorId: jest.fn().mockResolvedValue(null),
     procurarPorDocumento: jest.fn().mockResolvedValue(null),
     criar: jest.fn(),
     encerrarSessoes: jest.fn().mockResolvedValue(undefined),
@@ -161,6 +162,110 @@ describe('AuthService login', () => {
   });
 });
 
+describe('AuthService login com a senha errada', () => {
+  it.each([
+    ['empresa', 'loginEmpresa', 'procurarPorEmail'],
+    ['entregador', 'loginEntregador', 'procurarPorCpf'],
+  ] as const)(
+    'recusa %s cadastrado com a mesma mensagem de quem nao existe',
+    async (_perfil, metodo, busca) => {
+      const { service, empresas, entregadores } = montar();
+      const repositorio =
+        busca === 'procurarPorEmail' ? empresas : entregadores;
+      (repositorio[busca] as jest.Mock).mockResolvedValue({ senha: 'hash' });
+
+      await expect(
+        service[metodo]({
+          email: 'loja@example.com',
+          cpf: CPF_FICTICIO,
+          senha: 'x',
+        }),
+      ).rejects.toThrow('Credenciais invalidas');
+    },
+  );
+
+  it('autentica a empresa com a senha certa', async () => {
+    const { service, empresas, senha } = montar();
+    empresas.procurarPorEmail.mockResolvedValue({
+      id_empresa: 7,
+      nome_fantasia: 'Loja Teste',
+      email: 'loja@example.com',
+      senha: 'hash',
+      sessao_versao: 0,
+    });
+    senha.verificar.mockResolvedValue(true);
+
+    const resposta = await service.loginEmpresa({
+      email: 'loja@example.com',
+      senha: 'x',
+    });
+
+    expect(resposta.usuario).toEqual(
+      expect.objectContaining({ cargo: Cargo.ESTABELECIMENTO }),
+    );
+  });
+});
+
+describe('AuthService.minhasInformacoes', () => {
+  it('devolve os dados da empresa logada, sem a senha', async () => {
+    const { service, empresas } = montar();
+    empresas.procurarPorId.mockResolvedValue({
+      id_empresa: 7,
+      nome_fantasia: 'Loja Teste',
+      email: 'loja@example.com',
+      senha: 'hash',
+    });
+
+    const infos = await service.minhasInformacoes({
+      usuarioId: '7',
+      cargo: Cargo.ESTABELECIMENTO,
+    });
+
+    expect(empresas.procurarPorId).toHaveBeenCalledWith(7);
+    expect(infos).toEqual({
+      id: 7,
+      nomeFantasia: 'Loja Teste',
+      email: 'loja@example.com',
+      cargo: Cargo.ESTABELECIMENTO,
+    });
+  });
+
+  it('devolve os dados do entregador com a situacao da senha temporaria', async () => {
+    const { service, entregadores } = montar();
+    entregadores.procurarPorCpf.mockResolvedValue({
+      cpf: CPF_FICTICIO,
+      nome: 'Entregador Teste',
+      senha: 'hash',
+      senha_temporaria: true,
+      senha_temporaria_expira_em: DAQUI_A_UM_DIA,
+    });
+
+    const infos = await service.minhasInformacoes({
+      usuarioId: CPF_FICTICIO,
+      cargo: Cargo.ENTREGADOR,
+    });
+
+    expect(infos).toEqual({
+      cpf: CPF_FICTICIO,
+      nome: 'Entregador Teste',
+      cargo: Cargo.ENTREGADOR,
+      senhaTemporaria: true,
+      senhaTemporariaExpiraEm: DAQUI_A_UM_DIA,
+    });
+  });
+
+  it.each([
+    ['empresa', { usuarioId: '7', cargo: Cargo.ESTABELECIMENTO }],
+    ['entregador', { usuarioId: CPF_FICTICIO, cargo: Cargo.ENTREGADOR }],
+  ])('recusa token de %s que nao existe mais', async (_perfil, usuario) => {
+    const { service } = montar();
+
+    await expect(service.minhasInformacoes(usuario)).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+});
+
 describe('AuthService login com senha temporaria expirada', () => {
   it('recusa mesmo com a senha certa', async () => {
     const { service, entregadores, senha, jwt } = montar();
@@ -248,6 +353,32 @@ describe('AuthService.trocarSenhaEntregador', () => {
     senha_temporaria_expira_em: DAQUI_A_UM_DIA,
     sessao_versao: 0,
   };
+
+  it('recusa token de entregador que nao existe mais', async () => {
+    const { service } = montar();
+
+    await expect(
+      service.trocarSenhaEntregador(usuario, {
+        senhaAtual: 'x',
+        novaSenha: 'NovaSenha@1',
+      }),
+    ).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('recusa quando a senha atual nao confere, sem gravar', async () => {
+    const { service, entregadores, senha } = montar();
+    entregadores.procurarPorCpf.mockResolvedValue(temporario);
+    senha.comparar.mockResolvedValue(false);
+
+    await expect(
+      service.trocarSenhaEntregador(usuario, {
+        senhaAtual: 'errada',
+        novaSenha: 'NovaSenha@1',
+        cienteDadosCompartilhados: true,
+      }),
+    ).rejects.toThrow('Senha atual invalida');
+    expect(entregadores.atualizarSenha).not.toHaveBeenCalled();
+  });
 
   it('recusa trocar uma senha temporaria que ja expirou', async () => {
     const { service, entregadores } = montar();
