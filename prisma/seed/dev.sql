@@ -62,7 +62,7 @@ WHERE NOT EXISTS (
 
 INSERT INTO "MetricasPagamento" ("idEmpresa", taxa_fixa, coeficiente, data)
 SELECT id_empresa, 800, 150, TIMESTAMPTZ '2026-01-01 00:00:00-03:00'
-FROM "Empresa" WHERE email = 'cantina@example.com'
+FROM "Empresa" WHERE email IN ('cantina@example.com', 'padaria@example.com')
 ON CONFLICT DO NOTHING;
 
 -- Pedidos -----------------------------------------------------------------------
@@ -94,6 +94,19 @@ INSERT INTO "HistoricoPedidoEntregadores" (id_pedido, cpf_entregador_antigo, cpf
 SELECT id_pedido, NULL, cpf_entregador, data_inicio_entrega
 FROM novos
 WHERE cpf_entregador IS NOT NULL;
+
+UPDATE "Pedido" SET distancia_conhecida = true
+WHERE distancia_conhecida IS NULL;
+
+UPDATE "Pedido" p
+SET taxa_fixa_atribuicao_centavos = m.taxa_fixa,
+    coeficiente_atribuicao_centavos_km = m.coeficiente,
+    parametros_vigentes_desde = m.data,
+    remuneracao_atribuida_em = p.data_inicio_entrega
+FROM "MetricasPagamento" m
+WHERE m."idEmpresa" = p."idEmpresa"
+  AND p.status = 'EM_ANDAMENTO'
+  AND p.remuneracao_atribuida_em IS NULL;
 
 -- Destino aproximado da SQS 308 (area publica) para o mapa da entrega em
 -- andamento funcionar sem a chave de geocodificacao do Google.
