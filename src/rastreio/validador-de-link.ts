@@ -12,8 +12,6 @@ export type ResultadoAcesso =
   | { situacao: 'encerrado' }
   | { situacao: 'invalido' };
 
-// Valida o token do link do recebedor. Fica fora do RastreioService porque o
-// guard HTTP e o gateway usam a validacao, e o service usa o gateway.
 @Injectable()
 export class ValidadorDeLink {
   constructor(private readonly rastreio: RastreioRepository) {}
@@ -29,7 +27,6 @@ export class ValidadorDeLink {
     return { situacao: 'valido', acesso };
   }
 
-  // Sem olhar o status: a avaliacao (R-US05) usa o link depois do fim.
   async procurarAcesso(token: string): Promise<AcessoComPedido | null> {
     if (!tokenComFormatoValido(token)) {
       return null;

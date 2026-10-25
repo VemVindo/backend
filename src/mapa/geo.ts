@@ -14,7 +14,6 @@ export interface Trajeto {
 
 const RAIO_DA_TERRA_M = 6_371_000;
 
-// Ruas nao sao linha reta: a distancia real costuma ficar uns 30% acima.
 const FATOR_DE_TRAJETO = 1.3;
 
 const VELOCIDADE_MEDIA_KMH: Record<string, number> = {
@@ -24,8 +23,6 @@ const VELOCIDADE_MEDIA_KMH: Record<string, number> = {
 };
 const VELOCIDADE_PADRAO_KMH = 25;
 
-// A rota so e recalculada no Google depois desse intervalo e se o entregador
-// saiu do lugar; parado, so a cada INTERVALO_MAXIMO. Isso limita o custo.
 export const INTERVALO_MINIMO_RECALCULO_MS = 60_000;
 export const INTERVALO_MAXIMO_RECALCULO_MS = 5 * 60_000;
 export const DESLOCAMENTO_MINIMO_RECALCULO_M = 50;
@@ -42,7 +39,6 @@ export function distanciaEmMetros(a: Coordenada, b: Coordenada): number {
   return 2 * RAIO_DA_TERRA_M * Math.asin(Math.sqrt(h));
 }
 
-// Usado quando o Google nao responde ou nao ha chave configurada.
 export function estimarTrajeto(
   origem: Coordenada,
   destino: Coordenada,

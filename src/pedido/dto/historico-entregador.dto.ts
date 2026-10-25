@@ -1,7 +1,5 @@
 import type { RegistroHistoricoEntregador } from '../pedido.repository';
 
-// Expoe so o nome: a empresa mantem o historico dos pedidos dela mesmo apos o
-// desvinculo, mas nao os dados pessoais do entregador.
 export interface HistoricoEntregadorDto {
   anterior: string | null;
   novo: string;

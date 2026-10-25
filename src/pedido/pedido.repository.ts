@@ -60,8 +60,6 @@ export class PedidoRepository {
     private readonly ganhos: GanhoEntregaService,
   ) {}
 
-  // Com entregador, o pedido ja nasce EM_ANDAMENTO, ocupa o entregador e abre
-  // o historico na mesma transacao, como na atribuicao.
   async criar(pedido: CriaPedidoReqDto, idEmpresa: number): Promise<Pedido> {
     const dados: Prisma.PedidoUncheckedCreateInput = {
       nome_recebedor: pedido.nome_recebedor,
@@ -180,8 +178,6 @@ export class PedidoRepository {
     });
   }
 
-  // O where repete o status lido pelo service; se o pedido mudou nesse meio
-  // tempo, nenhuma linha e afetada e nada e gravado.
   atualizarStatus(dados: DadosAtualizacaoStatus): Promise<PedidoComEntregador> {
     return this.prisma.$transaction(async (cliente_transacional) => {
       const pedido = await this.bloquear_pedido(
@@ -230,8 +226,6 @@ export class PedidoRepository {
     });
   }
 
-  // Pedido PENDENTE nao tem entregador (cpfAnterior nulo): a primeira
-  // atribuicao leva o pedido para EM_ANDAMENTO, como no cadastro.
   reatribuir(dados: DadosReatribuicao): Promise<PedidoComEntregador> {
     const { idPedido, statusAtual, cpfAnterior, cpfNovo } = dados;
 

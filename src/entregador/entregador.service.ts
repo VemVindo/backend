@@ -68,7 +68,6 @@ export class EntregadorService {
       throw erro;
     }
 
-    // Dados digitados pela propria empresa: nao expoe nada novo antes do aceite.
     return {
       entregador: {
         cpf: entregador.cpf,
@@ -82,8 +81,6 @@ export class EntregadorService {
     };
   }
 
-  // So a empresa que cadastrou o entregador, e so antes do primeiro acesso:
-  // depois que ele cria a propria senha, nenhuma empresa consegue troca-la.
   async gerarNovaSenhaTemporaria(idEmpresa: number, cpf: string) {
     const [entregador, primeiroContrato] = await Promise.all([
       this.entregadores.procurarPorCpf(cpf),
@@ -110,8 +107,6 @@ export class EntregadorService {
     return { senhaTemporaria, senhaTemporariaExpiraEm };
   }
 
-  // Mesma resposta para CPF cadastrado, inexistente ou ja convidado, para nao
-  // revelar quem e entregador na plataforma.
   async convidar(idEmpresa: number, cpf: string) {
     const entregador = await this.entregadores.procurarPorCpf(cpf);
     if (entregador) {
@@ -132,8 +127,6 @@ export class EntregadorService {
     return entregadores.map(dadosVisiveisParaEmpresa);
   }
 
-  // E-US06: as entregas em andamento nesta empresa passam para outro
-  // entregador livre da frota; sem ninguem livre, voltam para PENDENTE.
   async desvincular(
     idEmpresa: number,
     cpf: string,
@@ -153,7 +146,6 @@ export class EntregadorService {
       throw new NotFoundException('Entregador nao esta na sua frota');
     }
 
-    // Depois do commit: a posicao era do entregador removido.
     for (const { idPedido } of resultado.reatribuidos) {
       await this.localizacao.aoTrocarEntregador(idPedido);
     }

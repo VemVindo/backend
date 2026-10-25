@@ -2,7 +2,6 @@ import { StatusPedido } from '../../generated/prisma/enums';
 import { linhaDoTempo, MarcoDoPedido } from '../../rastreio/linha-do-tempo';
 import type { PedidoComEntregador } from '../pedido.repository';
 
-// E-US13: o que a empresa ve no detalhe de um pedido dela.
 export interface DetalheDoPedidoDto {
   id: number;
   status: StatusPedido;

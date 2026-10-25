@@ -3,11 +3,8 @@ import { StatusPedido } from '../../generated/prisma/enums';
 import { Coordenada } from '../geo';
 import type { PedidoComMapa } from '../localizacao.repository';
 
-// R-US04: abaixo disso a tela do recebedor avisa que o entregador esta perto.
 export const DISTANCIA_PROXIMO_M = 300;
 
-// Distancia em metros e duracao em segundos. "estimado" indica que o valor
-// veio da linha reta, nao do calculo de rota do Google.
 export interface VisaoDaEntrega {
   status: StatusPedido;
   exibirMapa: boolean;
@@ -67,8 +64,6 @@ export function montarVisao(
   };
 }
 
-// Com o mapa desligado pela empresa, o recebedor ve so distancia e tempo:
-// nenhuma coordenada sai do servidor.
 export function visaoDoRecebedor(
   visao: VisaoDaEntrega,
   exibirMapa: boolean,
