@@ -139,7 +139,7 @@ não recebe nenhum dado pessoal dele.
 | Empresa | POST | `/entregadores` | cadastra entregador novo; devolve a senha temporária e o convite fica `PENDENTE` |
 | Empresa | POST | `/entregadores/vinculo` | convida pelo CPF; responde `202` com a mesma mensagem para qualquer CPF |
 | Empresa | GET | `/entregadores` | frota: só vínculos `ATIVO` |
-| Empresa | DELETE | `/entregadores/:cpf/vinculo` | encerra o vínculo ativo |
+| Empresa | DELETE | `/entregadores/:cpf/vinculo` | remove da frota: encerra o vínculo ativo e reatribui as entregas em andamento |
 | Entregador | GET | `/entregador/dados-compartilhados` | o mesmo objeto que a empresa recebe na frota |
 | Entregador | GET | `/entregador/vinculos` | convites pendentes e vínculos ativos |
 | Entregador | POST | `/entregador/vinculos/:id/aceitar` | aceita o convite |
@@ -152,6 +152,33 @@ placa e disponibilidade. Depois do desvínculo (`RECUSADO` ou `ENCERRADO`) a
 empresa perde esses dados e fica só com o histórico dos pedidos feitos para
 ela. Rota nova que leia dados do entregador pelo lado da empresa precisa exigir
 vínculo `ATIVO`.
+
+### Remover entregador (E-US06)
+
+`DELETE /entregadores/:cpf/vinculo` faz tudo numa transação:
+
+1. encerra o contrato `ATIVO` com esta empresa (`ENCERRADO`, com `data_fim`);
+2. cada pedido `EM_ANDAMENTO` dele nesta empresa passa para outro entregador
+   da frota com vínculo `ATIVO` e `disponivel`, um pedido por entregador, e a
+   troca entra no histórico de entregadores. Como na reatribuição, os
+   parâmetros de remuneração vigentes são congelados para o novo entregador
+   (sem parâmetros configurados, a remoção responde `422` e nada muda);
+3. sem ninguém livre, o pedido volta para `PENDENTE`, sem entregador e sem
+   parâmetros congelados, e a empresa atribui de novo depois;
+4. o removido volta a `disponivel` se não sobrar entrega em andamento em
+   outra empresa.
+
+Vínculos com outras empresas, o acesso do entregador e os pedidos já
+encerrados não mudam. Resposta `200`:
+
+```json
+{
+  "reatribuidos": [{ "idPedido": 10, "entregador": { "cpf": "...", "nome": "Ana" } }],
+  "pendentes": [{ "idPedido": 11 }]
+}
+```
+
+`404` sem vínculo ativo; `409` se um pedido mudou no meio (nada é gravado).
 
 Cadastro e convite aceitam até 10 requisições por minuto por IP.
 

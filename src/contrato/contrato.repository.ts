@@ -83,19 +83,4 @@ export class ContratoRepository {
     });
     return count > 0;
   }
-
-  async encerrarPelaEmpresa(
-    idEmpresa: number,
-    cpfEntregador: string,
-  ): Promise<boolean> {
-    const { count } = await this.prisma.contrato.updateMany({
-      where: {
-        idEmpresa,
-        cpf_entregador: cpfEntregador,
-        status: StatusContrato.ATIVO,
-      },
-      data: { status: StatusContrato.ENCERRADO, data_fim: new Date() },
-    });
-    return count > 0;
-  }
 }
