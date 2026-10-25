@@ -1,14 +1,22 @@
-import { StatusContrato, StatusPedido } from '../generated/prisma/enums';
-import { PedidoAlteradoError } from '../pedido/pedido.erros';
-import { PrismaService } from '../prisma/prisma.service';
-import { RemocaoDaFrotaRepository } from './remocao-da-frota.repository';
+import { UnprocessableEntityException } from '@nestjs/common';
+import { StatusContrato, StatusPedido } from '../../generated/prisma/enums';
+import { PedidoAlteradoError } from '../../pedido/pedido.erros';
+import { PrismaService } from '../../prisma/prisma.service';
+import { GanhoEntregaService } from '../../remuneracao/ganho-entrega.service';
+import { RemocaoDaFrotaRepository } from '../remocao-da-frota.repository';
 
-jest.mock('../prisma/prisma.service', () => ({ PrismaService: class {} }));
+jest.mock('../../prisma/prisma.service', () => ({ PrismaService: class {} }));
 
 const ID_EMPRESA = 7;
 const CPF_REMOVIDO = '52998224725';
 const ANA = { cpf: '11144477735', nome: 'Ana' };
 const BRUNO = { cpf: '98765432100', nome: 'Bruno' };
+const PARAMETROS = {
+  taxa_fixa_atribuicao_centavos: 500,
+  coeficiente_atribuicao_centavos_km: 150,
+  parametros_vigentes_desde: new Date('2026-10-01T00:00:00Z'),
+  remuneracao_atribuida_em: new Date('2026-10-25T12:00:00Z'),
+};
 
 // Simula o PrismaService: $transaction executa o callback com o cliente tx.
 function montar({
@@ -41,10 +49,14 @@ function montar({
       callback(tx),
     ),
   };
+  const ganhos = {
+    capturar_parametros: jest.fn().mockResolvedValue(PARAMETROS),
+  };
   const repository = new RemocaoDaFrotaRepository(
     prisma as unknown as PrismaService,
+    ganhos as unknown as GanhoEntregaService,
   );
-  return { repository, tx };
+  return { repository, tx, ganhos };
 }
 
 describe('RemocaoDaFrotaRepository.remover', () => {
@@ -130,8 +142,9 @@ describe('RemocaoDaFrotaRepository.remover', () => {
         id_pedido: 1,
         cpf_entregador: CPF_REMOVIDO,
         status: StatusPedido.EM_ANDAMENTO,
+        ganho_consolidado_centavos: null,
       },
-      data: { cpf_entregador: ANA.cpf },
+      data: { ...PARAMETROS, cpf_entregador: ANA.cpf },
     });
     expect(tx.historicoPedidoEntregadores.create).toHaveBeenCalledWith({
       data: {
@@ -173,14 +186,58 @@ describe('RemocaoDaFrotaRepository.remover', () => {
         id_pedido: 2,
         cpf_entregador: CPF_REMOVIDO,
         status: StatusPedido.EM_ANDAMENTO,
+        ganho_consolidado_centavos: null,
       },
       data: {
+        taxa_fixa_atribuicao_centavos: null,
+        coeficiente_atribuicao_centavos_km: null,
+        parametros_vigentes_desde: null,
+        remuneracao_atribuida_em: null,
         status: StatusPedido.PENDENTE,
         cpf_entregador: null,
         data_inicio_entrega: null,
       },
     });
     expect(tx.historicoPedidoEntregadores.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('congela os parametros vigentes uma vez para a remocao', async () => {
+    const { repository, ganhos } = montar({
+      pedidos: [1, 2],
+      candidatos: [ANA, BRUNO],
+    });
+
+    await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
+
+    expect(ganhos.capturar_parametros).toHaveBeenCalledTimes(1);
+    expect(ganhos.capturar_parametros).toHaveBeenCalledWith(
+      expect.anything(),
+      ID_EMPRESA,
+      expect.any(Date),
+    );
+  });
+
+  it('nao busca parametros quando nenhum pedido e reatribuido', async () => {
+    const { repository, ganhos } = montar({ pedidos: [1] });
+
+    await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
+
+    expect(ganhos.capturar_parametros).not.toHaveBeenCalled();
+  });
+
+  it('falha sem parametros de remuneracao e nao grava a troca', async () => {
+    const { repository, tx, ganhos } = montar({
+      pedidos: [1],
+      candidatos: [ANA],
+    });
+    ganhos.capturar_parametros.mockRejectedValue(
+      new UnprocessableEntityException(),
+    );
+
+    await expect(
+      repository.remover(ID_EMPRESA, CPF_REMOVIDO),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(tx.historicoPedidoEntregadores.create).not.toHaveBeenCalled();
   });
 
   it('libera o removido quando ele fica sem entregas', async () => {

@@ -160,9 +160,11 @@ vínculo `ATIVO`.
 1. encerra o contrato `ATIVO` com esta empresa (`ENCERRADO`, com `data_fim`);
 2. cada pedido `EM_ANDAMENTO` dele nesta empresa passa para outro entregador
    da frota com vínculo `ATIVO` e `disponivel`, um pedido por entregador, e a
-   troca entra no histórico de entregadores;
-3. sem ninguém livre, o pedido volta para `PENDENTE`, sem entregador, e a
-   empresa atribui de novo depois;
+   troca entra no histórico de entregadores. Como na reatribuição, os
+   parâmetros de remuneração vigentes são congelados para o novo entregador
+   (sem parâmetros configurados, a remoção responde `422` e nada muda);
+3. sem ninguém livre, o pedido volta para `PENDENTE`, sem entregador e sem
+   parâmetros congelados, e a empresa atribui de novo depois;
 4. o removido volta a `disponivel` se não sobrar entrega em andamento em
    outra empresa.
 

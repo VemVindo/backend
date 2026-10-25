@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MetricasPagamento } from '../generated/prisma/client';
+import { MetricasPagamento, Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface NovosParametros {
@@ -16,8 +16,9 @@ export class RemuneracaoRepository {
   procurarVigentes(
     idEmpresa: number,
     agora: Date,
+    cliente_transacional: Prisma.TransactionClient = this.prisma,
   ): Promise<MetricasPagamento | null> {
-    return this.prisma.metricasPagamento.findFirst({
+    return cliente_transacional.metricasPagamento.findFirst({
       where: { idEmpresa, data: { lte: agora } },
       orderBy: { data: 'desc' },
     });

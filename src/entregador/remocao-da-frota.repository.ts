@@ -8,6 +8,7 @@ import {
   tentarOcuparEntregador,
 } from '../pedido/troca-de-entregador';
 import { PrismaService } from '../prisma/prisma.service';
+import { GanhoEntregaService } from '../remuneracao/ganho-entrega.service';
 
 export interface PedidoReatribuido {
   idPedido: number;
@@ -22,9 +23,25 @@ export interface ResultadoDaRemocao {
 
 type Candidato = { cpf: string; nome: string };
 
+type ParametrosCongelados = Awaited<
+  ReturnType<GanhoEntregaService['capturar_parametros']>
+>;
+
+// Campos que a atribuicao congela (E-US16); o pedido de volta na fila fica
+// sem eles, como um PENDENTE recem-criado.
+const SEM_PARAMETROS_CONGELADOS = {
+  taxa_fixa_atribuicao_centavos: null,
+  coeficiente_atribuicao_centavos_km: null,
+  parametros_vigentes_desde: null,
+  remuneracao_atribuida_em: null,
+} satisfies Prisma.PedidoUncheckedUpdateManyInput;
+
 @Injectable()
 export class RemocaoDaFrotaRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ganhos: GanhoEntregaService,
+  ) {}
 
   // E-US06: encerra o contrato e tira do entregador as entregas em andamento
   // desta empresa, tudo na mesma transacao. Devolve null sem vinculo ativo.
@@ -62,10 +79,21 @@ export class RemocaoDaFrotaRepository {
       }
 
       const candidatos = await this.candidatos(tx, idEmpresa, cpfEntregador);
+      // Como na reatribuicao (E-US11), o novo entregador recebe pelos
+      // parametros vigentes agora. Sem parametros, a remocao inteira falha.
+      let parametros: ParametrosCongelados | undefined;
       for (const { id_pedido: idPedido } of pedidos) {
         const novo = await this.ocuparProximo(tx, candidatos);
         if (novo) {
-          await this.passarPara(tx, idPedido, cpfEntregador, novo.cpf, agora);
+          parametros ??= await this.ganhos.capturar_parametros(
+            tx,
+            idEmpresa,
+            agora,
+          );
+          await this.passarPara(tx, idPedido, cpfEntregador, novo.cpf, {
+            agora,
+            parametros,
+          });
           resultado.reatribuidos.push({ idPedido, entregador: novo });
         } else {
           await this.devolverParaFila(tx, idPedido, cpfEntregador);
@@ -117,9 +145,10 @@ export class RemocaoDaFrotaRepository {
     idPedido: number,
     cpfAnterior: string,
     cpfNovo: string,
-    agora: Date,
+    { agora, parametros }: { agora: Date; parametros: ParametrosCongelados },
   ): Promise<void> {
     await this.alterarPedido(tx, idPedido, cpfAnterior, {
+      ...parametros,
       cpf_entregador: cpfNovo,
     });
     await registrarTroca(tx, idPedido, cpfAnterior, cpfNovo, agora);
@@ -133,6 +162,7 @@ export class RemocaoDaFrotaRepository {
     cpfAnterior: string,
   ): Promise<void> {
     await this.alterarPedido(tx, idPedido, cpfAnterior, {
+      ...SEM_PARAMETROS_CONGELADOS,
       status: StatusPedido.PENDENTE,
       cpf_entregador: null,
       data_inicio_entrega: null,
@@ -151,6 +181,7 @@ export class RemocaoDaFrotaRepository {
         id_pedido: idPedido,
         cpf_entregador: cpfAnterior,
         status: StatusPedido.EM_ANDAMENTO,
+        ganho_consolidado_centavos: null,
       },
       data,
     });
