@@ -53,6 +53,13 @@ import {
   DetalheDoPedidoDto,
   paraDetalheDoPedido,
 } from './dto/detalhe-do-pedido.dto';
+import {
+  ParametrosRemuneracao,
+  RemuneracaoService,
+} from '../remuneracao/remuneracao.service';
+import { CalculoValorEntregaService } from '../remuneracao/calculo-valor-entrega.service';
+import { GoogleMapsClient } from '../mapa/google-maps.client';
+import { Coordenada } from '../mapa/geo';
 
 const STATUS_REATRIBUIVEIS: readonly StatusPedido[] = [
   StatusPedido.PENDENTE,
@@ -71,6 +78,9 @@ export class PedidoService {
     private readonly entregadorRepository: EntregadorRepository,
     private readonly localizacao: LocalizacaoService,
     private readonly codigoDoRecebedor: CodigoDoRecebedorService,
+    private readonly remuneracaoService: RemuneracaoService,
+    private readonly calculoValorEntregaService: CalculoValorEntregaService,
+    private readonly googleMapsClient: GoogleMapsClient,
   ) {}
 
   async criar(idEmpresa: number, pedido: CriaPedidoReqDto): Promise<Pedido> {
@@ -78,6 +88,40 @@ export class PedidoService {
       await this.exigirEntregadorDisponivel(idEmpresa, pedido.cpf_entregador);
     }
 
+    const { taxaFixa, coeficienteKm }: ParametrosRemuneracao =
+      await this.remuneracaoService.consultar(idEmpresa);
+    if (taxaFixa == null || coeficienteKm == null) {
+      throw new ConflictException(
+        'Parâmetros de remuneração não configurados.',
+      );
+    }
+    const coordenadaOrigem: Coordenada = {
+      lat: pedido.lat_origem,
+      lng: pedido.long_origem,
+    };
+
+    const coordenadaDestino: Coordenada = {
+      lat: pedido.lat_destino,
+      lng: pedido.long_destino,
+    };
+
+    const calculo = await this.googleMapsClient.calcularRota(
+      coordenadaOrigem,
+      coordenadaDestino,
+      pedido.tipo_veiculo,
+    );
+
+    if (calculo == null)
+      throw new ConflictException('Falha no calculo da rota');
+
+    pedido.distancia = calculo.distanciaM;
+    pedido.valor_entrega = this.calculoValorEntregaService.calcularValorEntrega(
+      {
+        distanciaMetros: pedido.distancia,
+        taxaFixaCentavos: taxaFixa,
+        coeficienteCentavosKm: coeficienteKm,
+      },
+    );
     pedido.status = StatusFactory.criar(pedido.cpf_entregador);
     pedido.data_criacao = new Date().toISOString();
     return this.comControleDeConcorrencia(() =>

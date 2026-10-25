@@ -7,8 +7,10 @@ import {
   IsInt,
   IsPositive,
   Min,
+  IsNotEmpty,
 } from 'class-validator';
 import { StatusPedido } from '../../generated/prisma/enums';
+import type { ModoDeViagem } from 'src/mapa/geo';
 
 export class CriaPedidoReqDto {
   @IsEmpty()
@@ -58,17 +60,37 @@ export class CriaPedidoReqDto {
   @IsEmpty()
   data_finalizacao!: string;
 
-  @IsInt()
-  @Min(0)
+  @IsEmpty()
   valor_entrega!: number;
 
   @IsInt()
   @Min(0)
+  @IsEmpty()
   distancia!: number;
 
   @IsOptional()
   @IsString()
   cpf_entregador?: string;
+
+  @IsNumber()
+  @IsNotEmpty()
+  lat_origem!: number;
+
+  @IsNumber()
+  @IsNotEmpty()
+  long_origem!: number;
+
+  @IsNumber()
+  @IsNotEmpty()
+  lat_destino!: number;
+
+  @IsNumber()
+  @IsNotEmpty()
+  long_destino!: number;
+
+  @IsString()
+  @IsNotEmpty()
+  tipo_veiculo!: ModoDeViagem;
 }
 
 export class CriaPedidoResDto {

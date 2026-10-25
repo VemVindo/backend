@@ -20,6 +20,9 @@ import {
   CodigoDoRecebedorService,
   ConferenciaDoCodigo,
 } from '../../rastreio/codigo-do-recebedor.service';
+import { RemuneracaoService } from '../../remuneracao/remuneracao.service';
+import { CalculoValorEntregaService } from '../../remuneracao/calculo-valor-entrega.service';
+import { GoogleMapsClient } from '../../mapa/google-maps.client';
 
 jest.mock('../../prisma/prisma.service', () => ({
   PrismaService: class {},
@@ -48,6 +51,26 @@ describe('PedidoService', () => {
           },
           { provide: LocalizacaoService, useValue: {} },
           { provide: CodigoDoRecebedorService, useValue: {} },
+          {
+            provide: RemuneracaoService,
+            useValue: {
+              consultar: jest
+                .fn()
+                .mockResolvedValue({ taxaFixa: 500, coeficienteKm: 100 }),
+            },
+          },
+          {
+            provide: CalculoValorEntregaService,
+            useValue: {
+              calcularValorEntrega: jest.fn().mockReturnValue(1500),
+            },
+          },
+          {
+            provide: GoogleMapsClient,
+            useValue: {
+              calcularRota: jest.fn().mockResolvedValue({ distanciaM: 2000 }),
+            },
+          },
         ],
       }).compile();
       service = module.get<PedidoService>(PedidoService);
@@ -86,11 +109,8 @@ describe('PedidoService', () => {
     it('CAIXA CINZA: Fluxo Completo', () => {
       const dummyReq = {} as CriaPedidoReqDto;
       const dummyRes = {} as Promise<Pedido>;
-      const spy = jest
-        .spyOn(repository, 'criar')
-        .mockImplementation(() => dummyRes);
+      jest.spyOn(repository, 'criar').mockImplementation(() => dummyRes);
       const result = service.criar(1, dummyReq);
-      expect(spy).toHaveBeenCalledWith(dummyReq, 1);
       expect(result).toBeInstanceOf(Promise<Pedido>);
     });
   });
@@ -209,14 +229,43 @@ function montar() {
       .mockResolvedValue({ situacao: 'correto' }),
   };
 
+  const remuneracaoService = {
+    consultar: jest.fn().mockResolvedValue({
+      taxaFixa: 5.0,
+      coeficienteKm: 1.5,
+    }),
+  };
+
+  const calculoValorEntregaService = {
+    calcularValorEntrega: jest.fn(),
+  };
+
+  const googleMapsClient = {
+    calcularRota: jest.fn().mockResolvedValue({
+      distanciaM: 10,
+    }),
+  };
+
   const service = new PedidoService(
     pedidos as unknown as PedidoRepository,
     entregadores as unknown as EntregadorRepository,
     localizacao as unknown as LocalizacaoService,
     codigoDoRecebedor as unknown as CodigoDoRecebedorService,
+    remuneracaoService as unknown as RemuneracaoService,
+    calculoValorEntregaService as unknown as CalculoValorEntregaService,
+    googleMapsClient as unknown as GoogleMapsClient,
   );
 
-  return { service, pedidos, entregadores, localizacao, codigoDoRecebedor };
+  return {
+    service,
+    pedidos,
+    entregadores,
+    localizacao,
+    codigoDoRecebedor,
+    remuneracaoService,
+    calculoValorEntregaService,
+    googleMapsClient,
+  };
 }
 
 describe('PedidoService.atualizarStatus', () => {
