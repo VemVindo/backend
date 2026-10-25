@@ -1,5 +1,4 @@
 import { Logger } from '@nestjs/common';
-import type { Socket } from 'socket.io';
 import { ValidadorDeLink } from './validador-de-link';
 import {
   EVENTO_ACESSO_NEGADO,
