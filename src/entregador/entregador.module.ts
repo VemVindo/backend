@@ -1,3 +1,5 @@
+import { RepositorioDesempenhoEntregador } from './desempenho-entregador.repository';
+import { ServicoDesempenhoEntregador } from './desempenho-entregador.service';
 import { Module } from '@nestjs/common';
 import { ContratoModule } from '../contrato/contrato.module';
 import { MapaModule } from '../mapa/mapa.module';
@@ -13,6 +15,8 @@ import { RemocaoDaFrotaRepository } from './remocao-da-frota.repository';
   providers: [
     EntregadorRepository,
     EntregadorService,
+    RepositorioDesempenhoEntregador,
+    ServicoDesempenhoEntregador,
     RemocaoDaFrotaRepository,
   ],
   exports: [EntregadorRepository],
