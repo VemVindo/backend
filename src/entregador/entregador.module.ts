@@ -1,3 +1,5 @@
+import { RepositorioDesempenhoEntregador } from './desempenho-entregador.repository';
+import { ServicoDesempenhoEntregador } from './desempenho-entregador.service';
 import { Module } from '@nestjs/common';
 import { ContratoModule } from '../contrato/contrato.module';
 import { EntregadorController } from './entregador.controller';
@@ -7,7 +9,12 @@ import { EntregadorService } from './entregador.service';
 @Module({
   imports: [ContratoModule],
   controllers: [EntregadorController],
-  providers: [EntregadorRepository, EntregadorService],
+  providers: [
+    EntregadorRepository,
+    EntregadorService,
+    RepositorioDesempenhoEntregador,
+    ServicoDesempenhoEntregador,
+  ],
   exports: [EntregadorRepository],
 })
 export class EntregadorModule {}

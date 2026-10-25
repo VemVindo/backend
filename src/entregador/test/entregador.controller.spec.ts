@@ -1,3 +1,4 @@
+import { ServicoDesempenhoEntregador } from '../desempenho-entregador.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EntregadorController } from '../entregador.controller';
 import { EntregadorService } from '../entregador.service';
@@ -19,6 +20,7 @@ describe('EntregadorController', () => {
       mock = jest.fn();
       const module: TestingModule = await Test.createTestingModule({
         providers: [
+          { provide: ServicoDesempenhoEntregador, useValue: {} },
           {
             provide: EntregadorService,
             useValue: {
