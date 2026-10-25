@@ -16,8 +16,6 @@ export class SenhaService {
     return bcrypt.compare(plain, hash);
   }
 
-  // Sem usuario, compara mesmo assim: o tempo de resposta igual nao revela
-  // quais e-mails e CPFs estao cadastrados.
   async verificar(plain: string, hash: string | null | undefined) {
     if (!hash) {
       this.hashParaUsuarioInexistente ??= this.hash(

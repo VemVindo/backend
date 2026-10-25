@@ -16,8 +16,6 @@ import {
 } from '../../common/transformers/texto.transformer';
 import { UFS } from '../../common/constantes/ufs';
 
-// Campos que a empresa pode editar depois do cadastro (E-US03). O cadastro
-// (CadastrarEmpresaDto) estende esta classe, entao as validacoes sao as mesmas.
 export class AtualizarCadastroDto {
   @Trim()
   @IsString()

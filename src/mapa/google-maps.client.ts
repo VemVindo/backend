@@ -7,7 +7,6 @@ export const URL_GEOCODING =
 export const URL_ROUTES =
   'https://routes.googleapis.com/directions/v2:computeRoutes';
 
-// So os campos usados: a cobranca da Routes API depende da field mask.
 export const CAMPOS_DA_ROTA =
   'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline';
 
@@ -39,9 +38,6 @@ interface RespostaRoutes {
   }[];
 }
 
-// Qualquer falha (sem chave, erro HTTP, tempo esgotado, sem resultado) vira
-// null; quem chama cai na estimativa em linha reta. Endereco e coordenada nao
-// vao para o log.
 @Injectable()
 export class GoogleMapsClient {
   private readonly logger = new Logger(GoogleMapsClient.name);
@@ -107,7 +103,6 @@ export class GoogleMapsClient {
         origin: ponto(origem),
         destination: ponto(destino),
         travelMode: modo,
-        // Sem transito em tempo real: fica no SKU Essentials, mais barato.
         ...(modo === 'DRIVE' && { routingPreference: 'TRAFFIC_UNAWARE' }),
         languageCode: 'pt-BR',
         units: 'METRIC',

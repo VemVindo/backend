@@ -7,8 +7,6 @@ import {
 import type { RequisicaoRecebedor } from '../rastreio/acesso-recebedor.guard';
 import { ValidadorDeLink } from '../rastreio/validador-de-link';
 
-// Diferente do guard do rastreio, aceita o link depois da entrega encerrada:
-// e quando o recebedor avalia. Quem decide o que pode e o AvaliacaoService.
 @Injectable()
 export class AcessoParaAvaliarGuard implements CanActivate {
   constructor(private readonly validador: ValidadorDeLink) {}

@@ -46,13 +46,10 @@ export class EnvironmentVariables {
   @IsOptional()
   TRUST_PROXY?: string;
 
-  // 'none' quando front e API estao em sites diferentes. Default: 'lax'.
   @IsIn(['lax', 'none'])
   @IsOptional()
   COOKIE_SAMESITE?: 'lax' | 'none';
 
-  // Routes API e Geocoding API. Sem ela, distancia e tempo sao estimados em
-  // linha reta e o endereco do pedido nao vira coordenada.
   @IsString()
   @IsOptional()
   GOOGLE_MAPS_SERVER_KEY?: string;
@@ -72,8 +69,6 @@ export function validateEnv(
   return validated;
 }
 
-// O link do recebedor e montado com URL_FRONTEND (ou CORS_ORIGIN, na falta
-// dela) e leva o token de rastreio. Em HTTP, o token trafega aberto na rede.
 function exigirFrontHttpsEmProducao(
   env: EnvironmentVariables,
   nodeEnv: unknown,

@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { timingSafeEqual } from 'crypto';
-import { AcessoRecebedor } from '../generated/prisma/client';
 import { RastreioRepository } from './rastreio.repository';
 
 export const LIMITE_TENTATIVAS_CODIGO = 5;
@@ -26,9 +25,11 @@ export class CodigoDoRecebedorService {
       return { situacao: 'sem_codigo' };
     }
 
-    const tentativas = tentativasEmAndamento(acesso, agora);
-    if (tentativas >= LIMITE_TENTATIVAS_CODIGO) {
-      return { situacao: 'bloqueado', liberaEm: fimDoBloqueio(acesso) };
+    const ultima = acesso.ultima_tentativa_codigo;
+    const tentativas =
+      ultima && dentroDoBloqueio(ultima, agora) ? acesso.tentativas_codigo : 0;
+    if (ultima && tentativas >= LIMITE_TENTATIVAS_CODIGO) {
+      return { situacao: 'bloqueado', liberaEm: fimDoBloqueio(ultima) };
     }
     if (codigosIguais(codigo, acesso.codigo_recebedor)) {
       return { situacao: 'correto' };
@@ -46,15 +47,11 @@ export class CodigoDoRecebedorService {
   }
 }
 
-function tentativasEmAndamento(acesso: AcessoRecebedor, agora: Date): number {
-  const ultima = acesso.ultima_tentativa_codigo;
-  const bloqueioPassou =
-    !ultima || agora.getTime() - ultima.getTime() >= BLOQUEIO_CODIGO_MS;
-  return bloqueioPassou ? 0 : acesso.tentativas_codigo;
+function dentroDoBloqueio(ultima: Date, agora: Date): boolean {
+  return agora.getTime() - ultima.getTime() < BLOQUEIO_CODIGO_MS;
 }
 
-function fimDoBloqueio(acesso: AcessoRecebedor): Date {
-  const ultima = acesso.ultima_tentativa_codigo ?? new Date(0);
+function fimDoBloqueio(ultima: Date): Date {
   return new Date(ultima.getTime() + BLOQUEIO_CODIGO_MS);
 }
 

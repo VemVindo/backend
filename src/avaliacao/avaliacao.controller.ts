@@ -22,7 +22,6 @@ import { FiltroAvaliacoesDto } from './dto/filtro-avaliacoes.dto';
 
 const LIMITE_DE_ENVIOS = { default: { limit: 10, ttl: 60_000 } };
 
-// R-US05 e R-US06: o recebedor avalia pelo link, sem conta.
 @Controller('rastreio/:token/avaliacao')
 @Public()
 @UseGuards(AcessoParaAvaliarGuard)
@@ -53,7 +52,6 @@ export class AvaliacaoDoRecebedorController {
   }
 }
 
-// E-US17: comentarios agregados da empresa.
 @Controller('avaliacoes')
 @Cargos(Cargo.ESTABELECIMENTO)
 export class AvaliacaoDaEmpresaController {

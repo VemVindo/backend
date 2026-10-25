@@ -50,7 +50,6 @@ const CPF_NOVO = '11144477735';
 const ID_PEDIDO = 1;
 const ID_EMPRESA = 7;
 
-// Simula o PrismaService: $transaction executa o callback com o cliente tx.
 function montar() {
   const parametros_congelados = {
     taxa_fixa_atribuicao_centavos: 800,
@@ -115,7 +114,6 @@ function montar() {
   return { repository, prisma, tx };
 }
 
-// Argumento da primeira chamada de um mock, tipado para as asserções.
 function argumento<T = Record<string, Record<string, unknown>>>(
   mock: jest.Mock,
 ): T {

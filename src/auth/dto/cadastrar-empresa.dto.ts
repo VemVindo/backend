@@ -16,8 +16,6 @@ import { IsCnpj } from '../../common/validators/is-cnpj.validator';
 import { IsCpf } from '../../common/validators/is-cpf.validator';
 import { AtualizarCadastroDto } from '../../empresa/dto/atualizar-cadastro.dto';
 
-// Os dados editaveis vem de AtualizarCadastroDto; aqui ficam so os que nao
-// mudam depois do cadastro (documento e razao social) e a senha.
 export class CadastrarEmpresaDto extends AtualizarCadastroDto {
   @Maiusculo()
   @IsOptional()

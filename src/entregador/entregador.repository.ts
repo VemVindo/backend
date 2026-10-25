@@ -70,7 +70,6 @@ export class EntregadorRepository {
     });
   }
 
-  // Trocar a senha tambem encerra as sessoes abertas em outros aparelhos.
   atualizarSenha(
     cpf: string,
     senhaHash: string,
@@ -88,8 +87,6 @@ export class EntregadorRepository {
     });
   }
 
-  // senha_temporaria no where: se o entregador criou a propria senha no meio
-  // do caminho, nada muda.
   async redefinirSenhaTemporaria(
     cpf: string,
     senhaHash: string,

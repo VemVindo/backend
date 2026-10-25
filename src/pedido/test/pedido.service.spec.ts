@@ -102,7 +102,6 @@ const ID_EMPRESA = 1;
 const ID_PEDIDO = 1;
 const DATA_CRIACAO = new Date('2026-10-07T17:02:00Z');
 
-// PENDENTE nunca tem entregador; com entregador o pedido esta EM_ANDAMENTO.
 const pedidoPendente = {
   id_pedido: ID_PEDIDO,
   nome_recebedor: 'Carla Menezes',

@@ -84,8 +84,10 @@ export class EntregadorController {
     );
   }
 
+  // Responde quais pedidos em andamento foram para outro entregador e quais
+  // voltaram para PENDENTE.
   @Delete(':cpf/vinculo')
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @HttpCode(HttpStatus.OK)
   desvincular(
     @UsuarioAtual() usuario: UsuarioAutenticado,
     @Param() { cpf }: CpfParamDto,

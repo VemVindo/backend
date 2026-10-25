@@ -103,7 +103,6 @@ export class EmpresaRepository {
         cidade: dados.cidade,
         UF: dados.uf,
         cadastro_atualizado_em: agora,
-        // O ponto de saida no mapa e geocodificado de novo no proximo pedido.
         ...(enderecoMudou ? { origem_lat: null, origem_lng: null } : {}),
       },
     });

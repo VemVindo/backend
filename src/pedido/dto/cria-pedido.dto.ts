@@ -58,7 +58,6 @@ export class CriaPedidoReqDto {
   @IsEmpty()
   data_finalizacao!: string;
 
-  // Valor em centavos e distancia em metros: as colunas sao Int.
   @IsInt()
   @Min(0)
   valor_entrega!: number;
