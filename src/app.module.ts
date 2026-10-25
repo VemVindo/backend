@@ -19,6 +19,7 @@ import { PedidoModule } from './pedido/pedido.module';
 import { IntegracaoModule } from './integracao/integracao.module';
 import { MapaModule } from './mapa/mapa.module';
 import { RemuneracaoModule } from './remuneracao/remuneracao.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { RemuneracaoModule } from './remuneracao/remuneracao.module';
     IntegracaoModule,
     MapaModule,
     RemuneracaoModule,
+    DashboardModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
