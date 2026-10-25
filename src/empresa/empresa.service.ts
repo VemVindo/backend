@@ -30,7 +30,6 @@ export interface CadastroDaEmpresa {
   atualizadaEm: Date;
 }
 
-// Campos que mudam o ponto no mapa; o complemento nao entra na geocodificacao.
 const CAMPOS_DO_ENDERECO = [
   'cep',
   'logradouro',
@@ -65,7 +64,6 @@ export class EmpresaService {
     return paraCadastro(await this.exigirEmpresa(idEmpresa));
   }
 
-  // E-US03: mesmas validacoes do cadastro; o e-mail continua unico.
   async atualizarCadastro(
     idEmpresa: number,
     dados: DadosCadastrais,

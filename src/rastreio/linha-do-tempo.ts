@@ -13,9 +13,6 @@ type DatasDoPedido = Pick<
   'status' | 'data_criacao' | 'data_inicio_entrega' | 'data_finalizacao'
 >;
 
-// R-US02: as etapas que o pedido ja passou, com o horario de cada uma. Sai
-// das datas que o pedido ja guarda; a atribuicao do entregador e o inicio da
-// entrega sao o mesmo momento (EM_ANDAMENTO).
 export function linhaDoTempo(pedido: DatasDoPedido): MarcoDoPedido[] {
   const marcos: MarcoDoPedido[] = [
     { etapa: 'CRIADO', em: pedido.data_criacao },

@@ -53,8 +53,6 @@ export class RastreioService {
       );
     }
     const novo = await this.criarAcesso(idPedido);
-    // O link anterior deixa de valer, inclusive para quem ja estava com ele
-    // aberto: se vazou, para de mostrar a localizacao na hora.
     this.gateway.revogarLink(idPedido);
     return novo;
   }
@@ -64,37 +62,10 @@ export class RastreioService {
     return {
       estabelecimento: pedido.empresa.nome_fantasia,
       exibirMapa: pedido.empresa.exibir_mapa,
-      pedido: {
-        numero: pedido.id_pedido,
-        descricao: pedido.descricao,
-        recebedor: pedido.nome_recebedor,
-        status: pedido.status,
-        criadoEm: pedido.data_criacao,
-        endereco: {
-          logradouro: pedido.logradouro,
-          numero: pedido.numero,
-          complemento: pedido.complemento,
-          bairro: pedido.bairro,
-          cidade: pedido.cidade,
-          uf: pedido.uf,
-          cep: pedido.cep,
-        },
-      },
-      // So o primeiro nome: o recebedor nao precisa do nome completo.
-      entregador: pedido.entregador?.nome.trim().split(/\s+/)[0] ?? null,
+      pedido: dadosDoPedido(pedido),
+      entregador: primeiroNome(pedido.entregador?.nome),
       codigoRecebedor: acesso.codigo_recebedor,
-      whatsappEstabelecimento: STATUS_DE_ENTREGA_ENCERRADA.includes(
-        pedido.status,
-      )
-        ? null
-        : montarLinkWhatsapp(
-            pedido.empresa.telefone,
-            textoDoRecebedorParaEmpresa({
-              idPedido: pedido.id_pedido,
-              empresa: pedido.empresa.nome_fantasia,
-              recebedor: pedido.nome_recebedor,
-            }),
-          ),
+      whatsappEstabelecimento: conversaComEstabelecimento(pedido),
       linhaDoTempo: linhaDoTempo(pedido),
     };
   }
@@ -106,4 +77,43 @@ export class RastreioService {
       'http://localhost:3000';
     return `${base.replace(/\/+$/, '')}/rastreio/${token}`;
   }
+}
+
+type PedidoDoAcesso = AcessoComPedido['pedido'];
+
+function dadosDoPedido(pedido: PedidoDoAcesso) {
+  return {
+    numero: pedido.id_pedido,
+    descricao: pedido.descricao,
+    recebedor: pedido.nome_recebedor,
+    status: pedido.status,
+    criadoEm: pedido.data_criacao,
+    endereco: {
+      logradouro: pedido.logradouro,
+      numero: pedido.numero,
+      complemento: pedido.complemento,
+      bairro: pedido.bairro,
+      cidade: pedido.cidade,
+      uf: pedido.uf,
+      cep: pedido.cep,
+    },
+  };
+}
+
+function primeiroNome(nomeCompleto: string | undefined): string | null {
+  return nomeCompleto?.trim().split(/\s+/)[0] ?? null;
+}
+
+function conversaComEstabelecimento(pedido: PedidoDoAcesso): string | null {
+  if (STATUS_DE_ENTREGA_ENCERRADA.includes(pedido.status)) {
+    return null;
+  }
+  return montarLinkWhatsapp(
+    pedido.empresa.telefone,
+    textoDoRecebedorParaEmpresa({
+      idPedido: pedido.id_pedido,
+      empresa: pedido.empresa.nome_fantasia,
+      recebedor: pedido.nome_recebedor,
+    }),
+  );
 }

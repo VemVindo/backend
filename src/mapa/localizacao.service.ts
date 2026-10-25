@@ -42,12 +42,8 @@ const STATUS_ENCERRADOS: readonly StatusPedido[] = [
   StatusPedido.CANCELADO,
 ];
 
-// Endereco (do pedido ou da empresa) que o Google nao encontrou so e tentado
-// de novo depois disso.
 const ESPERA_NOVA_GEOCODIFICACAO_MS = 5 * 60_000;
 
-// O front envia uma posicao a cada 5 s; mais rapido que isso, a posicao e
-// ignorada sem gravar nem publicar (protege banco, socket e cota do Google).
 export const INTERVALO_MINIMO_POSICAO_MS = 2_000;
 
 @Injectable()
@@ -109,7 +105,6 @@ export class LocalizacaoService {
     return this.visaoCompleta(pedido);
   }
 
-  // E-US13: a empresa ve o mesmo mapa do entregador, so dos proprios pedidos.
   async consultarParaEmpresa(
     idEmpresa: number,
     idPedido: number,
@@ -135,15 +130,12 @@ export class LocalizacaoService {
     );
   }
 
-  // Chamado depois da troca de status. Entrega encerrada apaga a posicao e
-  // desconecta o recebedor. Falha aqui nao desfaz a troca de status.
   async aoMudarStatus(
     idPedido: number,
     status: StatusPedido,
     agora = new Date(),
   ): Promise<void> {
     try {
-      // O horario entra na linha do tempo do recebedor (R-US02).
       this.gateway.publicar(idPedido, EVENTO_STATUS, { status, em: agora });
       if (STATUS_ENCERRADOS.includes(status)) {
         await this.localizacoes.apagarPosicao(idPedido);
@@ -158,7 +150,6 @@ export class LocalizacaoService {
     }
   }
 
-  // A posicao era do entregador anterior: o novo comeca do zero.
   async aoTrocarEntregador(idPedido: number): Promise<void> {
     try {
       await this.localizacoes.apagarPosicao(idPedido);
@@ -172,7 +163,6 @@ export class LocalizacaoService {
     }
   }
 
-  // Entrega encerrada nao gasta geocodificacao: devolve o que ja existe.
   private async visaoCompleta(pedido: PedidoComMapa): Promise<VisaoDaEntrega> {
     const pontos =
       pedido.status === StatusPedido.EM_ANDAMENTO
@@ -219,7 +209,6 @@ export class LocalizacaoService {
     return { status: pedido.status, origem, destino };
   }
 
-  // Cada endereco e geocodificado uma vez e a coordenada fica gravada.
   private async geocodificarUmaVez(
     chave: string,
     salva: Coordenada | null,
@@ -246,8 +235,6 @@ export class LocalizacaoService {
     return coordenada;
   }
 
-  // Tres casos: recalcular no Google (com estimativa se ele falhar), manter a
-  // ultima rota do Google, ou estimar em linha reta sem custo.
   private async calcularTrajeto(
     pedido: PedidoComMapa,
     destino: Coordenada | null,
@@ -322,8 +309,6 @@ const SEM_TRAJETO = {
   rota_calculada_em: null,
 };
 
-// Vale tambem quando o Google falhou (estimado): a espera entre tentativas
-// continua contando a partir de rota_calculada_em.
 function ultimoCalculo(anterior: LocalizacaoEntrega | null) {
   if (!anterior) {
     return null;

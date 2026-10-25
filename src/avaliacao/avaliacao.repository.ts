@@ -12,7 +12,6 @@ export type AvaliacaoComEntrega = Avaliacao & {
   pedido: { id_pedido: number; entregador: { nome: string } | null };
 };
 
-// A pagina de comentarios mostra no maximo isso por consulta.
 export const LIMITE_DA_LISTA = 200;
 
 @Injectable()
@@ -29,7 +28,6 @@ export class AvaliacaoRepository {
     });
   }
 
-  // So grava se ainda nao houver comentario: o recebedor comenta uma vez.
   async registrarComentario(
     idPedido: number,
     comentario: string,

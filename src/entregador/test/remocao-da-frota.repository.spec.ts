@@ -18,7 +18,6 @@ const PARAMETROS = {
   remuneracao_atribuida_em: new Date('2026-10-25T12:00:00Z'),
 };
 
-// Simula o PrismaService: $transaction executa o callback com o cliente tx.
 function montar({
   contratoAtivo = true,
   pedidos = [] as number[],

@@ -6,7 +6,6 @@ export function expiracaoSenhaTemporaria(agora = new Date()): Date {
   );
 }
 
-// Sem prazo gravado conta como expirada: na duvida, o acesso e recusado.
 export function senhaTemporariaExpirada(
   expiraEm: Date | null,
   agora = new Date(),

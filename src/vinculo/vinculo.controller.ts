@@ -19,7 +19,6 @@ import { VinculoService } from './vinculo.service';
 export class VinculoController {
   constructor(private readonly vinculoService: VinculoService) {}
 
-  // O primeiro acesso mostra estes dados junto da troca de senha.
   @PermitirSenhaTemporaria()
   @Get('dados-compartilhados')
   dadosCompartilhados(@UsuarioAtual() usuario: UsuarioAutenticado) {
