@@ -9,6 +9,9 @@ import { LocalizacaoService } from '../../mapa/localizacao.service';
 import { CodigoDoRecebedorService } from '../../rastreio/codigo-do-recebedor.service';
 import { PedidoComContatos, PedidoRepository } from '../pedido.repository';
 import { PedidoService } from '../pedido.service';
+import { RemuneracaoService } from '../../remuneracao/remuneracao.service';
+import { CalculoValorEntregaService } from '../../remuneracao/calculo-valor-entrega.service';
+import { GoogleMapsClient } from '../../mapa/google-maps.client';
 
 jest.mock('../../prisma/prisma.service', () => ({
   PrismaService: class {},
@@ -45,6 +48,9 @@ function montar(encontrado: PedidoComContatos | null = pedido()) {
     {} as EntregadorRepository,
     {} as LocalizacaoService,
     {} as CodigoDoRecebedorService,
+    {} as RemuneracaoService,
+    {} as CalculoValorEntregaService,
+    {} as GoogleMapsClient,
   );
   return { service, pedidos };
 }
