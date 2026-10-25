@@ -8,12 +8,18 @@ import { expiracaoSenhaTemporaria } from '../common/security/senha-temporaria';
 import { SenhaService } from '../common/security/senha.service';
 import { ContratoRepository } from '../contrato/contrato.repository';
 import { Entregador } from '../generated/prisma/client';
-import { StatusContrato } from '../generated/prisma/enums';
+import { StatusContrato, StatusPedido } from '../generated/prisma/enums';
 import { TipoVeiculo } from '../common/enums/tipo-veiculo.enum';
+import { LocalizacaoService } from '../mapa/localizacao.service';
+import { PedidoAlteradoError } from '../pedido/pedido.erros';
 import { violouUnicidade } from '../prisma/prisma-errors';
 import { CadastrarEntregadorDto } from './dto/cadastrar-entregador.dto';
 import { dadosVisiveisParaEmpresa } from './dados-visiveis-empresa';
 import { EntregadorRepository } from './entregador.repository';
+import {
+  RemocaoDaFrotaRepository,
+  ResultadoDaRemocao,
+} from './remocao-da-frota.repository';
 import { EditarEntregadorReqDto } from './dto/editar-entregador.dto';
 
 export const MENSAGEM_CONVITE =
@@ -26,6 +32,8 @@ export class EntregadorService {
     private readonly entregadores: EntregadorRepository,
     private readonly contratos: ContratoRepository,
     private readonly senha: SenhaService,
+    private readonly remocao: RemocaoDaFrotaRepository,
+    private readonly localizacao: LocalizacaoService,
   ) {}
 
   async cadastrar(idEmpresa: number, dto: CadastrarEntregadorDto) {
@@ -60,7 +68,6 @@ export class EntregadorService {
       throw erro;
     }
 
-    // Dados digitados pela propria empresa: nao expoe nada novo antes do aceite.
     return {
       entregador: {
         cpf: entregador.cpf,
@@ -74,8 +81,6 @@ export class EntregadorService {
     };
   }
 
-  // So a empresa que cadastrou o entregador, e so antes do primeiro acesso:
-  // depois que ele cria a propria senha, nenhuma empresa consegue troca-la.
   async gerarNovaSenhaTemporaria(idEmpresa: number, cpf: string) {
     const [entregador, primeiroContrato] = await Promise.all([
       this.entregadores.procurarPorCpf(cpf),
@@ -102,8 +107,6 @@ export class EntregadorService {
     return { senhaTemporaria, senhaTemporariaExpiraEm };
   }
 
-  // Mesma resposta para CPF cadastrado, inexistente ou ja convidado, para nao
-  // revelar quem e entregador na plataforma.
   async convidar(idEmpresa: number, cpf: string) {
     const entregador = await this.entregadores.procurarPorCpf(cpf);
     if (entregador) {
@@ -124,11 +127,33 @@ export class EntregadorService {
     return entregadores.map(dadosVisiveisParaEmpresa);
   }
 
-  async desvincular(idEmpresa: number, cpf: string) {
-    const encerrado = await this.contratos.encerrarPelaEmpresa(idEmpresa, cpf);
-    if (!encerrado) {
+  async desvincular(
+    idEmpresa: number,
+    cpf: string,
+  ): Promise<ResultadoDaRemocao> {
+    let resultado: ResultadoDaRemocao | null;
+    try {
+      resultado = await this.remocao.remover(idEmpresa, cpf);
+    } catch (erro) {
+      if (erro instanceof PedidoAlteradoError) {
+        throw new ConflictException(
+          'Um pedido do entregador mudou durante a remocao; tente novamente',
+        );
+      }
+      throw erro;
+    }
+    if (!resultado) {
       throw new NotFoundException('Entregador nao esta na sua frota');
     }
+
+    for (const { idPedido } of resultado.reatribuidos) {
+      await this.localizacao.aoTrocarEntregador(idPedido);
+    }
+    for (const { idPedido } of resultado.pendentes) {
+      await this.localizacao.aoTrocarEntregador(idPedido);
+      await this.localizacao.aoMudarStatus(idPedido, StatusPedido.PENDENTE);
+    }
+    return resultado;
   }
 
   private cpfJaCadastrado() {

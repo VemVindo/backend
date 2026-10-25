@@ -1,6 +1,5 @@
 import { IsInt, Max, Min } from 'class-validator';
 
-// Centavos; o limite e o do Int do Postgres.
 const MAX_CENTAVOS = 2_147_483_647;
 
 export class SalvarParametrosDto {

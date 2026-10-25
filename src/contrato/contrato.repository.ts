@@ -11,7 +11,6 @@ export type ContratoComEmpresa = Contrato & {
 export class ContratoRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  // O indice parcial Contrato_vinculo_ativo_key barra um segundo convite em aberto.
   criarConvite(idEmpresa: number, cpfEntregador: string): Promise<Contrato> {
     return this.prisma.contrato.create({
       data: {
@@ -23,7 +22,6 @@ export class ContratoRepository {
     });
   }
 
-  // O primeiro contrato indica a empresa que cadastrou o entregador.
   primeiroDoEntregador(cpfEntregador: string): Promise<Contrato | null> {
     return this.prisma.contrato.findFirst({
       where: { cpf_entregador: cpfEntregador },
@@ -44,7 +42,6 @@ export class ContratoRepository {
     });
   }
 
-  // Dono e status no mesmo where: evita alterar contrato alheio ou ja respondido.
   async aceitar(idContrato: number, cpfEntregador: string): Promise<boolean> {
     const { count } = await this.prisma.contrato.updateMany({
       where: {
@@ -76,21 +73,6 @@ export class ContratoRepository {
     const { count } = await this.prisma.contrato.updateMany({
       where: {
         id_contrato: idContrato,
-        cpf_entregador: cpfEntregador,
-        status: StatusContrato.ATIVO,
-      },
-      data: { status: StatusContrato.ENCERRADO, data_fim: new Date() },
-    });
-    return count > 0;
-  }
-
-  async encerrarPelaEmpresa(
-    idEmpresa: number,
-    cpfEntregador: string,
-  ): Promise<boolean> {
-    const { count } = await this.prisma.contrato.updateMany({
-      where: {
-        idEmpresa,
         cpf_entregador: cpfEntregador,
         status: StatusContrato.ATIVO,
       },

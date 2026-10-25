@@ -6,7 +6,6 @@ import { Cargo } from '../common/enums/cargo.enum';
 import { AtualizarCadastroDto } from './dto/atualizar-cadastro.dto';
 import { EmpresaService } from './empresa.service';
 
-// E-US02 e E-US03: dados cadastrais da empresa logada.
 @Controller('empresa/cadastro')
 @Cargos(Cargo.ESTABELECIMENTO)
 export class CadastroEmpresaController {

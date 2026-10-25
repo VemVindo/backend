@@ -22,7 +22,6 @@ describe('chave de integracao', () => {
 
   it('guarda so o hash, que nao contem a chave', () => {
     const { chave, prefixo, hash } = gerarChave();
-    // O segredo e base64url e pode ter "_": corta pelo tamanho do prefixo.
     const segredo = chave.slice(`vv_${prefixo}_`.length);
 
     expect(segredo).toHaveLength(43);
