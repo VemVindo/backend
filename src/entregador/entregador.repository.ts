@@ -120,4 +120,23 @@ export class EntregadorRepository {
       data: { sessao_versao: { increment: 1 } },
     });
   }
+
+  async atualizar(
+    cpf: string,
+    nome: string | null | undefined,
+    telefone: string | null | undefined,
+    veiculo: string | null | undefined,
+    placa: string | null | undefined,
+  ): Promise<Entregador | null> {
+    return await this.prisma.entregador.update({
+      where: { cpf },
+      data: {
+        ...(nome !== undefined && nome !== null && { nome }),
+        ...(telefone !== undefined && telefone !== null && { telefone }),
+        ...(veiculo !== undefined &&
+          veiculo !== null && { tipo_veiculo: veiculo }),
+        ...(placa !== undefined && placa !== null && { placa }),
+      },
+    });
+  }
 }
