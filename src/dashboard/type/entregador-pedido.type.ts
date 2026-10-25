@@ -1,4 +1,11 @@
-import { Pedido } from 'src/generated/prisma';
+import { StatusPedido } from '../../generated/prisma';
+
+type Pedido = {
+  status: StatusPedido;
+  data_inicio_entrega: Date | null;
+  data_finalizacao: Date | null;
+  valor_entrega: number;
+};
 
 export type EntregadorEPedidos = {
   pedidos: Partial<Pedido>[];
