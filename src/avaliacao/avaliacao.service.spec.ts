@@ -87,19 +87,37 @@ describe('AvaliacaoService.avaliar', () => {
   });
 
   it.each([
-    ['ja avaliada', acesso(), AVALIACAO, AGORA, ConflictException],
-    [
-      'em andamento',
-      acesso(StatusPedido.EM_ANDAMENTO, null),
-      null,
-      AGORA,
-      ConflictException,
-    ],
-    ['cancelada', acesso(StatusPedido.CANCELADO), null, AGORA, GoneException],
-    ['fora do prazo', acesso(), null, DEPOIS_DO_PRAZO, GoneException],
+    {
+      caso: 'ja avaliada',
+      link: acesso(),
+      existente: AVALIACAO,
+      agora: AGORA,
+      erro: ConflictException,
+    },
+    {
+      caso: 'em andamento',
+      link: acesso(StatusPedido.EM_ANDAMENTO, null),
+      existente: null,
+      agora: AGORA,
+      erro: ConflictException,
+    },
+    {
+      caso: 'cancelada',
+      link: acesso(StatusPedido.CANCELADO),
+      existente: null,
+      agora: AGORA,
+      erro: GoneException,
+    },
+    {
+      caso: 'fora do prazo',
+      link: acesso(),
+      existente: null,
+      agora: DEPOIS_DO_PRAZO,
+      erro: GoneException,
+    },
   ])(
-    'recusa entrega %s sem gravar',
-    async (_caso, link, existente, agora, erro) => {
+    'recusa entrega $caso sem gravar',
+    async ({ link, existente, agora, erro }) => {
       const { service, repositorio } = montar(existente);
 
       await expect(service.avaliar(link, 5, agora)).rejects.toThrow(erro);

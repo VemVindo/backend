@@ -8,7 +8,10 @@ import { JwtService } from '@nestjs/jwt';
 import { senhaTemporariaExpirada } from '../common/security/senha-temporaria';
 import { SenhaService } from '../common/security/senha.service';
 import { Cargo } from '../common/enums/cargo.enum';
-import { EmpresaRepository } from '../empresa/empresa.repository';
+import {
+  DadosNovaEmpresa,
+  EmpresaRepository,
+} from '../empresa/empresa.repository';
 import { EntregadorRepository } from '../entregador/entregador.repository';
 import { Empresa, Entregador } from '../generated/prisma/client';
 import { violouUnicidade } from '../prisma/prisma-errors';
@@ -28,13 +31,32 @@ export class AuthService {
   ) {}
 
   async cadastrarEmpresa(dto: CadastrarEmpresaDto) {
+    this.validarDocumento(dto);
+    await this.garantirEmpresaInedita(dto);
+    const senhaHash = await this.senha.hash(dto.senha);
+    let empresa: Empresa;
+    try {
+      empresa = await this.empresas.criar(this.dadosEmpresa(dto, senhaHash));
+    } catch (erro) {
+      if (violouUnicidade(erro)) {
+        throw new ConflictException('E-mail ou documento ja cadastrado');
+      }
+      throw erro;
+    }
+
+    return this.respostaEmpresa(empresa);
+  }
+
+  private validarDocumento(dto: CadastrarEmpresaDto) {
     if (!dto.cnpj === !dto.cpf) {
       throw new BadRequestException('Informe CNPJ ou CPF, apenas um deles');
     }
     if (dto.cnpj && !dto.razaoSocial) {
       throw new BadRequestException('Razao social e obrigatoria para CNPJ');
     }
+  }
 
+  private async garantirEmpresaInedita(dto: CadastrarEmpresaDto) {
     const [email, documento] = await Promise.all([
       this.empresas.procurarPorEmail(dto.email),
       this.empresas.procurarPorDocumento(dto.cnpj ?? null, dto.cpf ?? null),
@@ -45,34 +67,28 @@ export class AuthService {
     if (documento) {
       throw new ConflictException('Documento ja cadastrado');
     }
+  }
 
-    const senhaHash = await this.senha.hash(dto.senha);
-    let empresa: Empresa;
-    try {
-      empresa = await this.empresas.criar({
-        nomeFantasia: dto.nomeFantasia,
-        email: dto.email,
-        telefone: dto.telefone,
-        cnpj: dto.cnpj ?? null,
-        cpf: dto.cpf ?? null,
-        cep: dto.cep,
-        logradouro: dto.logradouro,
-        numero: dto.numero,
-        complemento: dto.complemento ?? null,
-        bairro: dto.bairro,
-        cidade: dto.cidade,
-        uf: dto.uf,
-        razaoSocial: dto.razaoSocial ?? null,
-        senhaHash,
-      });
-    } catch (erro) {
-      if (violouUnicidade(erro)) {
-        throw new ConflictException('E-mail ou documento ja cadastrado');
-      }
-      throw erro;
-    }
-
-    return this.respostaEmpresa(empresa);
+  private dadosEmpresa(
+    dto: CadastrarEmpresaDto,
+    senhaHash: string,
+  ): DadosNovaEmpresa {
+    return {
+      nomeFantasia: dto.nomeFantasia,
+      email: dto.email,
+      telefone: dto.telefone,
+      cnpj: dto.cnpj ?? null,
+      cpf: dto.cpf ?? null,
+      cep: dto.cep,
+      logradouro: dto.logradouro,
+      numero: dto.numero,
+      complemento: dto.complemento ?? null,
+      bairro: dto.bairro,
+      cidade: dto.cidade,
+      uf: dto.uf,
+      razaoSocial: dto.razaoSocial ?? null,
+      senhaHash,
+    };
   }
 
   async loginEmpresa(dto: LoginEmpresaDto) {
