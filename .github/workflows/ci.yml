@@ -47,7 +47,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/preparar
 
-      # Falha se algum teste falhar ou se a cobertura de linhas ficar abaixo
+      # Falha se algum teste falhar ou se alguma metrica de cobertura ficar abaixo
       # do coverageThreshold do package.json.
       - name: Testes com cobertura
         run: npm run test:ci
