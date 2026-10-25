@@ -184,7 +184,11 @@ describe('E-US04 cadastro e convite de entregador (e2e)', () => {
   });
 
   it('a empresa encerra o vinculo e perde o entregador da frota', async () => {
-    await cantina.delete(`/entregadores/${cpfNovo}/vinculo`).expect(204);
+    const remocao = await cantina
+      .delete(`/entregadores/${cpfNovo}/vinculo`)
+      .expect(200);
+
+    expect(remocao.body).toEqual({ reatribuidos: [], pendentes: [] });
 
     expect(await cpfsDaFrota()).not.toContain(cpfNovo);
     await cantina.delete(`/entregadores/${cpfNovo}/vinculo`).expect(404);
