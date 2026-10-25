@@ -8,7 +8,10 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
+import { ServicoDesempenhoEntregador } from './desempenho-entregador.service';
+import { FiltroDesempenhoDto } from './dto/filtro-desempenho.dto';
 import { Throttle } from '@nestjs/throttler';
 import { Cargos } from '../auth/decorators/cargos.decorator';
 import { UsuarioAtual } from '../auth/decorators/usuario-atual.decorator';
@@ -26,7 +29,23 @@ const LIMITE_OPERACOES_POR_CPF = { default: { limit: 10, ttl: 60_000 } };
 @Controller('entregadores')
 @Cargos(Cargo.ESTABELECIMENTO)
 export class EntregadorController {
-  constructor(private readonly entregadorService: EntregadorService) {}
+  constructor(
+    private readonly entregadorService: EntregadorService,
+    private readonly servico_desempenho: ServicoDesempenhoEntregador,
+  ) {}
+
+  @Get(':cpf/desempenho')
+  consultar_desempenho(
+    @UsuarioAtual() usuario_autenticado: UsuarioAutenticado,
+    @Param() { cpf: cpf_entregador }: CpfParamDto,
+    @Query() filtro_periodo: FiltroDesempenhoDto,
+  ) {
+    return this.servico_desempenho.consultar_desempenho(
+      Number(usuario_autenticado.empresaId),
+      cpf_entregador,
+      filtro_periodo,
+    );
+  }
 
   @Throttle(LIMITE_OPERACOES_POR_CPF)
   @Post()
