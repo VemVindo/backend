@@ -51,13 +51,10 @@ descreverIntegracao('E-US16 PostgreSQL: transacoes reais e migration', () => {
       valor_entrega: 123,
       cpf_entregador: cpf,
     }) as CriaPedidoReqDto;
-  const finalizarPedido = (
-    id_pedido: number,
-    cpf_entregador = cpfEntregadorA,
-  ) =>
+  const finalizarPedido = (idPedido: number, cpfEntregador = cpfEntregadorA) =>
     repositorioPedidos.atualizarStatus({
-      idPedido: id_pedido,
-      cpfEntregador: cpf_entregador,
+      idPedido,
+      cpfEntregador,
       statusAtual: StatusPedido.EM_ANDAMENTO,
       novoStatus: StatusPedido.FINALIZADO,
       finalizar: true,

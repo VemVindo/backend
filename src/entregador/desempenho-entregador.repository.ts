@@ -5,79 +5,51 @@ import { PrismaService } from '../prisma/prisma.service';
 import { IndicadoresDesempenho } from './dto/desempenho-entregador.dto';
 
 type IndicadoresDoBanco = {
-  [campo_indicador in keyof IndicadoresDesempenho]:
-    IndicadoresDesempenho[campo_indicador] | bigint;
+  [campoIndicador in keyof IndicadoresDesempenho]:
+    IndicadoresDesempenho[campoIndicador] | bigint;
 };
 
 @Injectable()
 export class RepositorioDesempenhoEntregador {
-  constructor(private readonly cliente_prisma: PrismaService) {}
+  constructor(private readonly clientePrisma: PrismaService) {}
 
-  agregar_desempenho(
-    id_empresa: number,
-    cpf_entregador: string,
-    data_inicio_periodo: Date,
-    data_fim_periodo: Date,
+  agregarDesempenho(
+    idEmpresa: number,
+    cpfEntregador: string,
+    dataInicioPeriodo: Date,
+    dataFimPeriodo: Date,
   ): Promise<IndicadoresDesempenho | null> {
-    return this.cliente_prisma.$transaction(
-      async (cliente_transacional) => {
-        const entregador_vinculado =
-          await cliente_transacional.entregador.findFirst({
+    return this.clientePrisma.$transaction(
+      async (clienteTransacional) => {
+        const entregadorVinculado =
+          await clienteTransacional.entregador.findFirst({
             where: {
-              cpf: cpf_entregador,
+              cpf: cpfEntregador,
               contratos: {
-                some: { idEmpresa: id_empresa, status: StatusContrato.ATIVO },
+                some: { idEmpresa, status: StatusContrato.ATIVO },
               },
             },
             select: { cpf: true },
           });
-        if (!entregador_vinculado) return null;
-        const [indicadores_desempenho] = await cliente_transacional.$queryRaw<
+        if (!entregadorVinculado) return null;
+        const [indicadoresDesempenho] = await clienteTransacional.$queryRaw<
           IndicadoresDoBanco[]
         >(
-          montar_consulta_desempenho(
-            id_empresa,
-            cpf_entregador,
-            data_inicio_periodo,
-            data_fim_periodo,
+          montarConsultaDesempenho(
+            idEmpresa,
+            cpfEntregador,
+            dataInicioPeriodo,
+            dataFimPeriodo,
           ),
         );
-        return normalizar_indicadores(indicadores_desempenho);
+        return normalizarIndicadores(indicadoresDesempenho);
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
     );
   }
 }
 
-function montar_consulta_desempenho(
-  id_empresa: number,
-  cpf_entregador: string,
-  data_inicio_periodo: Date,
-  data_fim_periodo: Date,
-): Prisma.Sql {
-  return Prisma.sql`
-  WITH entregas AS (
-    SELECT pedido.id_pedido, pedido.distancia, pedido.distancia_conhecida,
-      CASE
-        WHEN atribuicao.cpf_entregador_novo = pedido.cpf_entregador
-          AND atribuicao.data >= pedido.data_criacao
-          AND atribuicao.data <= pedido.data_finalizacao
-        THEN EXTRACT(EPOCH FROM (pedido.data_finalizacao - atribuicao.data))::double precision
-      END AS tempo_segundos
-    FROM "Pedido" pedido
-    LEFT JOIN LATERAL (
-      SELECT historico.data, historico.cpf_entregador_novo
-      FROM "HistoricoPedidoEntregadores" historico
-      WHERE historico.id_pedido = pedido.id_pedido
-      ORDER BY historico.data DESC, historico.id_historico DESC
-      LIMIT 1
-    ) atribuicao ON TRUE
-    WHERE pedido."idEmpresa" = ${id_empresa}
-      AND pedido.cpf_entregador = ${cpf_entregador}
-      AND pedido.status = 'FINALIZADO'
-      AND pedido.data_finalizacao >= ${data_inicio_periodo}
-      AND pedido.data_finalizacao < ${data_fim_periodo}
-  )
+const AGREGACAO_DESEMPENHO = Prisma.sql`
   SELECT COUNT(*) AS total_entregas,
     AVG(entregas.tempo_segundos)::double precision AS tempo_medio_entrega_segundos,
     COUNT(entregas.tempo_segundos) AS entregas_com_tempo_valido,
@@ -99,21 +71,52 @@ function montar_consulta_desempenho(
   FROM entregas
   LEFT JOIN "Avaliacao" avaliacao ON avaliacao.idpedidos = entregas.id_pedido
 `;
+
+function montarConsultaDesempenho(
+  idEmpresa: number,
+  cpfEntregador: string,
+  dataInicioPeriodo: Date,
+  dataFimPeriodo: Date,
+): Prisma.Sql {
+  return Prisma.sql`
+  WITH entregas AS (
+    SELECT pedido.id_pedido, pedido.distancia, pedido.distancia_conhecida,
+      CASE
+        WHEN atribuicao.cpf_entregador_novo = pedido.cpf_entregador
+          AND atribuicao.data >= pedido.data_criacao
+          AND atribuicao.data <= pedido.data_finalizacao
+        THEN EXTRACT(EPOCH FROM (pedido.data_finalizacao - atribuicao.data))::double precision
+      END AS tempo_segundos
+    FROM "Pedido" pedido
+    LEFT JOIN LATERAL (
+      SELECT historico.data, historico.cpf_entregador_novo
+      FROM "HistoricoPedidoEntregadores" historico
+      WHERE historico.id_pedido = pedido.id_pedido
+      ORDER BY historico.data DESC, historico.id_historico DESC
+      LIMIT 1
+    ) atribuicao ON TRUE
+    WHERE pedido."idEmpresa" = ${idEmpresa}
+      AND pedido.cpf_entregador = ${cpfEntregador}
+      AND pedido.status = 'FINALIZADO'
+      AND pedido.data_finalizacao >= ${dataInicioPeriodo}
+      AND pedido.data_finalizacao < ${dataFimPeriodo}
+  )
+  ${AGREGACAO_DESEMPENHO}`;
 }
 
-function normalizar_indicadores(
-  indicadores_desempenho: IndicadoresDoBanco,
+function normalizarIndicadores(
+  indicadoresDesempenho: IndicadoresDoBanco,
 ): IndicadoresDesempenho {
   return Object.fromEntries(
-    Object.entries(indicadores_desempenho).map(
-      ([campo_indicador, valor_indicador]) => {
-        if (typeof valor_indicador !== 'bigint')
-          return [campo_indicador, valor_indicador];
-        const inteiro_indicador = Number(valor_indicador);
-        if (!Number.isSafeInteger(inteiro_indicador)) {
+    Object.entries(indicadoresDesempenho).map(
+      ([campoIndicador, valorIndicador]) => {
+        if (typeof valorIndicador !== 'bigint')
+          return [campoIndicador, valorIndicador];
+        const inteiroIndicador = Number(valorIndicador);
+        if (!Number.isSafeInteger(inteiroIndicador)) {
           throw new RangeError('Indicador excede o limite numerico seguro');
         }
-        return [campo_indicador, inteiro_indicador];
+        return [campoIndicador, inteiroIndicador];
       },
     ),
   ) as IndicadoresDesempenho;
