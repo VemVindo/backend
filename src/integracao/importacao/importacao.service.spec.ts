@@ -32,7 +32,7 @@ const METRICAS = {
 type Repositorio = ImportacaoRepository;
 const mockDe = <K extends keyof Repositorio>() =>
   jest.fn<ReturnType<Repositorio[K]>, Parameters<Repositorio[K]>>();
-const pedido = (id_pedido: number) => ({ id_pedido }) as Pedido;
+const pedido = (idPedido: number) => ({ id_pedido: idPedido }) as Pedido;
 const importado = (dados: Partial<PedidoImportado>) => dados as PedidoImportado;
 
 const camposDoPedido = {

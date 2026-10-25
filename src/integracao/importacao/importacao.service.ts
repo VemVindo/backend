@@ -276,10 +276,10 @@ export class ImportacaoService {
     if (!metricas) {
       return VALOR_SEM_PARAMETROS_DE_REMUNERACAO;
     }
-    return this.calculoValor.calcular_valor_entrega({
-      distancia_metros: distancia,
-      taxa_fixa_centavos: metricas.taxa_fixa,
-      coeficiente_centavos_km: metricas.coeficiente,
+    return this.calculoValor.calcularValorEntrega({
+      distanciaMetros: distancia,
+      taxaFixaCentavos: metricas.taxa_fixa,
+      coeficienteCentavosKm: metricas.coeficiente,
     });
   }
 }

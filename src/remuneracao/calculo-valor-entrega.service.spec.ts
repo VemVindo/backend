@@ -4,7 +4,7 @@ import {
   type DadosCalculoValorEntrega,
 } from './calculo-valor-entrega.service';
 
-const casos_validos = [
+const casosValidos = [
   [4200, 800, 150, 1430],
   [1000, 200, 300, 500],
   [2500, 100, 200, 600],
@@ -25,20 +25,20 @@ const casos_validos = [
 ];
 
 function dados(
-  distancia_metros: number,
-  taxa_fixa_centavos: number,
-  coeficiente_centavos_km: number,
+  distanciaMetros: number,
+  taxaFixaCentavos: number,
+  coeficienteCentavosKm: number,
 ): DadosCalculoValorEntrega {
-  return { distancia_metros, taxa_fixa_centavos, coeficiente_centavos_km };
+  return { distanciaMetros, taxaFixaCentavos, coeficienteCentavosKm };
 }
 
 describe('CalculoValorEntregaService', () => {
   const service = new CalculoValorEntregaService();
 
-  it.each(casos_validos)(
+  it.each(casosValidos)(
     'calcula %i metros com taxa %i e coeficiente %i como %i centavos',
     (distancia, taxa, coeficiente, esperado) => {
-      const resultado = service.calcular_valor_entrega(
+      const resultado = service.calcularValorEntrega(
         dados(distancia, taxa, coeficiente),
       );
       expect(resultado).toBe(esperado);
@@ -46,7 +46,7 @@ describe('CalculoValorEntregaService', () => {
     },
   );
 
-  const valores_invalidos: unknown[] = [
+  const valoresInvalidos: unknown[] = [
     -1,
     0.5,
     NaN,
@@ -63,18 +63,18 @@ describe('CalculoValorEntregaService', () => {
     -Number.MAX_SAFE_INTEGER - 1,
   ];
   const campos = [
-    'distancia_metros',
-    'taxa_fixa_centavos',
-    'coeficiente_centavos_km',
+    'distanciaMetros',
+    'taxaFixaCentavos',
+    'coeficienteCentavosKm',
   ] as const;
 
   it.each(
     campos.flatMap((campo) =>
-      valores_invalidos.map((valor) => ({ campo, valor })),
+      valoresInvalidos.map((valor) => ({ campo, valor })),
     ),
   )('rejeita $campo com valor $valor', ({ campo, valor }) => {
     const entrada = { ...dados(4200, 800, 150), [campo]: valor };
-    expect(() => service.calcular_valor_entrega(entrada)).toThrow(
+    expect(() => service.calcularValorEntrega(entrada)).toThrow(
       BadRequestException,
     );
   });
@@ -83,7 +83,7 @@ describe('CalculoValorEntregaService', () => {
     const entrada: Partial<DadosCalculoValorEntrega> = dados(4200, 800, 150);
     delete entrada[campo];
     expect(() =>
-      service.calcular_valor_entrega(entrada as DadosCalculoValorEntrega),
+      service.calcularValorEntrega(entrada as DadosCalculoValorEntrega),
     ).toThrow(BadRequestException);
   });
 
@@ -91,7 +91,7 @@ describe('CalculoValorEntregaService', () => {
     'rejeita objeto de entrada invalido %p',
     (entrada) => {
       expect(() =>
-        service.calcular_valor_entrega(entrada as DadosCalculoValorEntrega),
+        service.calcularValorEntrega(entrada as DadosCalculoValorEntrega),
       ).toThrow(BadRequestException);
     },
   );
@@ -104,17 +104,17 @@ describe('CalculoValorEntregaService', () => {
     [1000, Number.MAX_SAFE_INTEGER, 1],
   ])('rejeita resultado excedente para %i, %i, %i', (distancia, taxa, coef) => {
     expect(() =>
-      service.calcular_valor_entrega(dados(distancia, taxa, coef)),
+      service.calcularValorEntrega(dados(distancia, taxa, coef)),
     ).toThrow(BadRequestException);
   });
 
-  it.each(casos_validos)(
+  it.each(casosValidos)(
     'preserva a entrada e e deterministico para %i, %i, %i',
     (distancia, taxa, coeficiente, esperado) => {
       const entrada = Object.freeze(dados(distancia, taxa, coeficiente));
       const original = { ...entrada };
-      expect(service.calcular_valor_entrega(entrada)).toBe(esperado);
-      expect(service.calcular_valor_entrega(entrada)).toBe(esperado);
+      expect(service.calcularValorEntrega(entrada)).toBe(esperado);
+      expect(service.calcularValorEntrega(entrada)).toBe(esperado);
       expect(entrada).toEqual(original);
     },
   );

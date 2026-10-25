@@ -135,7 +135,7 @@
 
 export const dataController = {
   valido: {
-    stub_controller_criar: {
+    stubControllerCriar: {
       id_pedido: 123,
       nome_recebedor: 'Ana Clara Silva',
       telefone_recebedor: '119876543210',

@@ -90,14 +90,14 @@ export class PedidoService {
     return pedidos.map(paraPedidoResumo);
   }
 
-  async corrigir_distancia(
-    id_empresa: number,
-    id_pedido: number,
-    distancia_metros: number,
+  async corrigirDistancia(
+    idEmpresa: number,
+    idPedido: number,
+    distanciaMetros: number,
   ): Promise<PedidoResumoDto> {
     const pedido = await this.pedidoRepository.procurarPorEmpresa(
-      id_pedido,
-      id_empresa,
+      idPedido,
+      idEmpresa,
     );
     if (!pedido) throw new NotFoundException('Pedido não encontrado');
     if (
@@ -108,14 +108,14 @@ export class PedidoService {
         'A distância só pode ser corrigida antes da conclusão da entrega',
       );
     }
-    const pedido_atualizado = await this.comControleDeConcorrencia(() =>
-      this.pedidoRepository.corrigir_distancia(
-        id_pedido,
-        id_empresa,
-        distancia_metros,
+    const pedidoAtualizado = await this.comControleDeConcorrencia(() =>
+      this.pedidoRepository.corrigirDistancia(
+        idPedido,
+        idEmpresa,
+        distanciaMetros,
       ),
     );
-    return paraPedidoResumo(pedido_atualizado);
+    return paraPedidoResumo(pedidoAtualizado);
   }
 
   async detalhar(
