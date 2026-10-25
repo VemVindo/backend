@@ -1,0 +1,243 @@
+import { INestApplication } from '@nestjs/common';
+import request from 'supertest';
+import { App } from 'supertest/types';
+import {
+  Agente,
+  BRUNO,
+  CANTINA,
+  PADARIA,
+  criarAppDeTeste,
+  entrarComoEmpresa,
+  entrarComoEntregador,
+} from './app-e2e';
+
+interface PedidoResumo {
+  id: number;
+  status: string;
+  entregador: string | null;
+  distanciaConhecida: boolean | null;
+  ganhoConsolidadoCentavos: number | null;
+}
+
+interface AvaliacaoNaLista {
+  idPedido: number;
+  nota: number;
+  comentario: string | null;
+}
+
+// Percorre a entrega inteira pelas rotas HTTP, na ordem em que acontece:
+// cadastro, atribuicao, link de rastreio, finalizacao com codigo e avaliacao.
+// Cria um pedido proprio, entao pode rodar de novo sobre o mesmo seed.
+// Bruno fica livre no fim, porque finalizar devolve a disponibilidade.
+describe('Fluxo da entrega (e2e)', () => {
+  let app: INestApplication<App>;
+  let cantina: Agente;
+  let padaria: Agente;
+  let bruno: Agente;
+  let idPedido: number;
+  let token: string;
+  let codigoRecebedor: string;
+
+  beforeAll(async () => {
+    app = await criarAppDeTeste();
+    cantina = await entrarComoEmpresa(app, CANTINA);
+    padaria = await entrarComoEmpresa(app, PADARIA);
+    bruno = await entrarComoEntregador(app, BRUNO);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('cadastra o pedido como pendente', async () => {
+    const resposta = await cantina
+      .post('/pedidos')
+      .send({
+        nome_recebedor: 'Teste Ponta a Ponta',
+        telefone_recebedor: '61920009999',
+        cep: '70000000',
+        logradouro: 'Rua de Teste',
+        numero: 1,
+        bairro: 'Centro',
+        cidade: 'Brasilia',
+        uf: 'DF',
+        descricao: 'Pedido do teste e2e',
+        valor_entrega: 1025,
+        distancia: 1500,
+      })
+      .expect(201);
+
+    expect(resposta.body).toMatchObject({ status: 'PENDENTE' });
+    idPedido = (resposta.body as { id_pedido: number }).id_pedido;
+  });
+
+  it('recusa pedido com campo obrigatorio faltando', () => {
+    return cantina.post('/pedidos').send({ descricao: 'sem nada' }).expect(400);
+  });
+
+  it('esconde o pedido de outra empresa', () => {
+    return padaria.get(`/pedidos/${idPedido}`).expect(404);
+  });
+
+  it('atribui ao Bruno e coloca a entrega em andamento', async () => {
+    const resposta = await cantina
+      .patch(`/pedidos/${idPedido}/atribuir`)
+      .send({ cpfEntregador: BRUNO.cpf })
+      .expect(200);
+
+    expect(resposta.body).toMatchObject({
+      id: idPedido,
+      status: 'EM_ANDAMENTO',
+      entregador: 'Bruno Lima',
+    });
+  });
+
+  it('nao atribui de novo um pedido que ja tem entregador', () => {
+    return cantina
+      .patch(`/pedidos/${idPedido}/atribuir`)
+      .send({ cpfEntregador: BRUNO.cpf })
+      .expect(409);
+  });
+
+  it('corrige a distancia antes da conclusao', async () => {
+    const resposta = await cantina
+      .patch(`/pedidos/${idPedido}/distancia`)
+      .send({ distanciaMetros: 2000 })
+      .expect(200);
+
+    expect((resposta.body as PedidoResumo).distanciaConhecida).toBe(true);
+  });
+
+  it('mostra a entrega na lista do entregador', async () => {
+    const resposta = await bruno.get('/pedidos/minhas-entregas').expect(200);
+
+    const ids = (resposta.body as { id: number }[]).map((p) => p.id);
+    expect(ids).toContain(idPedido);
+  });
+
+  it('so oferece a finalizacao com codigo', async () => {
+    const resposta = await bruno
+      .get(`/pedidos/${idPedido}/status-disponiveis`)
+      .expect(200);
+
+    expect(resposta.body).toEqual({
+      statusAtual: 'EM_ANDAMENTO',
+      statusDisponiveis: [],
+      podeFinalizarComCodigo: true,
+    });
+  });
+
+  it('nao finaliza antes de o recebedor ter o codigo', () => {
+    return bruno
+      .post(`/pedidos/${idPedido}/finalizar`)
+      .send({ codigo: '123456' })
+      .expect(409);
+  });
+
+  it('gera o link de rastreio com o codigo do recebedor', async () => {
+    const resposta = await cantina
+      .post(`/pedidos/${idPedido}/link-rastreio`)
+      .expect(200);
+
+    const corpo = resposta.body as { link: string; codigoRecebedor: string };
+    expect(corpo.codigoRecebedor).toMatch(/^\d{6}$/);
+    token = corpo.link.split('/rastreio/')[1];
+    codigoRecebedor = corpo.codigoRecebedor;
+    expect(token).toBeTruthy();
+  });
+
+  it('abre o rastreio pelo link, sem login', async () => {
+    const resposta = await request(app.getHttpServer())
+      .get(`/rastreio/${token}`)
+      .expect(200);
+
+    expect(resposta.body).toMatchObject({
+      estabelecimento: 'Cantina Dona Marta',
+      entregador: 'Bruno',
+      pedido: { numero: idPedido, status: 'EM_ANDAMENTO' },
+    });
+  });
+
+  it('recusa link de rastreio inventado', () => {
+    return request(app.getHttpServer())
+      .get('/rastreio/link-que-nao-existe')
+      .expect(404);
+  });
+
+  it('recusa o codigo errado e conta a tentativa', async () => {
+    const errado = codigoRecebedor === '000000' ? '111111' : '000000';
+
+    const resposta = await bruno
+      .post(`/pedidos/${idPedido}/finalizar`)
+      .send({ codigo: errado })
+      .expect(422);
+
+    expect(resposta.body).toMatchObject({ tentativasRestantes: 4 });
+  });
+
+  it('finaliza com o codigo certo e consolida o ganho', async () => {
+    const resposta = await bruno
+      .post(`/pedidos/${idPedido}/finalizar`)
+      .send({ codigo: codigoRecebedor })
+      .expect(200);
+
+    // Cantina no seed: taxa de R$ 8,00 mais R$ 1,50 por km, sobre 2 km.
+    expect(resposta.body).toMatchObject({
+      status: 'FINALIZADO',
+      ganhoConsolidadoCentavos: 1100,
+    });
+  });
+
+  it('encerra o rastreio depois da entrega', () => {
+    return request(app.getHttpServer()).get(`/rastreio/${token}`).expect(410);
+  });
+
+  it('libera a avaliacao depois da entrega', async () => {
+    const resposta = await request(app.getHttpServer())
+      .get(`/rastreio/${token}/avaliacao`)
+      .expect(200);
+
+    expect(resposta.body).toEqual({ situacao: 'disponivel', avaliacao: null });
+  });
+
+  it('recebe a nota e depois o comentario do recebedor', async () => {
+    const servidor = request(app.getHttpServer());
+
+    await servidor
+      .post(`/rastreio/${token}/avaliacao`)
+      .send({ nota: 5 })
+      .expect(201);
+    const resposta = await servidor
+      .patch(`/rastreio/${token}/avaliacao`)
+      .send({ comentario: 'Chegou rapido' })
+      .expect(200);
+
+    expect(resposta.body).toMatchObject({
+      situacao: 'avaliado',
+      avaliacao: { nota: 5, comentario: 'Chegou rapido' },
+    });
+  });
+
+  it('nao aceita uma segunda nota', () => {
+    return request(app.getHttpServer())
+      .post(`/rastreio/${token}/avaliacao`)
+      .send({ nota: 1 })
+      .expect(409);
+  });
+
+  it('mostra a avaliacao so para a empresa do pedido', async () => {
+    const daCantina = await cantina.get('/avaliacoes').expect(200);
+    const daPadaria = await padaria.get('/avaliacoes').expect(200);
+
+    expect(daCantina.body as AvaliacaoNaLista[]).toContainEqual(
+      expect.objectContaining({
+        idPedido,
+        nota: 5,
+        comentario: 'Chegou rapido',
+      }),
+    );
+    expect(
+      (daPadaria.body as AvaliacaoNaLista[]).map((a) => a.idPedido),
+    ).not.toContain(idPedido);
+  });
+});
