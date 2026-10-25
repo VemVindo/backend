@@ -8,6 +8,7 @@ import { CadastrarEntregadorDto } from '../dto/cadastrar-entregador.dto';
 import { EntregadorRepository } from '../entregador.repository';
 import { EntregadorService, MENSAGEM_CONVITE } from '../entregador.service';
 import { RemocaoDaFrotaRepository } from '../remocao-da-frota.repository';
+import { RemocaoDaFrotaService } from '../remocao-da-frota.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EditarEntregadorReqDto } from '../dto/editar-entregador.dto';
 
@@ -59,10 +60,19 @@ function montar() {
     entregadores as unknown as EntregadorRepository,
     contratos as unknown as ContratoRepository,
     senha as unknown as SenhaService,
+  );
+  const remocaoDaFrota = new RemocaoDaFrotaService(
     remocao as unknown as RemocaoDaFrotaRepository,
     localizacao as unknown as LocalizacaoService,
   );
-  return { service, entregadores, contratos, remocao, localizacao };
+  return {
+    service,
+    remocaoDaFrota,
+    entregadores,
+    contratos,
+    remocao,
+    localizacao,
+  };
 }
 
 const dto: CadastrarEntregadorDto = {
@@ -210,9 +220,9 @@ describe('EntregadorService.listarFrota', () => {
   });
 });
 
-describe('EntregadorService.desvincular', () => {
+describe('RemocaoDaFrotaService.desvincular', () => {
   it('encerra o vinculo da empresa e devolve o resultado da reatribuicao', async () => {
-    const { service, remocao } = montar();
+    const { remocaoDaFrota, remocao } = montar();
     const resultado = {
       reatribuidos: [
         { idPedido: 10, entregador: { cpf: '11144477735', nome: 'Ana' } },
@@ -221,14 +231,14 @@ describe('EntregadorService.desvincular', () => {
     };
     remocao.remover.mockResolvedValue(resultado);
 
-    await expect(service.desvincular(ID_EMPRESA, CPF_FICTICIO)).resolves.toBe(
-      resultado,
-    );
+    await expect(
+      remocaoDaFrota.desvincular(ID_EMPRESA, CPF_FICTICIO),
+    ).resolves.toBe(resultado);
     expect(remocao.remover).toHaveBeenCalledWith(ID_EMPRESA, CPF_FICTICIO);
   });
 
   it('reinicia o rastreio dos pedidos que trocaram de entregador', async () => {
-    const { service, remocao, localizacao } = montar();
+    const { remocaoDaFrota, remocao, localizacao } = montar();
     remocao.remover.mockResolvedValue({
       reatribuidos: [
         { idPedido: 10, entregador: { cpf: '11144477735', nome: 'Ana' } },
@@ -236,42 +246,52 @@ describe('EntregadorService.desvincular', () => {
       pendentes: [],
     });
 
-    await service.desvincular(ID_EMPRESA, CPF_FICTICIO);
+    await remocaoDaFrota.desvincular(ID_EMPRESA, CPF_FICTICIO);
 
     expect(localizacao.aoTrocarEntregador).toHaveBeenCalledWith(10);
     expect(localizacao.aoMudarStatus).not.toHaveBeenCalled();
   });
 
   it('avisa o rastreio que o pedido sem entregador voltou para PENDENTE', async () => {
-    const { service, remocao, localizacao } = montar();
+    const { remocaoDaFrota, remocao, localizacao } = montar();
     remocao.remover.mockResolvedValue({
       reatribuidos: [],
       pendentes: [{ idPedido: 11 }],
     });
 
-    await service.desvincular(ID_EMPRESA, CPF_FICTICIO);
+    await remocaoDaFrota.desvincular(ID_EMPRESA, CPF_FICTICIO);
 
     expect(localizacao.aoTrocarEntregador).toHaveBeenCalledWith(11);
     expect(localizacao.aoMudarStatus).toHaveBeenCalledWith(11, 'PENDENTE');
   });
 
   it('responde 404 sem vinculo ativo', async () => {
-    const { service, remocao, localizacao } = montar();
+    const { remocaoDaFrota, remocao, localizacao } = montar();
     remocao.remover.mockResolvedValue(null);
 
-    await expect(service.desvincular(ID_EMPRESA, CPF_FICTICIO)).rejects.toThrow(
-      NotFoundException,
-    );
+    await expect(
+      remocaoDaFrota.desvincular(ID_EMPRESA, CPF_FICTICIO),
+    ).rejects.toThrow(NotFoundException);
     expect(localizacao.aoTrocarEntregador).not.toHaveBeenCalled();
   });
 
   it('responde 409 se um pedido mudou durante a remocao', async () => {
-    const { service, remocao } = montar();
+    const { remocaoDaFrota, remocao } = montar();
     remocao.remover.mockRejectedValue(new PedidoAlteradoError());
 
-    await expect(service.desvincular(ID_EMPRESA, CPF_FICTICIO)).rejects.toThrow(
-      ConflictException,
-    );
+    await expect(
+      remocaoDaFrota.desvincular(ID_EMPRESA, CPF_FICTICIO),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('repassa outros erros da remocao', async () => {
+    const { remocaoDaFrota, remocao } = montar();
+    const falha = new Error('conexao perdida');
+    remocao.remover.mockRejectedValue(falha);
+
+    await expect(
+      remocaoDaFrota.desvincular(ID_EMPRESA, CPF_FICTICIO),
+    ).rejects.toBe(falha);
   });
 });
 

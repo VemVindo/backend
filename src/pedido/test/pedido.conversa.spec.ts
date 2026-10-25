@@ -4,11 +4,8 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { StatusPedido } from '../../generated/prisma/enums';
-import { EntregadorRepository } from '../../entregador/entregador.repository';
-import { LocalizacaoService } from '../../mapa/localizacao.service';
-import { CodigoDoRecebedorService } from '../../rastreio/codigo-do-recebedor.service';
+import { ConversaDoPedidoService } from '../conversa-do-pedido.service';
 import { PedidoComContatos, PedidoRepository } from '../pedido.repository';
-import { PedidoService } from '../pedido.service';
 
 jest.mock('../../prisma/prisma.service', () => ({
   PrismaService: class {},
@@ -40,16 +37,13 @@ function montar(encontrado: PedidoComContatos | null = pedido()) {
   const pedidos = {
     procurarComContatos: jest.fn().mockResolvedValue(encontrado),
   };
-  const service = new PedidoService(
+  const service = new ConversaDoPedidoService(
     pedidos as unknown as PedidoRepository,
-    {} as EntregadorRepository,
-    {} as LocalizacaoService,
-    {} as CodigoDoRecebedorService,
   );
   return { service, pedidos };
 }
 
-describe('PedidoService conversa pelo WhatsApp (E-US20 + EN-US07)', () => {
+describe('ConversaDoPedidoService conversa pelo WhatsApp (E-US20 + EN-US07)', () => {
   it('a empresa recebe o link para o telefone do entregador atual', async () => {
     const { service, pedidos } = montar();
 
@@ -119,7 +113,7 @@ describe('PedidoService conversa pelo WhatsApp (E-US20 + EN-US07)', () => {
   });
 });
 
-describe('PedidoService conversa com o recebedor pelo WhatsApp (E-US19)', () => {
+describe('ConversaDoPedidoService conversa com o recebedor pelo WhatsApp (E-US19)', () => {
   const COM_RECEBEDOR = {
     nome_recebedor: 'Carla Menezes',
     telefone_recebedor: '61920000001',

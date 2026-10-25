@@ -21,6 +21,7 @@ import { CpfParamDto } from './dto/cpf-param.dto';
 import { CadastrarEntregadorDto } from './dto/cadastrar-entregador.dto';
 import { VincularEntregadorDto } from './dto/vincular-entregador.dto';
 import { EntregadorService } from './entregador.service';
+import { RemocaoDaFrotaService } from './remocao-da-frota.service';
 import { EditarEntregadorReqDto } from './dto/editar-entregador.dto';
 
 // Cadastro e convite recebem CPF de terceiros; o limite dificulta varrer CPFs.
@@ -31,19 +32,20 @@ const LIMITE_OPERACOES_POR_CPF = { default: { limit: 10, ttl: 60_000 } };
 export class EntregadorController {
   constructor(
     private readonly entregadorService: EntregadorService,
-    private readonly servico_desempenho: ServicoDesempenhoEntregador,
+    private readonly servicoDesempenho: ServicoDesempenhoEntregador,
+    private readonly remocaoDaFrota: RemocaoDaFrotaService,
   ) {}
 
   @Get(':cpf/desempenho')
-  consultar_desempenho(
-    @UsuarioAtual() usuario_autenticado: UsuarioAutenticado,
-    @Param() { cpf: cpf_entregador }: CpfParamDto,
-    @Query() filtro_periodo: FiltroDesempenhoDto,
+  consultarDesempenho(
+    @UsuarioAtual() usuarioAutenticado: UsuarioAutenticado,
+    @Param() { cpf: cpfEntregador }: CpfParamDto,
+    @Query() filtroPeriodo: FiltroDesempenhoDto,
   ) {
-    return this.servico_desempenho.consultar_desempenho(
-      Number(usuario_autenticado.empresaId),
-      cpf_entregador,
-      filtro_periodo,
+    return this.servicoDesempenho.consultarDesempenho(
+      Number(usuarioAutenticado.empresaId),
+      cpfEntregador,
+      filtroPeriodo,
     );
   }
 
@@ -92,7 +94,7 @@ export class EntregadorController {
     @UsuarioAtual() usuario: UsuarioAutenticado,
     @Param() { cpf }: CpfParamDto,
   ) {
-    return this.entregadorService.desvincular(Number(usuario.empresaId), cpf);
+    return this.remocaoDaFrota.desvincular(Number(usuario.empresaId), cpf);
   }
 
   @Patch()

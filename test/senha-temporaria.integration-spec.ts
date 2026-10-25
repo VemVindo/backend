@@ -9,9 +9,7 @@ import { ContratoRepository } from '../src/contrato/contrato.repository';
 import { EmpresaRepository } from '../src/empresa/empresa.repository';
 import { EntregadorRepository } from '../src/entregador/entregador.repository';
 import { EntregadorService } from '../src/entregador/entregador.service';
-import type { RemocaoDaFrotaRepository } from '../src/entregador/remocao-da-frota.repository';
 import { StatusContrato } from '../src/generated/prisma/enums';
-import type { LocalizacaoService } from '../src/mapa/localizacao.service';
 import {
   BancoIsolado,
   TEMPO_LIMITE_PREPARACAO_MS,
@@ -68,8 +66,6 @@ descreverComBanco(
         repositorioDeEntregadores,
         new ContratoRepository(banco.prisma),
         senha,
-        {} as RemocaoDaFrotaRepository,
-        {} as LocalizacaoService,
       );
       auth = new AuthService(
         repositorioDeEmpresas,

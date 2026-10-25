@@ -19,11 +19,15 @@ import { CriaPedidoReqDto, CriaPedidoResDto } from './dto/cria-pedido.dto';
 import { FinalizarPedidoDto } from './dto/finalizar-pedido.dto';
 import { CorrigirDistanciaDto } from './dto/corrigir-distancia.dto';
 import { ReatribuirPedidoDto } from './dto/reatribuir-pedido.dto';
+import { ConversaDoPedidoService } from './conversa-do-pedido.service';
 import { PedidoService } from './pedido.service';
 
 @Controller('pedidos')
 export class PedidoController {
-  constructor(private readonly pedidoService: PedidoService) {}
+  constructor(
+    private readonly pedidoService: PedidoService,
+    private readonly conversas: ConversaDoPedidoService,
+  ) {}
 
   @Post()
   @Cargos(Cargo.ESTABELECIMENTO)
@@ -151,7 +155,7 @@ export class PedidoController {
     @UsuarioAtual() usuario: UsuarioAutenticado,
     @Param('id', ParseIntPipe) idPedido: number,
   ) {
-    return this.pedidoService.conversaComEntregador(
+    return this.conversas.conversaComEntregador(
       Number(usuario.empresaId),
       idPedido,
     );
@@ -163,7 +167,7 @@ export class PedidoController {
     @UsuarioAtual() usuario: UsuarioAutenticado,
     @Param('id', ParseIntPipe) idPedido: number,
   ) {
-    return this.pedidoService.conversaComEstabelecimento(
+    return this.conversas.conversaComEstabelecimento(
       usuario.usuarioId,
       idPedido,
     );
@@ -175,7 +179,7 @@ export class PedidoController {
     @UsuarioAtual() usuario: UsuarioAutenticado,
     @Param('id', ParseIntPipe) idPedido: number,
   ) {
-    return this.pedidoService.conversaComRecebedor(
+    return this.conversas.conversaComRecebedor(
       Number(usuario.empresaId),
       idPedido,
     );

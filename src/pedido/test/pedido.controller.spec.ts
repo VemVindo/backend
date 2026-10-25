@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PedidoController } from '../pedido.controller';
+import { ConversaDoPedidoService } from '../conversa-do-pedido.service';
 import { PedidoService } from '../pedido.service';
 import { CriaPedidoReqDto, CriaPedidoResDto } from '../dto/cria-pedido.dto';
 import { Pedido } from '../../generated/prisma/client';
@@ -32,6 +33,7 @@ describe('PedidoController', () => {
               criar: jest.fn(),
             },
           },
+          { provide: ConversaDoPedidoService, useValue: {} },
         ],
       }).compile();
 
@@ -68,6 +70,7 @@ describe('PedidoController rotas de entregador e reatribuicao', () => {
     };
     const controller = new PedidoController(
       service as unknown as PedidoService,
+      {} as ConversaDoPedidoService,
     );
     return { controller, service };
   }
@@ -167,7 +170,8 @@ describe('PedidoController conversa pelo WhatsApp', () => {
       conversaComRecebedor: jest.fn().mockResolvedValue({}),
     };
     const controller = new PedidoController(
-      service as unknown as PedidoService,
+      {} as PedidoService,
+      service as unknown as ConversaDoPedidoService,
     );
     return { controller, service };
   }

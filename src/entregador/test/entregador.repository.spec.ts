@@ -33,24 +33,12 @@ describe('EntregadorRepository', () => {
     });
     it('CAIXA CINZA: Fluxo bem sucedido', async () => {
       mock.mockResolvedValue(true);
-      const result = await repository.atualizar(
-        dummyReq.cpf,
-        dummyReq.nome,
-        dummyReq.telefone,
-        dummyReq.veiculo,
-        dummyReq.placa,
-      );
+      const result = await repository.atualizar(dummyReq.cpf, dummyReq);
       expect(result).toBe(true);
     });
     it('CAIXA CINZA: Fluxo mal sucedido', async () => {
       mock.mockResolvedValue(false);
-      const result = await repository.atualizar(
-        dummyReq.cpf,
-        dummyReq.nome,
-        dummyReq.telefone,
-        dummyReq.veiculo,
-        dummyReq.placa,
-      );
+      const result = await repository.atualizar(dummyReq.cpf, dummyReq);
       expect(result).toBe(false);
     });
   });

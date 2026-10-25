@@ -2,6 +2,7 @@ import { ServicoDesempenhoEntregador } from '../desempenho-entregador.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EntregadorController } from '../entregador.controller';
 import { EntregadorService } from '../entregador.service';
+import { RemocaoDaFrotaService } from '../remocao-da-frota.service';
 import { UsuarioAutenticado } from 'src/auth/jwt.strategy';
 import { EditarEntregadorReqDto } from '../dto/editar-entregador.dto';
 import { Cargo } from 'src/common/enums/cargo.enum';
@@ -21,6 +22,7 @@ describe('EntregadorController', () => {
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           { provide: ServicoDesempenhoEntregador, useValue: {} },
+          { provide: RemocaoDaFrotaService, useValue: {} },
           {
             provide: EntregadorService,
             useValue: {

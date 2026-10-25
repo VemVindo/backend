@@ -13,6 +13,13 @@ export interface DadosNovoEntregador {
   senhaTemporariaExpiraEm: Date;
 }
 
+export interface AlteracoesDoEntregador {
+  nome?: string | null;
+  telefone?: string | null;
+  veiculo?: string | null;
+  placa?: string | null;
+}
+
 @Injectable()
 export class EntregadorRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -120,10 +127,7 @@ export class EntregadorRepository {
 
   async atualizar(
     cpf: string,
-    nome: string | null | undefined,
-    telefone: string | null | undefined,
-    veiculo: string | null | undefined,
-    placa: string | null | undefined,
+    { nome, telefone, veiculo, placa }: AlteracoesDoEntregador,
   ): Promise<Entregador | null> {
     return await this.prisma.entregador.update({
       where: { cpf },

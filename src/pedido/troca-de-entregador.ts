@@ -2,12 +2,16 @@ import { Prisma } from '../generated/prisma/client';
 import { StatusPedido } from '../generated/prisma/enums';
 import { EntregadorIndisponivelError } from './pedido.erros';
 
+export interface TrocaDeEntregador {
+  idPedido: number;
+  cpfAnterior: string | null;
+  cpfNovo: string;
+  data: Date;
+}
+
 export async function registrarTroca(
   tx: Prisma.TransactionClient,
-  idPedido: number,
-  cpfAnterior: string | null,
-  cpfNovo: string,
-  data: Date,
+  { idPedido, cpfAnterior, cpfNovo, data }: TrocaDeEntregador,
 ): Promise<void> {
   await tx.historicoPedidoEntregadores.create({
     data: {

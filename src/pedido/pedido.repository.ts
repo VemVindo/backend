@@ -3,9 +3,19 @@ import { Pedido, Prisma } from '../generated/prisma/client';
 import { StatusPedido } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { GanhoEntregaService } from '../remuneracao/ganho-entrega.service';
-import { transicaoPermitida } from './regras/status-pedido.regra';
 import { CriaPedidoReqDto } from './dto/cria-pedido.dto';
+import {
+  bloquearPedido,
+  COM_NOME_DO_ENTREGADOR,
+  recarregarComEntregador,
+} from './pedido-bloqueado';
 import { PedidoAlteradoError } from './pedido.erros';
+import {
+  DadosAtualizacaoStatus,
+  DadosReatribuicao,
+  podeAtualizarStatus,
+  podeReatribuir,
+} from './regras/alteracao-pedido.regra';
 import {
   liberarSeOcioso,
   ocuparEntregador,
@@ -28,30 +38,11 @@ export type PedidoComContatos = Pedido & {
 
 export type DonoDoPedido = { idEmpresa: number } | { cpf_entregador: string };
 
-export interface DadosAtualizacaoStatus {
-  idPedido: number;
-  cpfEntregador: string;
-  statusAtual: StatusPedido;
-  novoStatus: StatusPedido;
-  finalizar: boolean;
-}
-
-export interface DadosReatribuicao {
-  idPedido: number;
-  statusAtual: StatusPedido;
-  cpfAnterior: string | null;
-  cpfNovo: string;
-}
-
 export interface RegistroHistoricoEntregador {
   data: Date;
   entregadorAntigo: { nome: string } | null;
   entregadorNovo: { nome: string };
 }
-
-const COM_NOME_DO_ENTREGADOR = {
-  entregador: { select: { nome: true } },
-} satisfies Prisma.PedidoInclude;
 
 @Injectable()
 export class PedidoRepository {
@@ -61,25 +52,7 @@ export class PedidoRepository {
   ) {}
 
   async criar(pedido: CriaPedidoReqDto, idEmpresa: number): Promise<Pedido> {
-    const dados: Prisma.PedidoUncheckedCreateInput = {
-      nome_recebedor: pedido.nome_recebedor,
-      telefone_recebedor: pedido.telefone_recebedor,
-      cep: pedido.cep,
-      logradouro: pedido.logradouro,
-      numero: pedido.numero,
-      complemento: pedido.complemento,
-      bairro: pedido.bairro,
-      cidade: pedido.cidade,
-      uf: pedido.uf,
-      descricao: pedido.descricao,
-      status: pedido.status,
-      data_criacao: pedido.data_criacao,
-      valor_entrega: pedido.valor_entrega,
-      idEmpresa,
-      distancia: pedido.distancia,
-      distancia_conhecida: true,
-      cpf_entregador: pedido.cpf_entregador,
-    };
+    const dados = dadosDoNovoPedido(pedido, idEmpresa);
     const cpfEntregador = pedido.cpf_entregador;
 
     if (!cpfEntregador) {
@@ -101,13 +74,12 @@ export class PedidoRepository {
           data_inicio_entrega: agora,
         },
       });
-      await registrarTroca(
-        clienteTransacional,
-        criado.id_pedido,
-        null,
-        cpfEntregador,
-        agora,
-      );
+      await registrarTroca(clienteTransacional, {
+        idPedido: criado.id_pedido,
+        cpfAnterior: null,
+        cpfNovo: cpfEntregador,
+        data: agora,
+      });
       return criado;
     });
   }
@@ -180,129 +152,100 @@ export class PedidoRepository {
 
   atualizarStatus(dados: DadosAtualizacaoStatus): Promise<PedidoComEntregador> {
     return this.prisma.$transaction(async (clienteTransacional) => {
-      const pedido = await this.bloquearPedido(
-        clienteTransacional,
-        dados.idPedido,
-      );
-      if (
-        pedido.status !== dados.statusAtual ||
-        pedido.cpf_entregador !== dados.cpfEntregador ||
-        pedido.ganho_consolidado_centavos !== null ||
-        !transicaoPermitida(pedido.status, dados.novoStatus)
-      ) {
+      const pedido = await bloquearPedido(clienteTransacional, dados.idPedido);
+      if (!podeAtualizarStatus(pedido, dados)) {
         throw new PedidoAlteradoError();
       }
-      const concluindo = dados.novoStatus === StatusPedido.FINALIZADO;
-      const ganhoConsolidado = concluindo
-        ? this.ganhos.consolidarGanho(pedido)
-        : undefined;
-      const { count } = await clienteTransacional.pedido.updateMany({
-        where: {
-          id_pedido: dados.idPedido,
-          cpf_entregador: dados.cpfEntregador,
-          status: dados.statusAtual,
-          ganho_consolidado_centavos: null,
-        },
-        data: concluindo
-          ? {
-              status: dados.novoStatus,
-              data_finalizacao: new Date(),
-              ganho_consolidado_centavos: ganhoConsolidado,
-            }
-          : { status: dados.novoStatus },
-      });
-      if (count === 0) {
-        throw new PedidoAlteradoError();
-      }
-
-      if (concluindo) {
+      await this.gravarStatus(clienteTransacional, pedido, dados);
+      if (dados.novoStatus === StatusPedido.FINALIZADO) {
         await liberarSeOcioso(clienteTransacional, dados.cpfEntregador);
       }
-
-      return clienteTransacional.pedido.findUniqueOrThrow({
-        where: { id_pedido: dados.idPedido },
-        include: COM_NOME_DO_ENTREGADOR,
-      });
+      return recarregarComEntregador(clienteTransacional, dados.idPedido);
     });
+  }
+
+  private async gravarStatus(
+    clienteTransacional: Prisma.TransactionClient,
+    pedido: Pedido,
+    dados: DadosAtualizacaoStatus,
+  ): Promise<void> {
+    const data: Prisma.PedidoUncheckedUpdateManyInput =
+      dados.novoStatus === StatusPedido.FINALIZADO
+        ? {
+            status: dados.novoStatus,
+            data_finalizacao: new Date(),
+            ganho_consolidado_centavos: this.ganhos.consolidarGanho(pedido),
+          }
+        : { status: dados.novoStatus };
+    const { count } = await clienteTransacional.pedido.updateMany({
+      where: {
+        id_pedido: dados.idPedido,
+        cpf_entregador: dados.cpfEntregador,
+        status: dados.statusAtual,
+        ganho_consolidado_centavos: null,
+      },
+      data,
+    });
+    if (count === 0) {
+      throw new PedidoAlteradoError();
+    }
   }
 
   reatribuir(dados: DadosReatribuicao): Promise<PedidoComEntregador> {
-    const { idPedido, statusAtual, cpfAnterior, cpfNovo } = dados;
+    const { idPedido, cpfAnterior, cpfNovo } = dados;
 
     return this.prisma.$transaction(async (clienteTransacional) => {
-      const pedido = await this.bloquearPedido(clienteTransacional, idPedido);
-      if (
-        pedido.status !== statusAtual ||
-        pedido.cpf_entregador !== cpfAnterior ||
-        pedido.ganho_consolidado_centavos !== null ||
-        (pedido.status !== StatusPedido.PENDENTE &&
-          pedido.status !== StatusPedido.EM_ANDAMENTO) ||
-        cpfAnterior === cpfNovo
-      ) {
+      const pedido = await bloquearPedido(clienteTransacional, idPedido);
+      if (!podeReatribuir(pedido, dados)) {
         throw new PedidoAlteradoError();
       }
       const agora = new Date();
-      const parametrosCongelados = await this.ganhos.capturarParametros(
-        clienteTransacional,
-        pedido.idEmpresa,
-        agora,
-      );
-      const atribuicao = {
-        ...parametrosCongelados,
-        cpf_entregador: cpfNovo,
-        status: StatusPedido.EM_ANDAMENTO,
-      };
-
-      const { count } = await clienteTransacional.pedido.updateMany({
-        where: {
-          id_pedido: idPedido,
-          status: statusAtual,
-          cpf_entregador: cpfAnterior,
-          ganho_consolidado_centavos: null,
-        },
-        data:
-          statusAtual === StatusPedido.PENDENTE
-            ? { ...atribuicao, data_inicio_entrega: agora }
-            : atribuicao,
-      });
-      if (count === 0) {
-        throw new PedidoAlteradoError();
-      }
-
+      await this.atribuirAoNovo(clienteTransacional, pedido, dados, agora);
       await ocuparEntregador(clienteTransacional, cpfNovo);
-
-      await registrarTroca(
-        clienteTransacional,
+      await registrarTroca(clienteTransacional, {
         idPedido,
         cpfAnterior,
         cpfNovo,
-        agora,
-      );
-
+        data: agora,
+      });
       if (cpfAnterior) {
         await liberarSeOcioso(clienteTransacional, cpfAnterior);
       }
-
-      return clienteTransacional.pedido.findUniqueOrThrow({
-        where: { id_pedido: idPedido },
-        include: COM_NOME_DO_ENTREGADOR,
-      });
+      return recarregarComEntregador(clienteTransacional, idPedido);
     });
   }
 
-  private async bloquearPedido(
+  private async atribuirAoNovo(
     clienteTransacional: Prisma.TransactionClient,
-    idPedido: number,
-  ): Promise<Pedido> {
-    const pedidosBloqueados = await clienteTransacional.$queryRaw<
-      { id_pedido: number }[]
-    >`
-      SELECT id_pedido FROM "Pedido" WHERE id_pedido = ${idPedido} FOR UPDATE
-    `;
-    if (pedidosBloqueados.length === 0) throw new PedidoAlteradoError();
-    return clienteTransacional.pedido.findUniqueOrThrow({
-      where: { id_pedido: idPedido },
+    pedido: Pedido,
+    { idPedido, statusAtual, cpfAnterior, cpfNovo }: DadosReatribuicao,
+    agora: Date,
+  ): Promise<void> {
+    const parametrosCongelados = await this.ganhos.capturarParametros(
+      clienteTransacional,
+      pedido.idEmpresa,
+      agora,
+    );
+    const atribuicao = {
+      ...parametrosCongelados,
+      cpf_entregador: cpfNovo,
+      status: StatusPedido.EM_ANDAMENTO,
+    };
+    const { count } = await clienteTransacional.pedido.updateMany({
+      where: {
+        id_pedido: idPedido,
+        status: statusAtual,
+        cpf_entregador: cpfAnterior,
+        ganho_consolidado_centavos: null,
+      },
+      data:
+        statusAtual === StatusPedido.PENDENTE
+          ? { ...atribuicao, data_inicio_entrega: agora }
+          : atribuicao,
     });
+    if (count === 0) {
+      throw new PedidoAlteradoError();
+    }
   }
 
   listarHistoricoDeEntregadores(
@@ -325,7 +268,7 @@ export class PedidoRepository {
     distanciaMetros: number,
   ): Promise<PedidoComEntregador> {
     return this.prisma.$transaction(async (clienteTransacional) => {
-      await this.bloquearPedido(clienteTransacional, idPedido);
+      await bloquearPedido(clienteTransacional, idPedido);
       const { count: quantidadeAtualizada } =
         await clienteTransacional.pedido.updateMany({
           where: {
@@ -337,10 +280,32 @@ export class PedidoRepository {
           data: { distancia: distanciaMetros, distancia_conhecida: true },
         });
       if (quantidadeAtualizada === 0) throw new PedidoAlteradoError();
-      return clienteTransacional.pedido.findUniqueOrThrow({
-        where: { id_pedido: idPedido },
-        include: COM_NOME_DO_ENTREGADOR,
-      });
+      return recarregarComEntregador(clienteTransacional, idPedido);
     });
   }
+}
+
+function dadosDoNovoPedido(
+  pedido: CriaPedidoReqDto,
+  idEmpresa: number,
+): Prisma.PedidoUncheckedCreateInput {
+  return {
+    nome_recebedor: pedido.nome_recebedor,
+    telefone_recebedor: pedido.telefone_recebedor,
+    cep: pedido.cep,
+    logradouro: pedido.logradouro,
+    numero: pedido.numero,
+    complemento: pedido.complemento,
+    bairro: pedido.bairro,
+    cidade: pedido.cidade,
+    uf: pedido.uf,
+    descricao: pedido.descricao,
+    status: pedido.status,
+    data_criacao: pedido.data_criacao,
+    valor_entrega: pedido.valor_entrega,
+    idEmpresa,
+    distancia: pedido.distancia,
+    distancia_conhecida: true,
+    cpf_entregador: pedido.cpf_entregador,
+  };
 }
