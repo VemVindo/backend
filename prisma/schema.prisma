@@ -99,11 +99,11 @@ model Pedido {
   // Igual a FK da migration: entregador com pedido nao pode ser apagado.
   entregador Entregador? @relation(fields: [cpf_entregador], references: [cpf], onDelete: Restrict)
 
-  avaliacao       Avaliacao?
-  historicos      HistoricoPedidoEntregadores[]
-  importacao      PedidoImportado?
-  acessoRecebedor AcessoRecebedor?
-  localizacao     LocalizacaoEntrega?
+  avaliacao          Avaliacao?
+  historicos         HistoricoPedidoEntregadores[]
+  importacao         PedidoImportado?
+  acessoRecebedor    AcessoRecebedor?
+  localizacao        LocalizacaoEntrega?
 }
 
 model MetricasPagamento {

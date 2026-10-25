@@ -1,11 +1,11 @@
 import { Logger } from '@nestjs/common';
-import type { Socket } from 'socket.io';
 import { ValidadorDeLink } from './validador-de-link';
 import {
   EVENTO_ACESSO_NEGADO,
   RastreioGateway,
   salaDoPedido,
 } from './rastreio.gateway';
+import type { Socket } from 'socket.io';
 
 jest.mock('../prisma/prisma.service', () => ({ PrismaService: class {} }));
 
