@@ -8,6 +8,8 @@ export interface PedidoDoEntregadorDto {
   recebedor: string;
   endereco: string;
   valorEntrega: number;
+  ganhoConsolidadoCentavos: number | null;
+  distanciaConhecida: boolean | null;
   distancia: number;
   criadoEm: Date;
   iniciadoEm: Date | null;
@@ -29,6 +31,8 @@ export function paraPedidoDoEntregador(
     recebedor: pedido.nome_recebedor,
     endereco: formatarEndereco(pedido),
     valorEntrega: pedido.valor_entrega,
+    ganhoConsolidadoCentavos: pedido.ganho_consolidado_centavos ?? null,
+    distanciaConhecida: pedido.distancia_conhecida ?? null,
     distancia: pedido.distancia,
     criadoEm: pedido.data_criacao,
     iniciadoEm: pedido.data_inicio_entrega,

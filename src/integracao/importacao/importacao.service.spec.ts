@@ -109,6 +109,7 @@ describe('ImportacaoService.importar', () => {
       expect.objectContaining({
         status: StatusPedido.PENDENTE,
         distancia: 0,
+        distancia_conhecida: false,
         valor_entrega: 800,
         complemento: null,
       }),
@@ -132,6 +133,7 @@ describe('ImportacaoService.importar', () => {
     expect(importacoes.criarPedidoImportado.mock.calls[0][3]).toEqual(
       expect.objectContaining({
         distancia: 4200,
+        distancia_conhecida: true,
         valor_entrega: 1430,
         destino_lat: -15.75,
         destino_lng: -47.88,
@@ -139,7 +141,7 @@ describe('ImportacaoService.importar', () => {
     );
   });
 
-  it('importa com distancia zero e so a taxa fixa quando a rota nao sai', async () => {
+  it('preserva previsao, mas marca distancia como desconhecida quando nao ha rota', async () => {
     const { service, importacoes } = montar();
 
     const { resultados } = await service.importar(CANTINA, [completo]);
@@ -148,6 +150,7 @@ describe('ImportacaoService.importar', () => {
     expect(importacoes.criarPedidoImportado.mock.calls[0][3]).toEqual(
       expect.objectContaining({
         distancia: 0,
+        distancia_conhecida: false,
         valor_entrega: 800,
         destino_lat: null,
         destino_lng: null,
@@ -161,6 +164,16 @@ describe('ImportacaoService.importar', () => {
     await service.importar(CANTINA, [{ ...completo, cep: undefined }]);
 
     expect(rotaDeCarro.calcular).not.toHaveBeenCalled();
+  });
+
+  it('distingue rota conhecida com zero metros do fallback sem rota', async () => {
+    const { service, importacoes, rotaDeCarro } = montar();
+    rotaDeCarro.calcular.mockResolvedValue({ ...ROTA_DE_4_KM, distanciaM: 0 });
+    await service.importar(CANTINA, [completo]);
+    expect(importacoes.criarPedidoImportado.mock.calls[0][3]).toMatchObject({
+      distancia: 0,
+      distancia_conhecida: true,
+    });
   });
 
   it('usa sempre a empresa da credencial, mesmo com idEmpresa no corpo', async () => {

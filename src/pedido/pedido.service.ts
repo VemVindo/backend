@@ -90,6 +90,34 @@ export class PedidoService {
     return pedidos.map(paraPedidoResumo);
   }
 
+  async corrigir_distancia(
+    id_empresa: number,
+    id_pedido: number,
+    distancia_metros: number,
+  ): Promise<PedidoResumoDto> {
+    const pedido = await this.pedidoRepository.procurarPorEmpresa(
+      id_pedido,
+      id_empresa,
+    );
+    if (!pedido) throw new NotFoundException('Pedido não encontrado');
+    if (
+      !STATUS_REATRIBUIVEIS.includes(pedido.status) ||
+      pedido.ganho_consolidado_centavos != null
+    ) {
+      throw new ConflictException(
+        'A distância só pode ser corrigida antes da conclusão da entrega',
+      );
+    }
+    const pedido_atualizado = await this.comControleDeConcorrencia(() =>
+      this.pedidoRepository.corrigir_distancia(
+        id_pedido,
+        id_empresa,
+        distancia_metros,
+      ),
+    );
+    return paraPedidoResumo(pedido_atualizado);
+  }
+
   async detalhar(
     idEmpresa: number,
     idPedido: number,

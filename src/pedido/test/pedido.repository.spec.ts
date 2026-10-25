@@ -4,6 +4,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Pedido } from '../../generated/prisma/client';
 import { CriaPedidoReqDto } from '../dto/cria-pedido.dto';
 import { StatusPedido } from '../../generated/prisma/enums';
+import { GanhoEntregaService } from '../../remuneracao/ganho-entrega.service';
+import { RemuneracaoRepository } from '../../remuneracao/remuneracao.repository';
+import { CalculoValorEntregaService } from '../../remuneracao/calculo-valor-entrega.service';
 import {
   EntregadorIndisponivelError,
   PedidoAlteradoError,
@@ -18,6 +21,7 @@ describe('PedidoRepository', () => {
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           PedidoRepository,
+          { provide: GanhoEntregaService, useValue: {} },
           {
             provide: PrismaService,
             useValue: {
@@ -48,13 +52,37 @@ const ID_EMPRESA = 7;
 
 // Simula o PrismaService: $transaction executa o callback com o cliente tx.
 function montar() {
+  const parametros_congelados = {
+    taxa_fixa_atribuicao_centavos: 800,
+    coeficiente_atribuicao_centavos_km: 150,
+    parametros_vigentes_desde: new Date('2026-10-01T00:00:00Z'),
+    remuneracao_atribuida_em: new Date('2026-10-02T00:00:00Z'),
+  };
+  const atual = {
+    id_pedido: ID_PEDIDO,
+    idEmpresa: ID_EMPRESA,
+    status: StatusPedido.EM_ANDAMENTO,
+    cpf_entregador: CPF_ANTERIOR,
+    ganho_consolidado_centavos: null,
+    distancia: 4200,
+    distancia_conhecida: true,
+    ...parametros_congelados,
+  };
   const tx = {
+    $queryRaw: jest.fn().mockResolvedValue([{ id_pedido: ID_PEDIDO }]),
+    metricasPagamento: {
+      findFirst: jest.fn().mockResolvedValue({
+        taxa_fixa: 800,
+        coeficiente: 150,
+        data: parametros_congelados.parametros_vigentes_desde,
+      }),
+    },
     pedido: {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       count: jest.fn().mockResolvedValue(0),
       create: jest.fn().mockResolvedValue({ id_pedido: ID_PEDIDO }),
       findUniqueOrThrow: jest.fn().mockResolvedValue({
-        id_pedido: ID_PEDIDO,
+        ...atual,
         entregador: { nome: 'Ana Souza' },
       }),
     },
@@ -76,7 +104,14 @@ function montar() {
       callback(tx),
     ),
   };
-  const repository = new PedidoRepository(prisma as unknown as PrismaService);
+  const ganhos = new GanhoEntregaService(
+    new RemuneracaoRepository(prisma as unknown as PrismaService),
+    new CalculoValorEntregaService(),
+  );
+  const repository = new PedidoRepository(
+    prisma as unknown as PrismaService,
+    ganhos,
+  );
   return { repository, prisma, tx };
 }
 
@@ -166,8 +201,12 @@ describe('PedidoRepository.reatribuir', () => {
         id_pedido: ID_PEDIDO,
         status: StatusPedido.EM_ANDAMENTO,
         cpf_entregador: CPF_ANTERIOR,
+        ganho_consolidado_centavos: null,
       },
-      data: { cpf_entregador: CPF_NOVO, status: StatusPedido.EM_ANDAMENTO },
+      data: expect.objectContaining({
+        cpf_entregador: CPF_NOVO,
+        status: StatusPedido.EM_ANDAMENTO,
+      }) as unknown,
     });
   });
 
@@ -244,6 +283,11 @@ describe('PedidoRepository.reatribuir', () => {
 
   it('atribui pedido pendente, marca o inicio e grava antigo como nulo', async () => {
     const { repository, tx } = montar();
+    tx.pedido.findUniqueOrThrow.mockResolvedValueOnce({
+      ...(await tx.pedido.findUniqueOrThrow()),
+      status: StatusPedido.PENDENTE,
+      cpf_entregador: null,
+    });
 
     await repository.reatribuir({
       ...reatribuicao,
@@ -256,6 +300,7 @@ describe('PedidoRepository.reatribuir', () => {
       id_pedido: ID_PEDIDO,
       status: StatusPedido.PENDENTE,
       cpf_entregador: null,
+      ganho_consolidado_centavos: null,
     });
     expect(data).toMatchObject({
       cpf_entregador: CPF_NOVO,
@@ -289,6 +334,7 @@ describe('PedidoRepository.atualizarStatus', () => {
       id_pedido: ID_PEDIDO,
       cpf_entregador: CPF_ANTERIOR,
       status: StatusPedido.EM_ANDAMENTO,
+      ganho_consolidado_centavos: null,
     });
     expect(data.status).toBe(StatusPedido.FINALIZADO);
   });
@@ -318,14 +364,247 @@ describe('PedidoRepository.atualizarStatus', () => {
 
   it('fora de status final nao grava data nem mexe na disponibilidade', async () => {
     const { repository, tx } = montar();
+    tx.pedido.findUniqueOrThrow.mockResolvedValueOnce({
+      ...(await tx.pedido.findUniqueOrThrow()),
+      status: StatusPedido.PENDENTE,
+    });
 
-    await repository.atualizarStatus({ ...atualizacao, finalizar: false });
+    await repository.atualizarStatus({
+      ...atualizacao,
+      statusAtual: StatusPedido.PENDENTE,
+      novoStatus: StatusPedido.EM_ANDAMENTO,
+      finalizar: false,
+    });
 
     expect(argumento(tx.pedido.updateMany).data).toEqual({
-      status: StatusPedido.FINALIZADO,
+      status: StatusPedido.EM_ANDAMENTO,
     });
     expect(tx.pedido.count).not.toHaveBeenCalled();
     expect(tx.entregador.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('E-US16: snapshot e consolidacao no repository', () => {
+  it('correcao de distancia filtra empresa e estado financeiro sem alterar valor ou snapshot', async () => {
+    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+      montar();
+    await repositorio_pedidos.corrigir_distancia(ID_PEDIDO, ID_EMPRESA, 0);
+    expect(argumento(cliente_transacional.pedido.updateMany)).toEqual({
+      where: {
+        id_pedido: ID_PEDIDO,
+        idEmpresa: ID_EMPRESA,
+        status: { in: [StatusPedido.PENDENTE, StatusPedido.EM_ANDAMENTO] },
+        ganho_consolidado_centavos: null,
+      },
+      data: { distancia: 0, distancia_conhecida: true },
+    });
+  });
+
+  it('correcao concorrente com conclusao nao sobrescreve a entrega encerrada', async () => {
+    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+      montar();
+    cliente_transacional.pedido.updateMany.mockResolvedValue({ count: 0 });
+    await expect(
+      repositorio_pedidos.corrigir_distancia(ID_PEDIDO, ID_EMPRESA, 0),
+    ).rejects.toBeInstanceOf(PedidoAlteradoError);
+  });
+
+  const conclusao = {
+    idPedido: ID_PEDIDO,
+    cpfEntregador: CPF_ANTERIOR,
+    statusAtual: StatusPedido.EM_ANDAMENTO,
+    novoStatus: StatusPedido.FINALIZADO,
+    finalizar: true,
+  };
+  const troca = {
+    idPedido: ID_PEDIDO,
+    statusAtual: StatusPedido.EM_ANDAMENTO,
+    cpfAnterior: CPF_ANTERIOR,
+    cpfNovo: CPF_NOVO,
+  };
+
+  it('captura parametros na criacao com entregador na mesma transacao', async () => {
+    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+      montar();
+    await repositorio_pedidos.criar(
+      { cpf_entregador: CPF_NOVO } as CriaPedidoReqDto,
+      ID_EMPRESA,
+    );
+    const { data: dados_persistidos } = argumento(
+      cliente_transacional.pedido.create,
+    );
+    expect(dados_persistidos).toMatchObject({
+      taxa_fixa_atribuicao_centavos: 800,
+      coeficiente_atribuicao_centavos_km: 150,
+      distancia_conhecida: true,
+    });
+    expect(dados_persistidos.remuneracao_atribuida_em).toEqual(
+      dados_persistidos.data_inicio_entrega,
+    );
+    expect(
+      cliente_transacional.metricasPagamento.findFirst,
+    ).toHaveBeenCalledWith({
+      where: {
+        idEmpresa: ID_EMPRESA,
+        data: { lte: dados_persistidos.remuneracao_atribuida_em },
+      },
+      orderBy: { data: 'desc' },
+    });
+  });
+
+  it('bloqueia criacao atribuida sem parametros antes de ocupar entregador', async () => {
+    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+      montar();
+    cliente_transacional.metricasPagamento.findFirst.mockResolvedValue(null);
+    await expect(
+      repositorio_pedidos.criar(
+        { cpf_entregador: CPF_NOVO } as CriaPedidoReqDto,
+        ID_EMPRESA,
+      ),
+    ).rejects.toThrow('Configure os parâmetros');
+    expect(cliente_transacional.entregador.updateMany).not.toHaveBeenCalled();
+    expect(cliente_transacional.pedido.create).not.toHaveBeenCalled();
+  });
+
+  it('reatribuicao captura a nova configuracao da empresa do pedido', async () => {
+    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+      montar();
+    cliente_transacional.metricasPagamento.findFirst.mockResolvedValue({
+      taxa_fixa: 950,
+      coeficiente: 200,
+      data: new Date(),
+    });
+    await repositorio_pedidos.reatribuir(troca);
+    expect(
+      argumento(cliente_transacional.pedido.updateMany).data,
+    ).toMatchObject({
+      taxa_fixa_atribuicao_centavos: 950,
+      coeficiente_atribuicao_centavos_km: 200,
+    });
+    expect(
+      argumento(cliente_transacional.metricasPagamento.findFirst).where
+        .idEmpresa,
+    ).toBe(ID_EMPRESA);
+  });
+
+  it('nao altera atribuicao quando a captura falha', async () => {
+    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+      montar();
+    cliente_transacional.metricasPagamento.findFirst.mockRejectedValue(
+      new Error('falha banco'),
+    );
+    await expect(repositorio_pedidos.reatribuir(troca)).rejects.toThrow(
+      'falha banco',
+    );
+    expect(cliente_transacional.pedido.updateMany).not.toHaveBeenCalled();
+    expect(
+      cliente_transacional.historicoPedidoEntregadores.create,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('consolida com snapshot, preserva valor_entrega e nao consulta parametros vigentes', async () => {
+    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+      montar();
+    await repositorio_pedidos.atualizarStatus(conclusao);
+    expect(
+      argumento(cliente_transacional.pedido.updateMany).data,
+    ).toMatchObject({
+      status: StatusPedido.FINALIZADO,
+      ganho_consolidado_centavos: 1430,
+    });
+    expect(
+      argumento(cliente_transacional.pedido.updateMany).data,
+    ).not.toHaveProperty('valor_entrega');
+    expect(
+      cliente_transacional.metricasPagamento.findFirst,
+    ).not.toHaveBeenCalled();
+    expect(
+      cliente_transacional.$queryRaw.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      cliente_transacional.pedido.findUniqueOrThrow.mock.invocationCallOrder[0],
+    );
+  });
+
+  it.each([StatusPedido.FINALIZADO, StatusPedido.CANCELADO])(
+    'nao recalcula pedido %s, inclusive legado',
+    async (status) => {
+      const { repository: repositorio_pedidos, tx: cliente_transacional } =
+        montar();
+      cliente_transacional.pedido.findUniqueOrThrow.mockResolvedValueOnce({
+        ...(await cliente_transacional.pedido.findUniqueOrThrow()),
+        status,
+      });
+      await expect(
+        repositorio_pedidos.atualizarStatus({
+          ...conclusao,
+          statusAtual: status,
+        }),
+      ).rejects.toBeInstanceOf(PedidoAlteradoError);
+      expect(cliente_transacional.pedido.updateMany).not.toHaveBeenCalled();
+    },
+  );
+
+  it('nao conclui nem reatribui um ganho ja consolidado', async () => {
+    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+      montar();
+    cliente_transacional.pedido.findUniqueOrThrow.mockResolvedValue({
+      ...(await cliente_transacional.pedido.findUniqueOrThrow()),
+      ganho_consolidado_centavos: 0,
+    });
+    await expect(
+      repositorio_pedidos.atualizarStatus(conclusao),
+    ).rejects.toBeInstanceOf(PedidoAlteradoError);
+    await expect(repositorio_pedidos.reatribuir(troca)).rejects.toBeInstanceOf(
+      PedidoAlteradoError,
+    );
+    expect(cliente_transacional.pedido.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('nao conclui por entregador diferente', async () => {
+    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+      montar();
+    await expect(
+      repositorio_pedidos.atualizarStatus({
+        ...conclusao,
+        cpfEntregador: CPF_NOVO,
+      }),
+    ).rejects.toBeInstanceOf(PedidoAlteradoError);
+    expect(cliente_transacional.pedido.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { distancia_conhecida: false },
+    { distancia_conhecida: null },
+    { taxa_fixa_atribuicao_centavos: null },
+    { distancia: -1 },
+    { taxa_fixa_atribuicao_centavos: 2147483647 },
+  ])(
+    'nao escreve status ou libera entregador quando calculo falha: %j',
+    async (campos) => {
+      const { repository: repositorio_pedidos, tx: cliente_transacional } =
+        montar();
+      cliente_transacional.pedido.findUniqueOrThrow.mockResolvedValueOnce({
+        ...(await cliente_transacional.pedido.findUniqueOrThrow()),
+        ...campos,
+      });
+      await expect(
+        repositorio_pedidos.atualizarStatus(conclusao),
+      ).rejects.toThrow();
+      expect(cliente_transacional.pedido.updateMany).not.toHaveBeenCalled();
+      expect(cliente_transacional.entregador.update).not.toHaveBeenCalled();
+    },
+  );
+
+  it('repassa falha de persistencia sem liberar o entregador', async () => {
+    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+      montar();
+    cliente_transacional.pedido.updateMany.mockRejectedValue(
+      new Error('falha persistencia'),
+    );
+    await expect(
+      repositorio_pedidos.atualizarStatus(conclusao),
+    ).rejects.toThrow('falha persistencia');
+    expect(cliente_transacional.entregador.update).not.toHaveBeenCalled();
   });
 });
 
