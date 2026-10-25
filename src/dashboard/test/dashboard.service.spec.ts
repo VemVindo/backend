@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DashboardService } from '../dashboard.service';
 import { DashboardRepository } from '../dashboard.repository';
-import { DashboardReqDto, DashboardResDto } from '../dto/dashboard.dto';
+import { DashboardReqDto } from '../dto/dashboard.dto';
 import { StatusPedido } from '../../generated/prisma/enums';
 
 describe('DashboardService', () => {
