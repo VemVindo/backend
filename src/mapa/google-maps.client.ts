@@ -56,7 +56,7 @@ export class GoogleMapsClient {
       return null;
     }
     const parametros = new URLSearchParams({
-      address: `${endereco.logradouro}, ${endereco.numero} - ${endereco.bairro}, ${endereco.cidade} - ${endereco.uf}, ${endereco.cep}`,
+      address: textoDoEndereco(endereco),
       components: 'country:BR',
       region: 'br',
       language: 'pt-BR',
@@ -67,18 +67,14 @@ export class GoogleMapsClient {
       `${URL_GEOCODING}?${parametros.toString()}`,
       { method: 'GET' },
     );
-    const local = corpo?.results?.[0]?.geometry?.location;
-    if (
-      corpo?.status !== 'OK' ||
-      typeof local?.lat !== 'number' ||
-      typeof local?.lng !== 'number'
-    ) {
-      if (corpo) {
-        this.logger.warn(`Geocoding sem resultado: ${corpo.status}`);
-      }
+    if (!corpo) {
       return null;
     }
-    return { lat: local.lat, lng: local.lng };
+    const coordenada = coordenadaDoGeocoding(corpo);
+    if (!coordenada) {
+      this.logger.warn(`Geocoding sem resultado: ${corpo.status}`);
+    }
+    return coordenada;
   }
 
   async calcularRota(
@@ -89,9 +85,6 @@ export class GoogleMapsClient {
     if (!this.chave) {
       return null;
     }
-    const ponto = ({ lat, lng }: Coordenada) => ({
-      location: { latLng: { latitude: lat, longitude: lng } },
-    });
     const corpo = await this.chamar<RespostaRoutes>('Routes', URL_ROUTES, {
       method: 'POST',
       headers: {
@@ -100,24 +93,15 @@ export class GoogleMapsClient {
         'X-Goog-FieldMask': CAMPOS_DA_ROTA,
       },
       body: JSON.stringify({
-        origin: ponto(origem),
-        destination: ponto(destino),
+        origin: pontoDaRota(origem),
+        destination: pontoDaRota(destino),
         travelMode: modo,
         ...(modo === 'DRIVE' && { routingPreference: 'TRAFFIC_UNAWARE' }),
         languageCode: 'pt-BR',
         units: 'METRIC',
       }),
     });
-    const rota = corpo?.routes?.[0];
-    const duracaoS = Number.parseInt(rota?.duration ?? '', 10);
-    if (typeof rota?.distanceMeters !== 'number' || Number.isNaN(duracaoS)) {
-      return null;
-    }
-    return {
-      distanciaM: rota.distanceMeters,
-      duracaoS,
-      polyline: rota.polyline?.encodedPolyline ?? null,
-    };
+    return rotaDaResposta(corpo);
   }
 
   private async chamar<T>(
@@ -142,4 +126,39 @@ export class GoogleMapsClient {
       return null;
     }
   }
+}
+
+function textoDoEndereco(endereco: EnderecoDoPedido): string {
+  const { logradouro, numero, bairro, cidade, uf, cep } = endereco;
+  return `${logradouro}, ${numero} - ${bairro}, ${cidade} - ${uf}, ${cep}`;
+}
+
+function coordenadaDoGeocoding(corpo: RespostaGeocoding): Coordenada | null {
+  if (corpo.status !== 'OK') {
+    return null;
+  }
+  const local = corpo.results?.[0]?.geometry?.location;
+  return typeof local?.lat === 'number' && typeof local.lng === 'number'
+    ? { lat: local.lat, lng: local.lng }
+    : null;
+}
+
+function pontoDaRota({ lat, lng }: Coordenada) {
+  return { location: { latLng: { latitude: lat, longitude: lng } } };
+}
+
+function rotaDaResposta(corpo: RespostaRoutes | null): RotaCalculada | null {
+  const rota = corpo?.routes?.[0];
+  if (!rota) {
+    return null;
+  }
+  const duracaoS = Number.parseInt(rota.duration ?? '', 10);
+  if (typeof rota.distanceMeters !== 'number' || Number.isNaN(duracaoS)) {
+    return null;
+  }
+  return {
+    distanciaM: rota.distanceMeters,
+    duracaoS,
+    polyline: rota.polyline?.encodedPolyline ?? null,
+  };
 }
