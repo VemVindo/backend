@@ -64,29 +64,36 @@ model Entregador {
 }
 
 model Pedido {
-  id_pedido           Int          @id @default(autoincrement())
-  nome_recebedor      String
-  telefone_recebedor  String
-  cep                 String
-  logradouro          String
-  numero              Int
-  complemento         String?
-  bairro              String
-  cidade              String
-  uf                  String
-  descricao           String
-  status              StatusPedido @default(PENDENTE)
-  data_criacao        DateTime  @db.Timestamptz(3)
-  data_inicio_entrega DateTime? @db.Timestamptz(3)
-  data_finalizacao    DateTime? @db.Timestamptz(3)
-  data_cancelamento    DateTime? @db.Timestamptz(3)
-  valor_entrega       Int
-  idEmpresa           Int
-  cpf_entregador      String?
-  distancia           Int
+  id_pedido                          Int          @id @default(autoincrement())
+  nome_recebedor                     String
+  telefone_recebedor                 String
+  cep                                String
+  logradouro                         String
+  numero                             Int
+  complemento                        String?
+  bairro                             String
+  cidade                             String
+  uf                                 String
+  descricao                          String
+  status                             StatusPedido @default(PENDENTE)
+  data_criacao                       DateTime     @db.Timestamptz(3)
+  data_inicio_entrega                DateTime?    @db.Timestamptz(3)
+  data_finalizacao                   DateTime?    @db.Timestamptz(3)
+  valor_entrega                      Int
+
+  ganho_consolidado_centavos         Int?
+  taxa_fixa_atribuicao_centavos      Int?
+  coeficiente_atribuicao_centavos_km Int?
+  parametros_vigentes_desde          DateTime?    @db.Timestamptz(3)
+  remuneracao_atribuida_em           DateTime?    @db.Timestamptz(3)
+
+  distancia_conhecida                Boolean?
+  idEmpresa                          Int
+  cpf_entregador                     String?
+  distancia                          Int
   // Coordenada do endereco, geocodificada uma vez e reaproveitada.
-  destino_lat         Float?
-  destino_lng         Float?
+  destino_lat                        Float?
+  destino_lng                        Float?
 
   empresa    Empresa     @relation(fields: [idEmpresa], references: [id_empresa])
   // Igual a FK da migration: entregador com pedido nao pode ser apagado.
@@ -160,9 +167,9 @@ model Contrato {
   idEmpresa      Int
   cpf_entregador String
   status         StatusContrato @default(PENDENTE)
-  data_inicio    DateTime  @db.Timestamptz(3)
-  data_aceite    DateTime? @db.Timestamptz(3)
-  data_fim       DateTime? @db.Timestamptz(3)
+  data_inicio    DateTime       @db.Timestamptz(3)
+  data_aceite    DateTime?      @db.Timestamptz(3)
+  data_fim       DateTime?      @db.Timestamptz(3)
 
   empresa    Empresa    @relation(fields: [idEmpresa], references: [id_empresa])
   entregador Entregador @relation(fields: [cpf_entregador], references: [cpf])

@@ -24,6 +24,7 @@ export interface DadosNovoPedido {
   data_criacao: Date;
   valor_entrega: number;
   distancia: number;
+  distancia_conhecida: boolean;
   destino_lat: number | null;
   destino_lng: number | null;
 }
