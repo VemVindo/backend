@@ -66,6 +66,7 @@ async function gerarChave(empresa: Sessao): Promise<string> {
 describe('E-US12 integracao com outros sistemas (e2e)', () => {
   let aplicacao: INestApplication<App>;
   let padaria: Sessao;
+  let cantina: Sessao;
   let chave: string;
   let importacao: ResultadoDaImportacao;
   const nomeDoRecebedor = identificadorUnico('Recebedor Importado');
@@ -82,6 +83,7 @@ describe('E-US12 integracao com outros sistemas (e2e)', () => {
   beforeAll(async () => {
     aplicacao = await subirAplicacao();
     padaria = await entrarComoEmpresa(aplicacao, PADARIA.email);
+    cantina = await entrarComoEmpresa(aplicacao, CANTINA.email);
     chave = await gerarChave(padaria);
   });
 
@@ -143,7 +145,6 @@ describe('E-US12 integracao com outros sistemas (e2e)', () => {
   it('cria o pedido pendente na empresa dona da chave, nunca na do corpo', async () => {
     const pedidosDaPadaria = (await padaria.get('/pedidos').expect(200))
       .body as PedidoDaLista[];
-    const cantina = await entrarComoEmpresa(aplicacao, CANTINA.email);
     const pedidosDaCantina = (await cantina.get('/pedidos').expect(200))
       .body as PedidoDaLista[];
 
@@ -156,6 +157,43 @@ describe('E-US12 integracao com outros sistemas (e2e)', () => {
     expect(pedidosDaCantina.map((pedido) => pedido.recebedor)).not.toContain(
       nomeDoRecebedor,
     );
+  });
+
+  it('recusa lote acima do limite de pedidos', async () => {
+    const lote = Array.from({ length: 101 }, (_, posicao) =>
+      pedidoExterno(`${idCompleto}-${posicao}`, nomeDoRecebedor),
+    );
+
+    await importar(lote).expect(400);
+  });
+
+  it('outra empresa nao completa a pendencia', async () => {
+    await cantina
+      .post(
+        `/integracao/pendencias/${importacao.resultados[2].idPendencia}/completar`,
+      )
+      .send({ cep: '70297400' })
+      .expect(404);
+  });
+
+  it('completar sem tudo que falta salva o progresso e responde o que ainda falta', async () => {
+    const { resultados } = (
+      await importar([
+        {
+          ...pedidoExterno(identificadorUnico('PED'), nomeDoRecebedor),
+          cep: undefined,
+          telefoneRecebedor: undefined,
+        },
+      ]).expect(200)
+    ).body as ResultadoDaImportacao;
+
+    const resposta = await padaria
+      .post(`/integracao/pendencias/${resultados[0].idPendencia}/completar`)
+      .send({ telefoneRecebedor: '61920000009' })
+      .expect(422);
+    expect(
+      (resposta.body as { camposFaltantes: string[] }).camposFaltantes,
+    ).toEqual(['cep']);
   });
 
   it('a empresa completa a pendencia e o pedido e criado', async () => {
@@ -187,5 +225,15 @@ describe('E-US12 integracao com outros sistemas (e2e)', () => {
     await importar([
       pedidoExterno(identificadorUnico('PED'), nomeDoRecebedor),
     ]).expect(200);
+  });
+
+  it('revogar a credencial bloqueia a integracao', async () => {
+    await padaria.delete('/integracao/credencial').expect(204);
+
+    await importar([
+      pedidoExterno(identificadorUnico('PED'), nomeDoRecebedor),
+    ]).expect(401);
+    const consulta = await padaria.get('/integracao/credencial').expect(200);
+    expect((consulta.body as { credencial: unknown }).credencial).toBeNull();
   });
 });

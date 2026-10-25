@@ -3,10 +3,12 @@ import { App } from 'supertest/types';
 import {
   CANTINA,
   CARLA,
+  PADARIA,
   Sessao,
   entrarComoEmpresa,
   entrarComoEntregador,
   gerarCpfValido,
+  semLogin,
   subirAplicacao,
 } from './apoio/aplicacao';
 
@@ -32,18 +34,24 @@ const NOVA_SENHA = 'MinhaSenha@2026';
 describe('E-US04 cadastro e convite de entregador (e2e)', () => {
   let aplicacao: INestApplication<App>;
   let cantina: Sessao;
+  let padaria: Sessao;
   let novoEntregador: Sessao;
   let cadastrado: EntregadorCadastrado;
   const cpfNovo = gerarCpfValido();
 
-  function cadastrar(cpf: string) {
+  function cadastrar(cpf: string, placa = 'ABC1D23') {
     return cantina.post('/entregadores').send({
       nome: 'Entregador do Teste',
       cpf,
       telefone: '61988887777',
       tipoVeiculo: 'MOTO',
-      placa: 'ABC1D23',
+      placa,
     });
+  }
+
+  async function vinculosDoNovoEntregador(): Promise<Vinculo[]> {
+    return (await novoEntregador.get('/entregador/vinculos').expect(200))
+      .body as Vinculo[];
   }
 
   async function cpfsDaFrota(): Promise<string[]> {
@@ -55,6 +63,11 @@ describe('E-US04 cadastro e convite de entregador (e2e)', () => {
   beforeAll(async () => {
     aplicacao = await subirAplicacao();
     cantina = await entrarComoEmpresa(aplicacao, CANTINA.email);
+    padaria = await entrarComoEmpresa(aplicacao, PADARIA.email);
+  });
+
+  it('recusa placa fora do padrao', async () => {
+    await cadastrar(gerarCpfValido(), 'AB12').expect(400);
   });
 
   afterAll(async () => {
@@ -149,5 +162,48 @@ describe('E-US04 cadastro e convite de entregador (e2e)', () => {
         expect(resposta.status).toBeLessThan(300);
       });
     expect(await cpfsDaFrota()).toContain(cpfNovo);
+  });
+
+  it('o entregador pode recusar o convite de outra empresa', async () => {
+    await padaria
+      .post('/entregadores/vinculo')
+      .send({ cpf: cpfNovo })
+      .expect(202);
+    const conviteDaPadaria = (await vinculosDoNovoEntregador()).find(
+      (vinculo) => vinculo.empresa === PADARIA.nome,
+    );
+
+    await novoEntregador
+      .post(`/entregador/vinculos/${conviteDaPadaria?.id}/recusar`)
+      .expect((resposta) => {
+        expect(resposta.status).toBeLessThan(300);
+      });
+    expect(
+      (await vinculosDoNovoEntregador()).map((vinculo) => vinculo.empresa),
+    ).not.toContain(PADARIA.nome);
+  });
+
+  it('a empresa encerra o vinculo e perde o entregador da frota', async () => {
+    await cantina.delete(`/entregadores/${cpfNovo}/vinculo`).expect(204);
+
+    expect(await cpfsDaFrota()).not.toContain(cpfNovo);
+    await cantina.delete(`/entregadores/${cpfNovo}/vinculo`).expect(404);
+  });
+
+  it('antes do primeiro acesso, a empresa gera outra senha e a anterior deixa de valer', async () => {
+    const cpf = gerarCpfValido();
+    const primeira = (await cadastrar(cpf).expect(201))
+      .body as EntregadorCadastrado;
+
+    const segunda = (
+      await cantina.post(`/entregadores/${cpf}/senha-temporaria`).expect(200)
+    ).body as { senhaTemporaria: string };
+
+    expect(segunda.senhaTemporaria).not.toBe(primeira.senhaTemporaria);
+    await semLogin(aplicacao)
+      .post('/auth/login/entregador')
+      .send({ cpf, senha: primeira.senhaTemporaria })
+      .expect(401);
+    await entrarComoEntregador(aplicacao, cpf, segunda.senhaTemporaria);
   });
 });

@@ -102,7 +102,72 @@ describe('CredencialService.rotacionar', () => {
   });
 });
 
+describe('CredencialService.consultar', () => {
+  it('mostra so o resumo da credencial ativa, sem o hash', async () => {
+    const { service, credenciais } = montar();
+    credenciais.procurarAtiva.mockResolvedValue(credencial());
+
+    const { credencial: resumo } = await service.consultar(CANTINA);
+
+    expect(resumo).toEqual(
+      expect.objectContaining({ prefixo: 'vv_aaaaaaaaaaaa' }),
+    );
+    expect(resumo).not.toHaveProperty('hash');
+  });
+
+  it('devolve nulo quando a empresa nao tem credencial ativa', async () => {
+    const { service } = montar();
+
+    await expect(service.consultar(CANTINA)).resolves.toEqual({
+      credencial: null,
+    });
+  });
+});
+
+describe('CredencialService erros do banco', () => {
+  it('ao gerar, converte corrida no unique em 409', async () => {
+    const { service, credenciais } = montar();
+    credenciais.criar.mockRejectedValue({ code: 'P2002' });
+
+    await expect(service.gerar(CANTINA)).rejects.toThrow(ConflictException);
+  });
+
+  it('ao rotacionar, converte corrida no unique em 409', async () => {
+    const { service, credenciais } = montar();
+    credenciais.procurarAtiva.mockResolvedValue(credencial());
+    credenciais.substituir.mockRejectedValue({ code: 'P2002' });
+
+    await expect(service.rotacionar(CANTINA)).rejects.toThrow(
+      ConflictException,
+    );
+  });
+
+  it.each([
+    ['gerar', 'criar'],
+    ['rotacionar', 'substituir'],
+  ] as const)(
+    'ao %s, propaga erro que nao e de unicidade',
+    async (acao, metodo) => {
+      const { service, credenciais } = montar();
+      const falha = new Error('banco fora do ar');
+      credenciais.procurarAtiva.mockResolvedValue(
+        acao === 'rotacionar' ? credencial() : null,
+      );
+      credenciais[metodo].mockRejectedValue(falha);
+
+      await expect(service[acao](CANTINA)).rejects.toBe(falha);
+    },
+  );
+});
+
 describe('CredencialService.revogar', () => {
+  it('revoga a credencial ativa', async () => {
+    const { service, credenciais } = montar();
+
+    await expect(service.revogar(CANTINA)).resolves.toBeUndefined();
+    expect(credenciais.revogarAtiva).toHaveBeenCalledWith(CANTINA);
+  });
+
   it('recusa quando nao ha credencial ativa', async () => {
     const { service, credenciais } = montar();
     credenciais.revogarAtiva.mockResolvedValue(0);

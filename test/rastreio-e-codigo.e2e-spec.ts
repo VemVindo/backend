@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { App } from 'supertest/types';
 import {
+  BRUNO,
   CANTINA,
   CARLA,
   PADARIA,
@@ -15,6 +16,10 @@ interface PedidoDaLista {
   id: number;
   recebedor: string;
   status: string;
+}
+
+interface PedidoCriado {
+  id_pedido: number;
 }
 
 interface LinkGerado {
@@ -36,6 +41,7 @@ function codigoErrado(certo: string): string {
 describe('R-US01 link sem login e EN-US06 codigo do recebedor (e2e)', () => {
   let aplicacao: INestApplication<App>;
   let padaria: Sessao;
+  let cantina: Sessao;
   let carla: Sessao;
   let idPedido: number;
   let primeiroLink: LinkGerado;
@@ -44,6 +50,7 @@ describe('R-US01 link sem login e EN-US06 codigo do recebedor (e2e)', () => {
   beforeAll(async () => {
     aplicacao = await subirAplicacao();
     padaria = await entrarComoEmpresa(aplicacao, PADARIA.email);
+    cantina = await entrarComoEmpresa(aplicacao, CANTINA.email);
     carla = await entrarComoEntregador(aplicacao, CARLA);
     const pedidos = (await padaria.get('/pedidos').expect(200))
       .body as PedidoDaLista[];
@@ -80,8 +87,6 @@ describe('R-US01 link sem login e EN-US06 codigo do recebedor (e2e)', () => {
   });
 
   it('nao deixa outra empresa gerar link para o pedido', async () => {
-    const cantina = await entrarComoEmpresa(aplicacao, CANTINA.email);
-
     await cantina.post(`/pedidos/${idPedido}/link-rastreio`).expect(404);
   });
 
@@ -177,5 +182,71 @@ describe('R-US01 link sem login e EN-US06 codigo do recebedor (e2e)', () => {
     await semLogin(aplicacao)
       .get(`/rastreio/${tokenDoLink(linkAtual.link)}`)
       .expect(410);
+  });
+
+  describe('limite de tentativas do codigo', () => {
+    let bruno: Sessao;
+    let idPedidoDoBruno: number;
+    let codigoDoBruno: string;
+
+    function tentar(codigo: string) {
+      return bruno
+        .post(`/pedidos/${idPedidoDoBruno}/finalizar`)
+        .send({ codigo });
+    }
+
+    beforeAll(async () => {
+      idPedidoDoBruno = (
+        (
+          await cantina
+            .post('/pedidos')
+            .send({
+              nome_recebedor: 'Recebedor do Limite',
+              telefone_recebedor: '61920000010',
+              cep: '70390070',
+              logradouro: 'SHCS 706 Bloco B',
+              numero: 12,
+              bairro: 'Asa Sul',
+              cidade: 'Brasilia',
+              uf: 'DF',
+              descricao: 'Pedido do teste de limite',
+              valor_entrega: 1115,
+              distancia: 2100,
+              cpf_entregador: BRUNO,
+            })
+            .expect(201)
+        ).body as PedidoCriado
+      ).id_pedido;
+      codigoDoBruno = (
+        (
+          await cantina
+            .post(`/pedidos/${idPedidoDoBruno}/link-rastreio`)
+            .expect(200)
+        ).body as LinkGerado
+      ).codigoRecebedor;
+      bruno = await entrarComoEntregador(aplicacao, BRUNO);
+    });
+
+    it('conta as tentativas erradas ate acabarem', async () => {
+      const restantes: unknown[] = [];
+      for (let tentativa = 0; tentativa < 5; tentativa++) {
+        const resposta = await tentar(codigoErrado(codigoDoBruno)).expect(422);
+        restantes.push(
+          (resposta.body as { tentativasRestantes: number })
+            .tentativasRestantes,
+        );
+      }
+
+      expect(restantes).toEqual([4, 3, 2, 1, 0]);
+    });
+
+    it('depois do limite, bloqueia ate o codigo certo e diz quando libera', async () => {
+      const resposta = await tentar(codigoDoBruno).expect(429);
+      const liberaEm = new Date(
+        (resposta.body as { liberaEm: string }).liberaEm,
+      );
+
+      expect(liberaEm.getTime()).toBeGreaterThan(Date.now());
+    });
   });
 });

@@ -59,6 +59,19 @@ describe('EN-US01 login e isolamento entre empresas (e2e)', () => {
     expect(emailInexistente.body).toEqual(senhaErrada.body);
   });
 
+  it('responde igual para senha errada e para CPF que nao existe', async () => {
+    const senhaErrada = await semLogin(aplicacao)
+      .post('/auth/login/entregador')
+      .send({ cpf: BRUNO, senha: 'Errada@123' })
+      .expect(401);
+    const cpfInexistente = await semLogin(aplicacao)
+      .post('/auth/login/entregador')
+      .send({ cpf: '52998224725', senha: 'Errada@123' })
+      .expect(401);
+
+    expect(cpfInexistente.body).toEqual(senhaErrada.body);
+  });
+
   it('recusa quem nao fez login', async () => {
     await semLogin(aplicacao).get('/auth/minhas-infos').expect(401);
   });
@@ -106,7 +119,7 @@ describe('EN-US01 login e isolamento entre empresas (e2e)', () => {
   it('sair de todos os aparelhos invalida tambem os cookies ja emitidos', async () => {
     const login = await semLogin(aplicacao)
       .post('/auth/login/entregador')
-      .send({ cpf: BRUNO, senha: SENHA_DO_SEED })
+      .send({ cpf: ANA, senha: SENHA_TEMPORARIA_DA_ANA })
       .expect(200);
     const cookieAntigo = String(login.headers['set-cookie']).split(';')[0];
 

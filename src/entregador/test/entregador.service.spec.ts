@@ -116,6 +116,25 @@ describe('EntregadorService.cadastrar', () => {
       ConflictException,
     );
   });
+
+  it('propaga erro do banco que nao e de CPF repetido', async () => {
+    const { service, entregadores } = montar();
+    const falha = new Error('banco fora do ar');
+    entregadores.criarComConvite.mockRejectedValue(falha);
+
+    await expect(service.cadastrar(ID_EMPRESA, dto)).rejects.toBe(falha);
+  });
+
+  it('grava placa nula quando o veiculo motorizado chega sem placa', async () => {
+    const { service, entregadores } = montar();
+
+    await service.cadastrar(ID_EMPRESA, { ...dto, placa: undefined });
+
+    expect(entregadores.criarComConvite).toHaveBeenCalledWith(
+      expect.objectContaining({ placa: null }),
+      ID_EMPRESA,
+    );
+  });
 });
 
 describe('EntregadorService.convidar', () => {
