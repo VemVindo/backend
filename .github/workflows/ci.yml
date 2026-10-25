@@ -126,6 +126,12 @@ jobs:
       - name: Seed de dev
         run: npm run db:seed
 
+      # Cria um schema proprio, aplica as migrations nele e o apaga no fim.
+      - name: Testes de integracao (Jest)
+        env:
+          TEST_DATABASE_URL: postgresql://ci:ci@localhost:5432/vemvindo_ci
+        run: npm run test:integration
+
       - name: Testes e2e (Jest)
         run: npm run test:e2e
 
@@ -136,10 +142,8 @@ jobs:
           curl --silent --fail --retry 30 --retry-connrefused --retry-delay 1 \
             http://localhost:3000/health/db
 
-      # A colecao do Postman roda contra o seed. Entra junto com as rotas que
-      # ela cobre; enquanto nao existir no repositorio, o passo e pulado.
+      # A colecao do Postman roda contra o seed, depois dos testes e2e.
       - name: Testes de API (Postman)
-        if: hashFiles('test/postman/*.postman_collection.json') != ''
         run: |
           mkdir -p reports
           npx newman run test/postman/*.postman_collection.json \
