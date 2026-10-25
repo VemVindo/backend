@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DashboardReqDto } from './dto/dashboard.dto';
 import { StatusPedido } from '../generated/prisma/enums';
-import { Pedido } from '../generated/prisma';
+import { Pedido } from '../generated/prisma/client';
 import { EntregadorEPedidos } from './type/entregador-pedido.type';
 
 @Injectable()

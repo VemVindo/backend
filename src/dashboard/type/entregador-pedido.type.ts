@@ -1,4 +1,4 @@
-import { StatusPedido } from '../../generated/prisma';
+import { StatusPedido } from '../../generated/prisma/enums';
 
 type Pedido = {
   status: StatusPedido;
