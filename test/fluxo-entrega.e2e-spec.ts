@@ -2,14 +2,14 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import {
-  Agente,
-  BRUNO,
   CANTINA,
   PADARIA,
-  criarAppDeTeste,
+  Sessao,
   entrarComoEmpresa,
   entrarComoEntregador,
-} from './app-e2e';
+  gerarCpfValido,
+  subirAplicacao,
+} from './apoio/aplicacao';
 
 interface PedidoResumo {
   id: number;
@@ -27,22 +27,65 @@ interface AvaliacaoNaLista {
 
 // Percorre a entrega inteira pelas rotas HTTP, na ordem em que acontece:
 // cadastro, atribuicao, link de rastreio, finalizacao com codigo e avaliacao.
-// Cria um pedido proprio, entao pode rodar de novo sobre o mesmo seed.
-// Bruno fica livre no fim, porque finalizar devolve a disponibilidade.
+const NOME_DO_ENTREGADOR = 'Fausto Teste';
+
+// Cadastra um entregador na Cantina e passa pelo primeiro acesso e pelo aceite
+// do convite. Os entregadores do seed podem estar ocupados por outros arquivos.
+async function cadastrarEntregadorPronto(
+  app: INestApplication<App>,
+  cantina: Sessao,
+): Promise<{ cpf: string; sessao: Sessao }> {
+  const cpf = gerarCpfValido();
+  const { senhaTemporaria } = (
+    await cantina
+      .post('/entregadores')
+      .send({
+        nome: NOME_DO_ENTREGADOR,
+        cpf,
+        telefone: '61988886666',
+        tipoVeiculo: 'MOTO',
+        placa: 'FLX1E23',
+      })
+      .expect(201)
+  ).body as { senhaTemporaria: string };
+
+  const sessao = await entrarComoEntregador(app, cpf, senhaTemporaria);
+  await sessao
+    .post('/auth/entregador/trocar-senha')
+    .send({
+      senhaAtual: senhaTemporaria,
+      novaSenha: 'SenhaDoFluxo@2026',
+      cienteDadosCompartilhados: true,
+    })
+    .expect(200);
+  const [convite] = (await sessao.get('/entregador/vinculos').expect(200))
+    .body as { id: number }[];
+  await sessao
+    .post(`/entregador/vinculos/${convite.id}/aceitar`)
+    .expect((resposta) => {
+      expect(resposta.status).toBeLessThan(300);
+    });
+  return { cpf, sessao };
+}
+
+// Cria o proprio pedido e o proprio entregador, entao pode rodar de novo sobre
+// o mesmo seed e em qualquer ordem com os outros arquivos.
 describe('Fluxo da entrega (e2e)', () => {
   let app: INestApplication<App>;
-  let cantina: Agente;
-  let padaria: Agente;
-  let bruno: Agente;
+  let cantina: Sessao;
+  let padaria: Sessao;
+  let entregador: Sessao;
+  let cpfEntregador: string;
   let idPedido: number;
   let token: string;
   let codigoRecebedor: string;
 
   beforeAll(async () => {
-    app = await criarAppDeTeste();
-    cantina = await entrarComoEmpresa(app, CANTINA);
-    padaria = await entrarComoEmpresa(app, PADARIA);
-    bruno = await entrarComoEntregador(app, BRUNO);
+    app = await subirAplicacao();
+    cantina = await entrarComoEmpresa(app, CANTINA.email);
+    padaria = await entrarComoEmpresa(app, PADARIA.email);
+    ({ cpf: cpfEntregador, sessao: entregador } =
+      await cadastrarEntregadorPronto(app, cantina));
   });
 
   afterAll(async () => {
@@ -79,23 +122,23 @@ describe('Fluxo da entrega (e2e)', () => {
     return padaria.get(`/pedidos/${idPedido}`).expect(404);
   });
 
-  it('atribui ao Bruno e coloca a entrega em andamento', async () => {
+  it('atribui ao entregador e coloca a entrega em andamento', async () => {
     const resposta = await cantina
       .patch(`/pedidos/${idPedido}/atribuir`)
-      .send({ cpfEntregador: BRUNO.cpf })
+      .send({ cpfEntregador })
       .expect(200);
 
     expect(resposta.body).toMatchObject({
       id: idPedido,
       status: 'EM_ANDAMENTO',
-      entregador: 'Bruno Lima',
+      entregador: NOME_DO_ENTREGADOR,
     });
   });
 
   it('nao atribui de novo um pedido que ja tem entregador', () => {
     return cantina
       .patch(`/pedidos/${idPedido}/atribuir`)
-      .send({ cpfEntregador: BRUNO.cpf })
+      .send({ cpfEntregador })
       .expect(409);
   });
 
@@ -109,14 +152,16 @@ describe('Fluxo da entrega (e2e)', () => {
   });
 
   it('mostra a entrega na lista do entregador', async () => {
-    const resposta = await bruno.get('/pedidos/minhas-entregas').expect(200);
+    const resposta = await entregador
+      .get('/pedidos/minhas-entregas')
+      .expect(200);
 
     const ids = (resposta.body as { id: number }[]).map((p) => p.id);
     expect(ids).toContain(idPedido);
   });
 
   it('so oferece a finalizacao com codigo', async () => {
-    const resposta = await bruno
+    const resposta = await entregador
       .get(`/pedidos/${idPedido}/status-disponiveis`)
       .expect(200);
 
@@ -128,7 +173,7 @@ describe('Fluxo da entrega (e2e)', () => {
   });
 
   it('nao finaliza antes de o recebedor ter o codigo', () => {
-    return bruno
+    return entregador
       .post(`/pedidos/${idPedido}/finalizar`)
       .send({ codigo: '123456' })
       .expect(409);
@@ -153,7 +198,7 @@ describe('Fluxo da entrega (e2e)', () => {
 
     expect(resposta.body).toMatchObject({
       estabelecimento: 'Cantina Dona Marta',
-      entregador: 'Bruno',
+      entregador: 'Fausto',
       pedido: { numero: idPedido, status: 'EM_ANDAMENTO' },
     });
   });
@@ -167,7 +212,7 @@ describe('Fluxo da entrega (e2e)', () => {
   it('recusa o codigo errado e conta a tentativa', async () => {
     const errado = codigoRecebedor === '000000' ? '111111' : '000000';
 
-    const resposta = await bruno
+    const resposta = await entregador
       .post(`/pedidos/${idPedido}/finalizar`)
       .send({ codigo: errado })
       .expect(422);
@@ -176,7 +221,7 @@ describe('Fluxo da entrega (e2e)', () => {
   });
 
   it('finaliza com o codigo certo e consolida o ganho', async () => {
-    const resposta = await bruno
+    const resposta = await entregador
       .post(`/pedidos/${idPedido}/finalizar`)
       .send({ codigo: codigoRecebedor })
       .expect(200);

@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { CANTINA, criarAppDeTeste, entrarComoEmpresa } from './app-e2e';
+import { CANTINA, entrarComoEmpresa, subirAplicacao } from './apoio/aplicacao';
 
 interface PedidoDaLista {
   recebedor: string;
@@ -16,9 +16,9 @@ describe('GET /pedidos (e2e)', () => {
   let pedidos: PedidoDaLista[];
 
   beforeAll(async () => {
-    app = await criarAppDeTeste();
+    app = await subirAplicacao();
 
-    const empresa = await entrarComoEmpresa(app, CANTINA);
+    const empresa = await entrarComoEmpresa(app, CANTINA.email);
     const resposta = await empresa.get('/pedidos').expect(200);
     pedidos = resposta.body as PedidoDaLista[];
   });

@@ -2,14 +2,15 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import {
-  Agente,
   BRUNO,
   CANTINA,
   PADARIA,
-  criarAppDeTeste,
+  SENHA_DO_SEED,
+  Sessao,
   entrarComoEmpresa,
   entrarComoEntregador,
-} from './app-e2e';
+  subirAplicacao,
+} from './apoio/aplicacao';
 
 interface EntregadorDaFrota {
   nome: string;
@@ -19,12 +20,12 @@ interface EntregadorDaFrota {
 describe('Sessao, acesso e frota (e2e)', () => {
   let app: INestApplication<App>;
   // O login aceita 5 tentativas por minuto: cada persona entra uma vez so.
-  let cantina: Agente;
-  let bruno: Agente;
+  let cantina: Sessao;
+  let bruno: Sessao;
 
   beforeAll(async () => {
-    app = await criarAppDeTeste();
-    cantina = await entrarComoEmpresa(app, CANTINA);
+    app = await subirAplicacao();
+    cantina = await entrarComoEmpresa(app, CANTINA.email);
     bruno = await entrarComoEntregador(app, BRUNO);
   });
 
@@ -49,7 +50,7 @@ describe('Sessao, acesso e frota (e2e)', () => {
   it('grava a sessao em cookie httpOnly e sem devolver o token no corpo', async () => {
     const resposta = await request(app.getHttpServer())
       .post('/auth/login/empresa')
-      .send(PADARIA)
+      .send({ email: PADARIA.email, senha: SENHA_DO_SEED })
       .expect(200);
 
     // Em runtime e uma lista; String() junta os cookies para a comparacao.
@@ -59,7 +60,7 @@ describe('Sessao, acesso e frota (e2e)', () => {
   });
 
   it('mostra quem esta logado e encerra a sessao ao sair', async () => {
-    const empresa = await entrarComoEmpresa(app, CANTINA);
+    const empresa = await entrarComoEmpresa(app, CANTINA.email);
 
     const eu = await empresa.get('/auth/minhas-infos').expect(200);
     expect(eu.body).toMatchObject({
@@ -74,7 +75,7 @@ describe('Sessao, acesso e frota (e2e)', () => {
   it('identifica o entregador pelo CPF', async () => {
     const eu = await bruno.get('/auth/minhas-infos').expect(200);
 
-    expect(eu.body).toMatchObject({ cpf: BRUNO.cpf, cargo: 'ENTREGADOR' });
+    expect(eu.body).toMatchObject({ cpf: BRUNO, cargo: 'ENTREGADOR' });
   });
 
   it.each([
