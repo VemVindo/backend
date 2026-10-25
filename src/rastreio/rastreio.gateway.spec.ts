@@ -5,6 +5,7 @@ import {
   RastreioGateway,
   salaDoPedido,
 } from './rastreio.gateway';
+import type { Socket } from 'socket.io';
 
 jest.mock('../prisma/prisma.service', () => ({ PrismaService: class {} }));
 
@@ -36,7 +37,7 @@ describe('RastreioGateway', () => {
     const { gateway } = montar(autenticar);
     const socket = cliente('token-valido');
 
-    await gateway.handleConnection(socket);
+    await gateway.handleConnection(socket as unknown as Socket);
 
     expect(autenticar).toHaveBeenCalledWith('token-valido');
     expect(socket.join).toHaveBeenCalledWith('pedido:42');
@@ -49,7 +50,7 @@ describe('RastreioGateway', () => {
       const { gateway } = montar(jest.fn().mockResolvedValue({ situacao }));
       const socket = cliente('token');
 
-      await gateway.handleConnection(socket);
+      await gateway.handleConnection(socket as unknown as Socket);
 
       expect(socket.emit).toHaveBeenCalledWith(EVENTO_ACESSO_NEGADO, {
         situacao,
@@ -63,8 +64,8 @@ describe('RastreioGateway', () => {
     const autenticar = jest.fn().mockResolvedValue({ situacao: 'invalido' });
     const { gateway } = montar(autenticar);
 
-    await gateway.handleConnection(cliente());
-    await gateway.handleConnection(cliente(123));
+    await gateway.handleConnection(cliente() as unknown as Socket);
+    await gateway.handleConnection(cliente(123) as unknown as Socket);
 
     expect(autenticar).toHaveBeenNthCalledWith(1, '');
     expect(autenticar).toHaveBeenNthCalledWith(2, '');
@@ -75,7 +76,7 @@ describe('RastreioGateway', () => {
     const { gateway } = montar(jest.fn().mockRejectedValue(new Error('banco')));
     const socket = cliente('token');
 
-    await gateway.handleConnection(socket);
+    await gateway.handleConnection(socket as unknown as Socket);
 
     expect(socket.disconnect).toHaveBeenCalledWith(true);
   });
