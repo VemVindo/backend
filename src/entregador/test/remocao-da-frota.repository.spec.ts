@@ -30,7 +30,9 @@ function montar({
     pedido: {
       findMany: jest
         .fn()
-        .mockResolvedValue(pedidos.map((id_pedido) => ({ id_pedido }))),
+        .mockResolvedValue(
+          pedidos.map((idPedido) => ({ id_pedido: idPedido })),
+        ),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       count: jest.fn().mockResolvedValue(0),
     },
@@ -49,7 +51,7 @@ function montar({
     ),
   };
   const ganhos = {
-    capturar_parametros: jest.fn().mockResolvedValue(PARAMETROS),
+    capturarParametros: jest.fn().mockResolvedValue(PARAMETROS),
   };
   const repository = new RemocaoDaFrotaRepository(
     prisma as unknown as PrismaService,
@@ -208,8 +210,8 @@ describe('RemocaoDaFrotaRepository.remover', () => {
 
     await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
 
-    expect(ganhos.capturar_parametros).toHaveBeenCalledTimes(1);
-    expect(ganhos.capturar_parametros).toHaveBeenCalledWith(
+    expect(ganhos.capturarParametros).toHaveBeenCalledTimes(1);
+    expect(ganhos.capturarParametros).toHaveBeenCalledWith(
       expect.anything(),
       ID_EMPRESA,
       expect.any(Date),
@@ -221,7 +223,7 @@ describe('RemocaoDaFrotaRepository.remover', () => {
 
     await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
 
-    expect(ganhos.capturar_parametros).not.toHaveBeenCalled();
+    expect(ganhos.capturarParametros).not.toHaveBeenCalled();
   });
 
   it('falha sem parametros de remuneracao e nao grava a troca', async () => {
@@ -229,7 +231,7 @@ describe('RemocaoDaFrotaRepository.remover', () => {
       pedidos: [1],
       candidatos: [ANA],
     });
-    ganhos.capturar_parametros.mockRejectedValue(
+    ganhos.capturarParametros.mockRejectedValue(
       new UnprocessableEntityException(),
     );
 

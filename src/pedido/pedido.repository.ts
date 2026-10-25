@@ -86,23 +86,23 @@ export class PedidoRepository {
       return await this.prisma.pedido.create({ data: dados });
     }
 
-    return await this.prisma.$transaction(async (cliente_transacional) => {
+    return await this.prisma.$transaction(async (clienteTransacional) => {
       const agora = new Date();
-      const parametros_congelados = await this.ganhos.capturar_parametros(
-        cliente_transacional,
+      const parametrosCongelados = await this.ganhos.capturarParametros(
+        clienteTransacional,
         idEmpresa,
         agora,
       );
-      await ocuparEntregador(cliente_transacional, cpfEntregador);
-      const criado = await cliente_transacional.pedido.create({
+      await ocuparEntregador(clienteTransacional, cpfEntregador);
+      const criado = await clienteTransacional.pedido.create({
         data: {
           ...dados,
-          ...parametros_congelados,
+          ...parametrosCongelados,
           data_inicio_entrega: agora,
         },
       });
       await registrarTroca(
-        cliente_transacional,
+        clienteTransacional,
         criado.id_pedido,
         null,
         cpfEntregador,
@@ -179,9 +179,9 @@ export class PedidoRepository {
   }
 
   atualizarStatus(dados: DadosAtualizacaoStatus): Promise<PedidoComEntregador> {
-    return this.prisma.$transaction(async (cliente_transacional) => {
-      const pedido = await this.bloquear_pedido(
-        cliente_transacional,
+    return this.prisma.$transaction(async (clienteTransacional) => {
+      const pedido = await this.bloquearPedido(
+        clienteTransacional,
         dados.idPedido,
       );
       if (
@@ -193,10 +193,10 @@ export class PedidoRepository {
         throw new PedidoAlteradoError();
       }
       const concluindo = dados.novoStatus === StatusPedido.FINALIZADO;
-      const ganho_consolidado_centavos = concluindo
-        ? this.ganhos.consolidar_ganho(pedido)
+      const ganhoConsolidado = concluindo
+        ? this.ganhos.consolidarGanho(pedido)
         : undefined;
-      const { count } = await cliente_transacional.pedido.updateMany({
+      const { count } = await clienteTransacional.pedido.updateMany({
         where: {
           id_pedido: dados.idPedido,
           cpf_entregador: dados.cpfEntregador,
@@ -207,7 +207,7 @@ export class PedidoRepository {
           ? {
               status: dados.novoStatus,
               data_finalizacao: new Date(),
-              ganho_consolidado_centavos: ganho_consolidado_centavos,
+              ganho_consolidado_centavos: ganhoConsolidado,
             }
           : { status: dados.novoStatus },
       });
@@ -216,10 +216,10 @@ export class PedidoRepository {
       }
 
       if (concluindo) {
-        await liberarSeOcioso(cliente_transacional, dados.cpfEntregador);
+        await liberarSeOcioso(clienteTransacional, dados.cpfEntregador);
       }
 
-      return cliente_transacional.pedido.findUniqueOrThrow({
+      return clienteTransacional.pedido.findUniqueOrThrow({
         where: { id_pedido: dados.idPedido },
         include: COM_NOME_DO_ENTREGADOR,
       });
@@ -229,8 +229,8 @@ export class PedidoRepository {
   reatribuir(dados: DadosReatribuicao): Promise<PedidoComEntregador> {
     const { idPedido, statusAtual, cpfAnterior, cpfNovo } = dados;
 
-    return this.prisma.$transaction(async (cliente_transacional) => {
-      const pedido = await this.bloquear_pedido(cliente_transacional, idPedido);
+    return this.prisma.$transaction(async (clienteTransacional) => {
+      const pedido = await this.bloquearPedido(clienteTransacional, idPedido);
       if (
         pedido.status !== statusAtual ||
         pedido.cpf_entregador !== cpfAnterior ||
@@ -242,18 +242,18 @@ export class PedidoRepository {
         throw new PedidoAlteradoError();
       }
       const agora = new Date();
-      const parametros_congelados = await this.ganhos.capturar_parametros(
-        cliente_transacional,
+      const parametrosCongelados = await this.ganhos.capturarParametros(
+        clienteTransacional,
         pedido.idEmpresa,
         agora,
       );
       const atribuicao = {
-        ...parametros_congelados,
+        ...parametrosCongelados,
         cpf_entregador: cpfNovo,
         status: StatusPedido.EM_ANDAMENTO,
       };
 
-      const { count } = await cliente_transacional.pedido.updateMany({
+      const { count } = await clienteTransacional.pedido.updateMany({
         where: {
           id_pedido: idPedido,
           status: statusAtual,
@@ -269,10 +269,10 @@ export class PedidoRepository {
         throw new PedidoAlteradoError();
       }
 
-      await ocuparEntregador(cliente_transacional, cpfNovo);
+      await ocuparEntregador(clienteTransacional, cpfNovo);
 
       await registrarTroca(
-        cliente_transacional,
+        clienteTransacional,
         idPedido,
         cpfAnterior,
         cpfNovo,
@@ -280,28 +280,28 @@ export class PedidoRepository {
       );
 
       if (cpfAnterior) {
-        await liberarSeOcioso(cliente_transacional, cpfAnterior);
+        await liberarSeOcioso(clienteTransacional, cpfAnterior);
       }
 
-      return cliente_transacional.pedido.findUniqueOrThrow({
+      return clienteTransacional.pedido.findUniqueOrThrow({
         where: { id_pedido: idPedido },
         include: COM_NOME_DO_ENTREGADOR,
       });
     });
   }
 
-  private async bloquear_pedido(
-    cliente_transacional: Prisma.TransactionClient,
-    id_pedido: number,
+  private async bloquearPedido(
+    clienteTransacional: Prisma.TransactionClient,
+    idPedido: number,
   ): Promise<Pedido> {
-    const pedidos_bloqueados = await cliente_transacional.$queryRaw<
+    const pedidosBloqueados = await clienteTransacional.$queryRaw<
       { id_pedido: number }[]
     >`
-      SELECT id_pedido FROM "Pedido" WHERE id_pedido = ${id_pedido} FOR UPDATE
+      SELECT id_pedido FROM "Pedido" WHERE id_pedido = ${idPedido} FOR UPDATE
     `;
-    if (pedidos_bloqueados.length === 0) throw new PedidoAlteradoError();
-    return cliente_transacional.pedido.findUniqueOrThrow({
-      where: { id_pedido: id_pedido },
+    if (pedidosBloqueados.length === 0) throw new PedidoAlteradoError();
+    return clienteTransacional.pedido.findUniqueOrThrow({
+      where: { id_pedido: idPedido },
     });
   }
 
@@ -319,26 +319,26 @@ export class PedidoRepository {
     });
   }
 
-  corrigir_distancia(
-    id_pedido: number,
-    id_empresa: number,
-    distancia_metros: number,
+  corrigirDistancia(
+    idPedido: number,
+    idEmpresa: number,
+    distanciaMetros: number,
   ): Promise<PedidoComEntregador> {
-    return this.prisma.$transaction(async (cliente_transacional) => {
-      await this.bloquear_pedido(cliente_transacional, id_pedido);
-      const { count: quantidade_atualizada } =
-        await cliente_transacional.pedido.updateMany({
+    return this.prisma.$transaction(async (clienteTransacional) => {
+      await this.bloquearPedido(clienteTransacional, idPedido);
+      const { count: quantidadeAtualizada } =
+        await clienteTransacional.pedido.updateMany({
           where: {
-            id_pedido: id_pedido,
-            idEmpresa: id_empresa,
+            id_pedido: idPedido,
+            idEmpresa,
             status: { in: [StatusPedido.PENDENTE, StatusPedido.EM_ANDAMENTO] },
             ganho_consolidado_centavos: null,
           },
-          data: { distancia: distancia_metros, distancia_conhecida: true },
+          data: { distancia: distanciaMetros, distancia_conhecida: true },
         });
-      if (quantidade_atualizada === 0) throw new PedidoAlteradoError();
-      return cliente_transacional.pedido.findUniqueOrThrow({
-        where: { id_pedido: id_pedido },
+      if (quantidadeAtualizada === 0) throw new PedidoAlteradoError();
+      return clienteTransacional.pedido.findUniqueOrThrow({
+        where: { id_pedido: idPedido },
         include: COM_NOME_DO_ENTREGADOR,
       });
     });

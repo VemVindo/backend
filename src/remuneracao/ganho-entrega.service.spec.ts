@@ -18,7 +18,7 @@ const PARAMETROS_CONGELADOS = {
   parametros_vigentes_desde: VIGENCIA,
   remuneracao_atribuida_em: AGORA,
 };
-const criar_pedido = (campos: Partial<Pedido> = {}) =>
+const criarPedido = (campos: Partial<Pedido> = {}) =>
   ({
     ...PARAMETROS_CONGELADOS,
     distancia: 4200,
@@ -26,8 +26,8 @@ const criar_pedido = (campos: Partial<Pedido> = {}) =>
     ...campos,
   }) as Pedido;
 
-function montar_servico() {
-  const cliente_transacional = {
+function montarServico() {
+  const clienteTransacional = {
     metricasPagamento: {
       findFirst: jest
         .fn<
@@ -42,26 +42,26 @@ function montar_servico() {
         }),
     },
   };
-  const calculo_valor_entrega = new CalculoValorEntregaService();
-  const servico_ganhos = new GanhoEntregaService(
+  const calculoValorEntrega = new CalculoValorEntregaService();
+  const servicoGanhos = new GanhoEntregaService(
     new RemuneracaoRepository({} as PrismaService),
-    calculo_valor_entrega,
+    calculoValorEntrega,
   );
-  return { servico_ganhos, cliente_transacional, calculo_valor_entrega };
+  return { servicoGanhos, clienteTransacional, calculoValorEntrega };
 }
 
 describe('GanhoEntregaService', () => {
   it('captura valores, vigencia e instante usando o cliente transacional e a empresa', async () => {
-    const { servico_ganhos, cliente_transacional } = montar_servico();
+    const { servicoGanhos, clienteTransacional } = montarServico();
     await expect(
-      servico_ganhos.capturar_parametros(
-        cliente_transacional as unknown as Prisma.TransactionClient,
+      servicoGanhos.capturarParametros(
+        clienteTransacional as unknown as Prisma.TransactionClient,
         7,
         AGORA,
       ),
     ).resolves.toEqual(PARAMETROS_CONGELADOS);
     expect(
-      cliente_transacional.metricasPagamento.findFirst,
+      clienteTransacional.metricasPagamento.findFirst,
     ).toHaveBeenCalledWith({
       where: { idEmpresa: 7, data: { lte: AGORA } },
       orderBy: { data: 'desc' },
@@ -69,11 +69,11 @@ describe('GanhoEntregaService', () => {
   });
 
   it('bloqueia atribuicao sem parametros, sem assumir zeros', async () => {
-    const { servico_ganhos, cliente_transacional } = montar_servico();
-    cliente_transacional.metricasPagamento.findFirst.mockResolvedValue(null);
+    const { servicoGanhos, clienteTransacional } = montarServico();
+    clienteTransacional.metricasPagamento.findFirst.mockResolvedValue(null);
     await expect(
-      servico_ganhos.capturar_parametros(
-        cliente_transacional as unknown as Prisma.TransactionClient,
+      servicoGanhos.capturarParametros(
+        clienteTransacional as unknown as Prisma.TransactionClient,
         7,
         AGORA,
       ),
@@ -81,16 +81,16 @@ describe('GanhoEntregaService', () => {
   });
 
   it('valida parametros invalidos na captura', async () => {
-    const { servico_ganhos, cliente_transacional } = montar_servico();
-    cliente_transacional.metricasPagamento.findFirst.mockResolvedValue({
+    const { servicoGanhos, clienteTransacional } = montarServico();
+    clienteTransacional.metricasPagamento.findFirst.mockResolvedValue({
       idEmpresa: 7,
       taxa_fixa: -1,
       coeficiente: 150,
       data: VIGENCIA,
     });
     await expect(
-      servico_ganhos.capturar_parametros(
-        cliente_transacional as unknown as Prisma.TransactionClient,
+      servicoGanhos.capturarParametros(
+        clienteTransacional as unknown as Prisma.TransactionClient,
         7,
         AGORA,
       ),
@@ -107,35 +107,35 @@ describe('GanhoEntregaService', () => {
     'consolida %i metros, taxa %i e coeficiente %i em %i centavos',
     (
       distancia,
-      taxa_fixa_centavos,
-      coeficiente_centavos_km,
-      ganho_esperado_centavos,
+      taxaFixaCentavos,
+      coeficienteCentavosKm,
+      ganhoEsperadoCentavos,
     ) => {
-      const { servico_ganhos, cliente_transacional } = montar_servico();
+      const { servicoGanhos, clienteTransacional } = montarServico();
       expect(
-        servico_ganhos.consolidar_ganho(
-          criar_pedido({
+        servicoGanhos.consolidarGanho(
+          criarPedido({
             distancia,
-            taxa_fixa_atribuicao_centavos: taxa_fixa_centavos,
-            coeficiente_atribuicao_centavos_km: coeficiente_centavos_km,
+            taxa_fixa_atribuicao_centavos: taxaFixaCentavos,
+            coeficiente_atribuicao_centavos_km: coeficienteCentavosKm,
           }),
         ),
-      ).toBe(ganho_esperado_centavos);
+      ).toBe(ganhoEsperadoCentavos);
       expect(
-        cliente_transacional.metricasPagamento.findFirst,
+        clienteTransacional.metricasPagamento.findFirst,
       ).not.toHaveBeenCalled();
     },
   );
 
   it.each([null, false])(
     'bloqueia distancia desconhecida (%s), inclusive zero legado',
-    (distancia_conhecida) => {
-      const { servico_ganhos } = montar_servico();
+    (distanciaConhecida) => {
+      const { servicoGanhos } = montarServico();
       expect(() =>
-        servico_ganhos.consolidar_ganho(
-          criar_pedido({
+        servicoGanhos.consolidarGanho(
+          criarPedido({
             distancia: 0,
-            distancia_conhecida: distancia_conhecida,
+            distancia_conhecida: distanciaConhecida,
           }),
         ),
       ).toThrow(UnprocessableEntityException);
@@ -146,8 +146,8 @@ describe('GanhoEntregaService', () => {
     'rejeita distancia invalida %s',
     (distancia) => {
       expect(() =>
-        montar_servico().servico_ganhos.consolidar_ganho(
-          criar_pedido({ distancia }),
+        montarServico().servicoGanhos.consolidarGanho(
+          criarPedido({ distancia }),
         ),
       ).toThrow(BadRequestException);
     },
@@ -155,8 +155,8 @@ describe('GanhoEntregaService', () => {
 
   it('rejeita overflow usando o calculador existente', () => {
     expect(() =>
-      montar_servico().servico_ganhos.consolidar_ganho(
-        criar_pedido({ taxa_fixa_atribuicao_centavos: 2147483647 }),
+      montarServico().servicoGanhos.consolidarGanho(
+        criarPedido({ taxa_fixa_atribuicao_centavos: 2147483647 }),
       ),
     ).toThrow(BadRequestException);
   });
@@ -165,31 +165,31 @@ describe('GanhoEntregaService', () => {
     'bloqueia snapshot incompleto sem %s',
     (campo) => {
       expect(() =>
-        montar_servico().servico_ganhos.consolidar_ganho(
-          criar_pedido({ [campo]: null }),
+        montarServico().servicoGanhos.consolidarGanho(
+          criarPedido({ [campo]: null }),
         ),
       ).toThrow(UnprocessableEntityException);
     },
   );
 
   it('o snapshot nao depende de alteracoes posteriores no registro de parametros', async () => {
-    const { servico_ganhos, cliente_transacional } = montar_servico();
-    const parametros_congelados = await servico_ganhos.capturar_parametros(
-      cliente_transacional as unknown as Prisma.TransactionClient,
+    const { servicoGanhos, clienteTransacional } = montarServico();
+    const parametrosCongelados = await servicoGanhos.capturarParametros(
+      clienteTransacional as unknown as Prisma.TransactionClient,
       7,
       AGORA,
     );
-    cliente_transacional.metricasPagamento.findFirst.mockResolvedValue({
+    clienteTransacional.metricasPagamento.findFirst.mockResolvedValue({
       idEmpresa: 7,
       taxa_fixa: 9999,
       coeficiente: 9999,
       data: AGORA,
     });
     expect(
-      servico_ganhos.consolidar_ganho(criar_pedido(parametros_congelados)),
+      servicoGanhos.consolidarGanho(criarPedido(parametrosCongelados)),
     ).toBe(1430);
     expect(
-      cliente_transacional.metricasPagamento.findFirst,
+      clienteTransacional.metricasPagamento.findFirst,
     ).toHaveBeenCalledTimes(1);
   });
 });

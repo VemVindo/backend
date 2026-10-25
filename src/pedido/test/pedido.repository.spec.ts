@@ -51,7 +51,7 @@ const ID_PEDIDO = 1;
 const ID_EMPRESA = 7;
 
 function montar() {
-  const parametros_congelados = {
+  const parametrosCongelados = {
     taxa_fixa_atribuicao_centavos: 800,
     coeficiente_atribuicao_centavos_km: 150,
     parametros_vigentes_desde: new Date('2026-10-01T00:00:00Z'),
@@ -65,7 +65,7 @@ function montar() {
     ganho_consolidado_centavos: null,
     distancia: 4200,
     distancia_conhecida: true,
-    ...parametros_congelados,
+    ...parametrosCongelados,
   };
   const tx = {
     $queryRaw: jest.fn().mockResolvedValue([{ id_pedido: ID_PEDIDO }]),
@@ -73,7 +73,7 @@ function montar() {
       findFirst: jest.fn().mockResolvedValue({
         taxa_fixa: 800,
         coeficiente: 150,
-        data: parametros_congelados.parametros_vigentes_desde,
+        data: parametrosCongelados.parametros_vigentes_desde,
       }),
     },
     pedido: {
@@ -384,10 +384,10 @@ describe('PedidoRepository.atualizarStatus', () => {
 
 describe('E-US16: snapshot e consolidacao no repository', () => {
   it('correcao de distancia filtra empresa e estado financeiro sem alterar valor ou snapshot', async () => {
-    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+    const { repository: repositorioPedidos, tx: clienteTransacional } =
       montar();
-    await repositorio_pedidos.corrigir_distancia(ID_PEDIDO, ID_EMPRESA, 0);
-    expect(argumento(cliente_transacional.pedido.updateMany)).toEqual({
+    await repositorioPedidos.corrigirDistancia(ID_PEDIDO, ID_EMPRESA, 0);
+    expect(argumento(clienteTransacional.pedido.updateMany)).toEqual({
       where: {
         id_pedido: ID_PEDIDO,
         idEmpresa: ID_EMPRESA,
@@ -399,11 +399,11 @@ describe('E-US16: snapshot e consolidacao no repository', () => {
   });
 
   it('correcao concorrente com conclusao nao sobrescreve a entrega encerrada', async () => {
-    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+    const { repository: repositorioPedidos, tx: clienteTransacional } =
       montar();
-    cliente_transacional.pedido.updateMany.mockResolvedValue({ count: 0 });
+    clienteTransacional.pedido.updateMany.mockResolvedValue({ count: 0 });
     await expect(
-      repositorio_pedidos.corrigir_distancia(ID_PEDIDO, ID_EMPRESA, 0),
+      repositorioPedidos.corrigirDistancia(ID_PEDIDO, ID_EMPRESA, 0),
     ).rejects.toBeInstanceOf(PedidoAlteradoError);
   });
 
@@ -422,152 +422,152 @@ describe('E-US16: snapshot e consolidacao no repository', () => {
   };
 
   it('captura parametros na criacao com entregador na mesma transacao', async () => {
-    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+    const { repository: repositorioPedidos, tx: clienteTransacional } =
       montar();
-    await repositorio_pedidos.criar(
+    await repositorioPedidos.criar(
       { cpf_entregador: CPF_NOVO } as CriaPedidoReqDto,
       ID_EMPRESA,
     );
-    const { data: dados_persistidos } = argumento(
-      cliente_transacional.pedido.create,
+    const { data: dadosPersistidos } = argumento(
+      clienteTransacional.pedido.create,
     );
-    expect(dados_persistidos).toMatchObject({
+    expect(dadosPersistidos).toMatchObject({
       taxa_fixa_atribuicao_centavos: 800,
       coeficiente_atribuicao_centavos_km: 150,
       distancia_conhecida: true,
     });
-    expect(dados_persistidos.remuneracao_atribuida_em).toEqual(
-      dados_persistidos.data_inicio_entrega,
+    expect(dadosPersistidos.remuneracao_atribuida_em).toEqual(
+      dadosPersistidos.data_inicio_entrega,
     );
     expect(
-      cliente_transacional.metricasPagamento.findFirst,
+      clienteTransacional.metricasPagamento.findFirst,
     ).toHaveBeenCalledWith({
       where: {
         idEmpresa: ID_EMPRESA,
-        data: { lte: dados_persistidos.remuneracao_atribuida_em },
+        data: { lte: dadosPersistidos.remuneracao_atribuida_em },
       },
       orderBy: { data: 'desc' },
     });
   });
 
   it('bloqueia criacao atribuida sem parametros antes de ocupar entregador', async () => {
-    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+    const { repository: repositorioPedidos, tx: clienteTransacional } =
       montar();
-    cliente_transacional.metricasPagamento.findFirst.mockResolvedValue(null);
+    clienteTransacional.metricasPagamento.findFirst.mockResolvedValue(null);
     await expect(
-      repositorio_pedidos.criar(
+      repositorioPedidos.criar(
         { cpf_entregador: CPF_NOVO } as CriaPedidoReqDto,
         ID_EMPRESA,
       ),
     ).rejects.toThrow('Configure os parâmetros');
-    expect(cliente_transacional.entregador.updateMany).not.toHaveBeenCalled();
-    expect(cliente_transacional.pedido.create).not.toHaveBeenCalled();
+    expect(clienteTransacional.entregador.updateMany).not.toHaveBeenCalled();
+    expect(clienteTransacional.pedido.create).not.toHaveBeenCalled();
   });
 
   it('reatribuicao captura a nova configuracao da empresa do pedido', async () => {
-    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+    const { repository: repositorioPedidos, tx: clienteTransacional } =
       montar();
-    cliente_transacional.metricasPagamento.findFirst.mockResolvedValue({
+    clienteTransacional.metricasPagamento.findFirst.mockResolvedValue({
       taxa_fixa: 950,
       coeficiente: 200,
       data: new Date(),
     });
-    await repositorio_pedidos.reatribuir(troca);
+    await repositorioPedidos.reatribuir(troca);
+    expect(argumento(clienteTransacional.pedido.updateMany).data).toMatchObject(
+      {
+        taxa_fixa_atribuicao_centavos: 950,
+        coeficiente_atribuicao_centavos_km: 200,
+      },
+    );
     expect(
-      argumento(cliente_transacional.pedido.updateMany).data,
-    ).toMatchObject({
-      taxa_fixa_atribuicao_centavos: 950,
-      coeficiente_atribuicao_centavos_km: 200,
-    });
-    expect(
-      argumento(cliente_transacional.metricasPagamento.findFirst).where
+      argumento(clienteTransacional.metricasPagamento.findFirst).where
         .idEmpresa,
     ).toBe(ID_EMPRESA);
   });
 
   it('nao altera atribuicao quando a captura falha', async () => {
-    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+    const { repository: repositorioPedidos, tx: clienteTransacional } =
       montar();
-    cliente_transacional.metricasPagamento.findFirst.mockRejectedValue(
+    clienteTransacional.metricasPagamento.findFirst.mockRejectedValue(
       new Error('falha banco'),
     );
-    await expect(repositorio_pedidos.reatribuir(troca)).rejects.toThrow(
+    await expect(repositorioPedidos.reatribuir(troca)).rejects.toThrow(
       'falha banco',
     );
-    expect(cliente_transacional.pedido.updateMany).not.toHaveBeenCalled();
+    expect(clienteTransacional.pedido.updateMany).not.toHaveBeenCalled();
     expect(
-      cliente_transacional.historicoPedidoEntregadores.create,
+      clienteTransacional.historicoPedidoEntregadores.create,
     ).not.toHaveBeenCalled();
   });
 
   it('consolida com snapshot, preserva valor_entrega e nao consulta parametros vigentes', async () => {
-    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+    const { repository: repositorioPedidos, tx: clienteTransacional } =
       montar();
-    await repositorio_pedidos.atualizarStatus(conclusao);
+    await repositorioPedidos.atualizarStatus(conclusao);
+    expect(argumento(clienteTransacional.pedido.updateMany).data).toMatchObject(
+      {
+        status: StatusPedido.FINALIZADO,
+        ganho_consolidado_centavos: 1430,
+      },
+    );
     expect(
-      argumento(cliente_transacional.pedido.updateMany).data,
-    ).toMatchObject({
-      status: StatusPedido.FINALIZADO,
-      ganho_consolidado_centavos: 1430,
-    });
-    expect(
-      argumento(cliente_transacional.pedido.updateMany).data,
+      argumento(clienteTransacional.pedido.updateMany).data,
     ).not.toHaveProperty('valor_entrega');
     expect(
-      cliente_transacional.metricasPagamento.findFirst,
+      clienteTransacional.metricasPagamento.findFirst,
     ).not.toHaveBeenCalled();
     expect(
-      cliente_transacional.$queryRaw.mock.invocationCallOrder[0],
+      clienteTransacional.$queryRaw.mock.invocationCallOrder[0],
     ).toBeLessThan(
-      cliente_transacional.pedido.findUniqueOrThrow.mock.invocationCallOrder[0],
+      clienteTransacional.pedido.findUniqueOrThrow.mock.invocationCallOrder[0],
     );
   });
 
   it.each([StatusPedido.FINALIZADO, StatusPedido.CANCELADO])(
     'nao recalcula pedido %s, inclusive legado',
     async (status) => {
-      const { repository: repositorio_pedidos, tx: cliente_transacional } =
+      const { repository: repositorioPedidos, tx: clienteTransacional } =
         montar();
-      cliente_transacional.pedido.findUniqueOrThrow.mockResolvedValueOnce({
-        ...(await cliente_transacional.pedido.findUniqueOrThrow()),
+      clienteTransacional.pedido.findUniqueOrThrow.mockResolvedValueOnce({
+        ...(await clienteTransacional.pedido.findUniqueOrThrow()),
         status,
       });
       await expect(
-        repositorio_pedidos.atualizarStatus({
+        repositorioPedidos.atualizarStatus({
           ...conclusao,
           statusAtual: status,
         }),
       ).rejects.toBeInstanceOf(PedidoAlteradoError);
-      expect(cliente_transacional.pedido.updateMany).not.toHaveBeenCalled();
+      expect(clienteTransacional.pedido.updateMany).not.toHaveBeenCalled();
     },
   );
 
   it('nao conclui nem reatribui um ganho ja consolidado', async () => {
-    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+    const { repository: repositorioPedidos, tx: clienteTransacional } =
       montar();
-    cliente_transacional.pedido.findUniqueOrThrow.mockResolvedValue({
-      ...(await cliente_transacional.pedido.findUniqueOrThrow()),
+    clienteTransacional.pedido.findUniqueOrThrow.mockResolvedValue({
+      ...(await clienteTransacional.pedido.findUniqueOrThrow()),
       ganho_consolidado_centavos: 0,
     });
     await expect(
-      repositorio_pedidos.atualizarStatus(conclusao),
+      repositorioPedidos.atualizarStatus(conclusao),
     ).rejects.toBeInstanceOf(PedidoAlteradoError);
-    await expect(repositorio_pedidos.reatribuir(troca)).rejects.toBeInstanceOf(
+    await expect(repositorioPedidos.reatribuir(troca)).rejects.toBeInstanceOf(
       PedidoAlteradoError,
     );
-    expect(cliente_transacional.pedido.updateMany).not.toHaveBeenCalled();
+    expect(clienteTransacional.pedido.updateMany).not.toHaveBeenCalled();
   });
 
   it('nao conclui por entregador diferente', async () => {
-    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+    const { repository: repositorioPedidos, tx: clienteTransacional } =
       montar();
     await expect(
-      repositorio_pedidos.atualizarStatus({
+      repositorioPedidos.atualizarStatus({
         ...conclusao,
         cpfEntregador: CPF_NOVO,
       }),
     ).rejects.toBeInstanceOf(PedidoAlteradoError);
-    expect(cliente_transacional.pedido.updateMany).not.toHaveBeenCalled();
+    expect(clienteTransacional.pedido.updateMany).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -579,30 +579,30 @@ describe('E-US16: snapshot e consolidacao no repository', () => {
   ])(
     'nao escreve status ou libera entregador quando calculo falha: %j',
     async (campos) => {
-      const { repository: repositorio_pedidos, tx: cliente_transacional } =
+      const { repository: repositorioPedidos, tx: clienteTransacional } =
         montar();
-      cliente_transacional.pedido.findUniqueOrThrow.mockResolvedValueOnce({
-        ...(await cliente_transacional.pedido.findUniqueOrThrow()),
+      clienteTransacional.pedido.findUniqueOrThrow.mockResolvedValueOnce({
+        ...(await clienteTransacional.pedido.findUniqueOrThrow()),
         ...campos,
       });
       await expect(
-        repositorio_pedidos.atualizarStatus(conclusao),
+        repositorioPedidos.atualizarStatus(conclusao),
       ).rejects.toThrow();
-      expect(cliente_transacional.pedido.updateMany).not.toHaveBeenCalled();
-      expect(cliente_transacional.entregador.update).not.toHaveBeenCalled();
+      expect(clienteTransacional.pedido.updateMany).not.toHaveBeenCalled();
+      expect(clienteTransacional.entregador.update).not.toHaveBeenCalled();
     },
   );
 
   it('repassa falha de persistencia sem liberar o entregador', async () => {
-    const { repository: repositorio_pedidos, tx: cliente_transacional } =
+    const { repository: repositorioPedidos, tx: clienteTransacional } =
       montar();
-    cliente_transacional.pedido.updateMany.mockRejectedValue(
+    clienteTransacional.pedido.updateMany.mockRejectedValue(
       new Error('falha persistencia'),
     );
-    await expect(
-      repositorio_pedidos.atualizarStatus(conclusao),
-    ).rejects.toThrow('falha persistencia');
-    expect(cliente_transacional.entregador.update).not.toHaveBeenCalled();
+    await expect(repositorioPedidos.atualizarStatus(conclusao)).rejects.toThrow(
+      'falha persistencia',
+    );
+    expect(clienteTransacional.entregador.update).not.toHaveBeenCalled();
   });
 });
 

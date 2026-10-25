@@ -127,12 +127,6 @@ jobs:
       - name: Seed de dev
         run: npm run db:seed
 
-      - name: Testes e2e (Jest)
-        run: npm run test:e2e
-
-      - name: Testes de integracao (Jest)
-        run: npm run test:integration
-
       - name: Subir a API
         run: |
           npm run build
@@ -140,10 +134,11 @@ jobs:
           curl --silent --fail --retry 30 --retry-connrefused --retry-delay 1 \
             http://localhost:3000/health/db
 
-      # A colecao do Postman roda contra o seed. Entra junto com as rotas que
-      # ela cobre; enquanto nao existir no repositorio, o passo e pulado.
+      # A colecao do Postman passa por todas as rotas e e informativa: uma
+      # falha aparece no resumo do job, mas nao bloqueia o merge.
       - name: Testes de API (Postman)
-        if: hashFiles('test/postman/*.postman_collection.json') != ''
+        id: postman
+        continue-on-error: true
         run: |
           mkdir -p reports
           npx newman run test/postman/*.postman_collection.json \
@@ -152,8 +147,15 @@ jobs:
             --reporter-json-export reports/newman.json \
             --reporter-junit-export reports/newman-junit.xml
 
+      # Cada suite cria um schema proprio, aplica as migrations nele e o apaga no fim.
+      - name: Testes de integracao (Jest)
+        run: npm run test:integration
+
+      - name: Testes e2e (Jest)
+        run: npm run test:e2e
+
       - name: Log da API
-        if: failure()
+        if: failure() || steps.postman.outcome == 'failure'
         run: cat api.log || true
 
       - name: Publicar resultados

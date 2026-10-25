@@ -107,15 +107,15 @@ export class PedidoController {
 
   @Patch(':id/distancia')
   @Cargos(Cargo.ESTABELECIMENTO)
-  corrigir_distancia(
+  corrigirDistancia(
     @UsuarioAtual() usuario: UsuarioAutenticado,
-    @Param('id', ParseIntPipe) id_pedido: number,
-    @Body() correcao_distancia: CorrigirDistanciaDto,
+    @Param('id', ParseIntPipe) idPedido: number,
+    @Body() correcaoDistancia: CorrigirDistanciaDto,
   ) {
-    return this.pedidoService.corrigir_distancia(
+    return this.pedidoService.corrigirDistancia(
       Number(usuario.empresaId),
-      id_pedido,
-      correcao_distancia.distanciaMetros,
+      idPedido,
+      correcaoDistancia.distanciaMetros,
     );
   }
 

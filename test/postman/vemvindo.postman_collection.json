@@ -1,0 +1,3510 @@
+{
+  "info": {
+    "name": "VemVindo API",
+    "description": "Passa por todas as rotas da API sobre o seed de desenvolvimento (prisma/seed/dev.sql). Roda em ordem: cada pasta deixa variaveis para a seguinte. Cadastra o proprio entregador e a propria empresa, com CPF e e-mail gerados a cada execucao, e devolve ao seed os valores que altera. Todos os dados sao ficticios.\n\nnpx newman run test/postman/vemvindo.postman_collection.json --env-var baseUrl=http://localhost:3000",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Sessao",
+      "item": [
+        {
+          "name": "API no ar",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": []
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function cpfValido() {",
+                  "  const d = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10));",
+                  "  for (const tamanho of [9, 10]) {",
+                  "    const soma = d.reduce((total, n, i) => total + n * (tamanho + 1 - i), 0);",
+                  "    d.push(((soma * 10) % 11) % 10);",
+                  "  }",
+                  "  return d.join('');",
+                  "}",
+                  "pm.collectionVariables.set('cpfNovo', cpfValido());",
+                  "pm.collectionVariables.set('cpfConvite', cpfValido());",
+                  "pm.collectionVariables.set('cpfEmpresaNova', cpfValido());",
+                  "pm.collectionVariables.set('emailEmpresaNova', `postman-${Date.now()}@example.com`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Banco no ar",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/db",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health",
+                "db"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('banco up', () => pm.expect(pm.response.json().database).to.eql('up'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rota protegida sem login",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login com senha errada",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login/empresa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login",
+                "empresa"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{emailEmpresa}}\",\n  \"senha\": \"SenhaErrada@1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login da empresa",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login/empresa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login",
+                "empresa"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{emailEmpresa}}\",\n  \"senha\": \"{{senhaSeed}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('grava o cookie de sessao', () => pm.expect(pm.cookies.has('vemvindo_token')).to.be.true);",
+                  "pm.test('nao devolve o token no corpo', () => pm.expect(pm.response.text()).to.not.include('tokenAcesso'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Quem esta logado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/minhas-infos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "minhas-infos"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('identifica a empresa', () => pm.expect(pm.response.json().cargo).to.eql('ESTABELECIMENTO'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Empresa: cadastro e parametros",
+      "item": [
+        {
+          "name": "Dados cadastrais",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/empresa/cadastro",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "empresa",
+                "cadastro"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "const cadastro = pm.response.json();",
+                  "pm.test('traz documento e endereco', () => pm.expect(cadastro).to.include.keys('nomeFantasia', 'documento', 'endereco'));",
+                  "pm.collectionVariables.set('cadastroEmpresa', JSON.stringify({ nomeFantasia: cadastro.nomeFantasia, email: cadastro.email, telefone: cadastro.telefone, ...cadastro.endereco }));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Salvar dados cadastrais",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/empresa/cadastro",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "empresa",
+                "cadastro"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{cadastroEmpresa}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('mantem o e-mail', () => pm.expect(pm.response.json().email).to.eql(pm.variables.get('emailEmpresa')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dados cadastrais invalidos",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/empresa/cadastro",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "empresa",
+                "cadastro"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nomeFantasia\": \"\",\n  \"email\": \"nao-e-email\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Configuracoes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/empresa/configuracoes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "empresa",
+                "configuracoes"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "const { exibirMapa } = pm.response.json();",
+                  "pm.test('diz se mostra o mapa', () => pm.expect(exibirMapa).to.be.a('boolean'));",
+                  "pm.collectionVariables.set('exibirMapa', String(exibirMapa));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Salvar configuracoes",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/empresa/configuracoes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "empresa",
+                "configuracoes"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"exibirMapa\": {{exibirMapa}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Parametros de remuneracao",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/empresa/remuneracao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "empresa",
+                "remuneracao"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "const parametros = pm.response.json();",
+                  "pm.test('traz taxa fixa e valor por km', () => pm.expect(parametros).to.include.keys('taxaFixa', 'coeficienteKm'));",
+                  "pm.collectionVariables.set('taxaFixa', parametros.taxaFixa);",
+                  "pm.collectionVariables.set('coeficienteKm', parametros.coeficienteKm);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Salvar parametros de remuneracao",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/empresa/remuneracao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "empresa",
+                "remuneracao"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"taxaFixa\": {{taxaFixa}},\n  \"coeficienteKm\": {{coeficienteKm}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Parametros invalidos",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/empresa/remuneracao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "empresa",
+                "remuneracao"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"taxaFixa\": 0,\n  \"coeficienteKm\": 150\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Empresa: frota",
+      "item": [
+        {
+          "name": "Frota ativa",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregadores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregadores"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('devolve uma lista', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cadastrar entregador",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/entregadores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregadores"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Fausto Postman\",\n  \"cpf\": \"{{cpfNovo}}\",\n  \"telefone\": \"61988885555\",\n  \"tipoVeiculo\": \"MOTO\",\n  \"placa\": \"PST1A23\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 201', () => pm.response.to.have.status(201));",
+                  "const cadastrado = pm.response.json();",
+                  "pm.test('convite pendente e senha temporaria', () => {",
+                  "  pm.expect(cadastrado.status).to.eql('PENDENTE');",
+                  "  pm.expect(cadastrado.senhaTemporaria).to.be.a('string');",
+                  "});",
+                  "pm.collectionVariables.set('senhaTemporaria', cadastrado.senhaTemporaria);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cadastrar o mesmo CPF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/entregadores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregadores"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Fausto Postman\",\n  \"cpf\": \"{{cpfNovo}}\",\n  \"telefone\": \"61988885555\",\n  \"tipoVeiculo\": \"MOTO\",\n  \"placa\": \"PST1A23\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Convidar por CPF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/entregadores/vinculo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregadores",
+                "vinculo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cpf\": \"{{cpfConvite}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Gerar outra senha temporaria",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregadores/{{cpfNovo}}/senha-temporaria",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregadores",
+                "{{cpfNovo}}",
+                "senha-temporaria"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "const { senhaTemporaria } = pm.response.json();",
+                  "pm.test('troca a senha', () => pm.expect(senhaTemporaria).to.not.eql(pm.collectionVariables.get('senhaTemporaria')));",
+                  "pm.collectionVariables.set('senhaTemporaria', senhaTemporaria);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sair",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/sair",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "sair"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Entregador: primeiro acesso",
+      "item": [
+        {
+          "name": "Login com a senha temporaria",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login/entregador",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login",
+                "entregador"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cpf\": \"{{cpfNovo}}\",\n  \"senha\": \"{{senhaTemporaria}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Entregas antes de trocar a senha",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/minhas-entregas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "minhas-entregas"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dados compartilhados",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregador/dados-compartilhados",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregador",
+                "dados-compartilhados"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Convites",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregador/vinculos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregador",
+                "vinculos"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "const [convite] = pm.response.json();",
+                  "pm.test('convite pendente da empresa', () => pm.expect(convite.status).to.eql('PENDENTE'));",
+                  "pm.collectionVariables.set('idVinculo', convite.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Trocar senha sem a ciencia",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/entregador/trocar-senha",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "entregador",
+                "trocar-senha"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"senhaAtual\": \"{{senhaTemporaria}}\",\n  \"novaSenha\": \"{{senhaEntregador}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Trocar senha",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/entregador/trocar-senha",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "entregador",
+                "trocar-senha"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"senhaAtual\": \"{{senhaTemporaria}}\",\n  \"novaSenha\": \"{{senhaEntregador}}\",\n  \"cienteDadosCompartilhados\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Aceitar convite",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregador/vinculos/{{idVinculo}}/aceitar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregador",
+                "vinculos",
+                "{{idVinculo}}",
+                "aceitar"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Recusar convite que nao existe",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregador/vinculos/999999/recusar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregador",
+                "vinculos",
+                "999999",
+                "recusar"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Encerrar vinculo que nao existe",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregador/vinculos/999999/encerrar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregador",
+                "vinculos",
+                "999999",
+                "encerrar"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sair",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/sair",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "sair"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Empresa: pedido",
+      "item": [
+        {
+          "name": "Login da empresa",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login/empresa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login",
+                "empresa"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{emailEmpresa}}\",\n  \"senha\": \"{{senhaSeed}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Frota com o entregador novo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregadores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregadores"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('inclui o entregador que aceitou', () => pm.expect(pm.response.json().map((e) => e.cpf)).to.include(pm.collectionVariables.get('cpfNovo')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editar entregador",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/entregadores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregadores"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cpf\": \"{{cpfNovo}}\",\n  \"telefone\": \"61988885554\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('confirma a edicao', () => pm.expect(pm.response.json()).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cadastrar pedido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome_recebedor\": \"Recebedor Postman\",\n  \"telefone_recebedor\": \"61920008888\",\n  \"cep\": \"70000000\",\n  \"logradouro\": \"Rua de Teste\",\n  \"numero\": 2,\n  \"bairro\": \"Centro\",\n  \"cidade\": \"Brasilia\",\n  \"uf\": \"DF\",\n  \"descricao\": \"Pedido da colecao Postman\",\n  \"valor_entrega\": 1025,\n  \"distancia\": 1500\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 201', () => pm.response.to.have.status(201));",
+                  "const pedido = pm.response.json();",
+                  "pm.test('nasce pendente', () => pm.expect(pedido.status).to.eql('PENDENTE'));",
+                  "pm.collectionVariables.set('idPedido', pedido.id_pedido);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cadastrar pedido sem campos obrigatorios",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descricao\": \"sem endereco\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pedidos da empresa",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('inclui o pedido novo', () => pm.expect(pm.response.json().map((p) => p.id)).to.include(Number(pm.collectionVariables.get('idPedido'))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Detalhe do pedido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('traz recebedor e endereco', () => pm.expect(pm.response.json()).to.include.keys('recebedor', 'endereco'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atribuir entregador",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}/atribuir",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}",
+                "atribuir"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cpfEntregador\": \"{{cpfNovo}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('entrega em andamento', () => pm.expect(pm.response.json().status).to.eql('EM_ANDAMENTO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atribuir de novo",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}/atribuir",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}",
+                "atribuir"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cpfEntregador\": \"{{cpfNovo}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reatribuir para quem nao e da frota",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}/entregador",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}",
+                "entregador"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cpfEntregador\": \"{{cpfConvite}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Corrigir distancia",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}/distancia",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}",
+                "distancia"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"distanciaMetros\": 2000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Historico de entregadores",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}/historico-entregadores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}",
+                "historico-entregadores"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('registra a atribuicao', () => pm.expect(pm.response.json()).to.not.be.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rota vista pela empresa",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}/rota",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}",
+                "rota"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "WhatsApp com o recebedor",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}/whatsapp/recebedor",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}",
+                "whatsapp",
+                "recebedor"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('devolve link wa.me', () => pm.expect(pm.response.json().link).to.include('wa.me'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "WhatsApp com o entregador",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}/whatsapp/entregador",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}",
+                "whatsapp",
+                "entregador"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('devolve link wa.me', () => pm.expect(pm.response.json().link).to.include('wa.me'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Gerar link de rastreio",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}/link-rastreio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}",
+                "link-rastreio"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "const corpo = pm.response.json();",
+                  "pm.test('codigo de 6 numeros', () => pm.expect(corpo.codigoRecebedor).to.match(/^\\d{6}$/));",
+                  "pm.collectionVariables.set('tokenRastreio', corpo.link.split('/rastreio/')[1]);",
+                  "pm.collectionVariables.set('codigoRecebedor', corpo.codigoRecebedor);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Empresa: integracao",
+      "item": [
+        {
+          "name": "Credencial atual",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/integracao/credencial",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "integracao",
+                "credencial"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('responde a credencial ou null', () => pm.expect(pm.response.json()).to.have.property('credencial'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revogar a credencial anterior",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/integracao/credencial",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "integracao",
+                "credencial"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 204 ou 404', () => pm.expect(pm.response.code).to.be.oneOf([204, 404]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Gerar credencial",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/integracao/credencial",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "integracao",
+                "credencial"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 201', () => pm.response.to.have.status(201));",
+                  "const { chave } = pm.response.json();",
+                  "pm.test('devolve a chave uma vez', () => pm.expect(chave).to.be.a('string'));",
+                  "pm.collectionVariables.set('chaveIntegracao', chave);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verificar sem a chave",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/integracao/verificar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "integracao",
+                "verificar"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verificar com a chave",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{chaveIntegracao}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/integracao/verificar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "integracao",
+                "verificar"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('chave valida', () => pm.expect(pm.response.json().valida).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Importar pedidos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{chaveIntegracao}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/integracao/pedidos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "integracao",
+                "pedidos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pedidos\": [\n    {\n      \"idExterno\": \"{{idExterno}}-1\",\n      \"nomeRecebedor\": \"Recebedor Importado\",\n      \"telefoneRecebedor\": \"61920000009\",\n      \"cep\": \"70297400\",\n      \"logradouro\": \"SQS 308 Bloco C\",\n      \"numero\": 101,\n      \"bairro\": \"Asa Sul\",\n      \"cidade\": \"Brasilia\",\n      \"uf\": \"DF\",\n      \"descricao\": \"Pedido importado pelo Postman\"\n    },\n    {\n      \"idExterno\": \"{{idExterno}}-2\",\n      \"nomeRecebedor\": \"Recebedor Importado\",\n      \"telefoneRecebedor\": \"61920000009\",\n      \"logradouro\": \"SQS 308 Bloco C\",\n      \"numero\": 101,\n      \"bairro\": \"Asa Sul\",\n      \"cidade\": \"Brasilia\",\n      \"uf\": \"DF\",\n      \"descricao\": \"Pedido importado sem CEP\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('idExterno', `postman-${Date.now()}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "const { resultados } = pm.response.json();",
+                  "pm.test('separa por situacao', () => pm.expect(resultados.map((r) => r.situacao)).to.eql(['importado', 'incompleto']));",
+                  "pm.collectionVariables.set('idPendencia', resultados[1].idPendencia);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pendencias",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/integracao/pendencias",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "integracao",
+                "pendencias"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('inclui a pendencia', () => pm.expect(pm.response.json().map((p) => p.id)).to.include(Number(pm.collectionVariables.get('idPendencia'))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Completar pendencia",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/integracao/pendencias/{{idPendencia}}/completar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "integracao",
+                "pendencias",
+                "{{idPendencia}}",
+                "completar"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cep\": \"70297400\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rotacionar credencial",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/integracao/credencial/rotacionar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "integracao",
+                "credencial",
+                "rotacionar"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('chaveAnterior', pm.collectionVariables.get('chaveIntegracao'));",
+                  "pm.collectionVariables.set('chaveIntegracao', pm.response.json().chave);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chave anterior deixa de valer",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{chaveAnterior}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/integracao/verificar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "integracao",
+                "verificar"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revogar credencial",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/integracao/credencial",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "integracao",
+                "credencial"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chave revogada deixa de valer",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Api-Key",
+                "value": "{{chaveIntegracao}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/integracao/verificar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "integracao",
+                "verificar"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sair",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/sair",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "sair"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sessao encerrada",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/minhas-infos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "minhas-infos"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7. Recebedor: rastreio",
+      "item": [
+        {
+          "name": "Abrir rastreio pelo link",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rastreio/{{tokenRastreio}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rastreio",
+                "{{tokenRastreio}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "const pagina = pm.response.json();",
+                  "pm.test('mostra so o primeiro nome do entregador', () => pm.expect(pagina.entregador).to.eql('Fausto'));",
+                  "pm.test('nao expoe o telefone do entregador', () => pm.expect(pm.response.text()).to.not.include('6198888555'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Localizacao para o recebedor",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rastreio/{{tokenRastreio}}/localizacao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rastreio",
+                "{{tokenRastreio}}",
+                "localizacao"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Link inventado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rastreio/link-que-nao-existe",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rastreio",
+                "link-que-nao-existe"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Avaliacao antes da entrega",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rastreio/{{tokenRastreio}}/avaliacao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rastreio",
+                "{{tokenRastreio}}",
+                "avaliacao"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('aguardando a finalizacao', () => pm.expect(pm.response.json().situacao).to.eql('aguardando'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8. Entregador: entrega",
+      "item": [
+        {
+          "name": "Login do entregador",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login/entregador",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login",
+                "entregador"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cpf\": \"{{cpfNovo}}\",\n  \"senha\": \"{{senhaEntregador}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Quem esta logado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/minhas-infos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "minhas-infos"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('identifica o entregador', () => pm.expect(pm.response.json().cargo).to.eql('ENTREGADOR'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Minhas entregas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/minhas-entregas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "minhas-entregas"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('inclui o pedido atribuido', () => pm.expect(pm.response.json().map((p) => p.id)).to.include(Number(pm.collectionVariables.get('idPedido'))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rota da empresa",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Status disponiveis",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}/status-disponiveis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}",
+                "status-disponiveis"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('so finaliza com codigo', () => pm.expect(pm.response.json().podeFinalizarComCodigo).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Finalizar pela troca de status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"FINALIZADO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Status que nao existe",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"VOANDO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Enviar localizacao",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}/localizacao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}",
+                "localizacao"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lat\": -15.7942,\n  \"lng\": -47.8822,\n  \"precisao\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Localizacao fora do mapa",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}/localizacao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}",
+                "localizacao"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lat\": 120,\n  \"lng\": -47.8822\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rota vista pelo entregador",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}/rota",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}",
+                "rota"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "WhatsApp com o estabelecimento",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}/whatsapp/estabelecimento",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}",
+                "whatsapp",
+                "estabelecimento"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('devolve link wa.me', () => pm.expect(pm.response.json().link).to.include('wa.me'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Finalizar com codigo errado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}/finalizar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}",
+                "finalizar"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"{{codigoErrado}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const certo = pm.collectionVariables.get('codigoRecebedor');",
+                  "pm.collectionVariables.set('codigoErrado', certo === '000000' ? '111111' : '000000');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 422', () => pm.response.to.have.status(422));",
+                  "pm.test('conta a tentativa', () => pm.expect(pm.response.json()).to.have.property('tentativasRestantes'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Finalizar com codigo certo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{idPedido}}/finalizar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "{{idPedido}}",
+                "finalizar"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"{{codigoRecebedor}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "const pedido = pm.response.json();",
+                  "pm.test('finaliza e consolida o ganho', () => {",
+                  "  pm.expect(pedido.status).to.eql('FINALIZADO');",
+                  "  pm.expect(pedido.ganhoConsolidadoCentavos).to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sair de todos os aparelhos",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/sair-de-todos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "sair-de-todos"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sessao encerrada",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/minhas-infos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "minhas-infos"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "9. Recebedor: avaliacao",
+      "item": [
+        {
+          "name": "Rastreio depois da entrega",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rastreio/{{tokenRastreio}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rastreio",
+                "{{tokenRastreio}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 410', () => pm.response.to.have.status(410));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Avaliacao disponivel",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rastreio/{{tokenRastreio}}/avaliacao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rastreio",
+                "{{tokenRastreio}}",
+                "avaliacao"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('pode avaliar', () => pm.expect(pm.response.json().situacao).to.eql('disponivel'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Nota fora da escala",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rastreio/{{tokenRastreio}}/avaliacao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rastreio",
+                "{{tokenRastreio}}",
+                "avaliacao"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nota\": 6\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dar nota",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rastreio/{{tokenRastreio}}/avaliacao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rastreio",
+                "{{tokenRastreio}}",
+                "avaliacao"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nota\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 201', () => pm.response.to.have.status(201));",
+                  "pm.test('avaliado', () => pm.expect(pm.response.json().situacao).to.eql('avaliado'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Comentar",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rastreio/{{tokenRastreio}}/avaliacao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rastreio",
+                "{{tokenRastreio}}",
+                "avaliacao"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comentario\": \"Entrega tranquila\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Segunda nota",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rastreio/{{tokenRastreio}}/avaliacao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rastreio",
+                "{{tokenRastreio}}",
+                "avaliacao"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nota\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "10. Empresa: avaliacoes e remocao",
+      "item": [
+        {
+          "name": "Login da empresa",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login/empresa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login",
+                "empresa"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{emailEmpresa}}\",\n  \"senha\": \"{{senhaSeed}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Comentarios da empresa",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/avaliacoes?notas=4",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "avaliacoes"
+              ],
+              "query": [
+                {
+                  "key": "notas",
+                  "value": "4"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('inclui a avaliacao do pedido', () => pm.expect(pm.response.json().map((a) => a.idPedido)).to.include(Number(pm.collectionVariables.get('idPedido'))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filtro invalido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/avaliacoes?notas=9",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "avaliacoes"
+              ],
+              "query": [
+                {
+                  "key": "notas",
+                  "value": "9"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remover entregador da frota",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregadores/{{cpfNovo}}/vinculo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregadores",
+                "{{cpfNovo}}",
+                "vinculo"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('diz o que aconteceu com os pedidos', () => pm.expect(pm.response.json()).to.include.keys('reatribuidos', 'pendentes'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Frota sem o entregador",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregadores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregadores"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('nao lista mais o entregador', () => pm.expect(pm.response.json().map((e) => e.cpf)).to.not.include(pm.collectionVariables.get('cpfNovo')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sair",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/sair",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "sair"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "11. Cadastro de empresa",
+      "item": [
+        {
+          "name": "Cadastrar empresa",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/cadastrar/empresa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "cadastrar",
+                "empresa"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nomeFantasia\": \"Empresa Postman\",\n  \"cpf\": \"{{cpfEmpresaNova}}\",\n  \"email\": \"{{emailEmpresaNova}}\",\n  \"telefone\": \"6133334444\",\n  \"cep\": \"70000000\",\n  \"logradouro\": \"Rua de Teste\",\n  \"numero\": 10,\n  \"bairro\": \"Centro\",\n  \"cidade\": \"Brasilia\",\n  \"uf\": \"DF\",\n  \"senha\": \"{{senhaEntregador}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 201', () => pm.response.to.have.status(201));",
+                  "pm.test('ja entra logada', () => pm.expect(pm.cookies.has('vemvindo_token')).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Empresa nova logada",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/minhas-infos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "minhas-infos"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('mesmo e-mail', () => pm.expect(pm.response.json().email).to.eql(pm.collectionVariables.get('emailEmpresaNova')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cadastrar o mesmo e-mail",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/cadastrar/empresa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "cadastrar",
+                "empresa"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nomeFantasia\": \"Empresa Postman\",\n  \"cpf\": \"{{cpfEmpresaNova}}\",\n  \"email\": \"{{emailEmpresaNova}}\",\n  \"telefone\": \"6133334444\",\n  \"cep\": \"70000000\",\n  \"logradouro\": \"Rua de Teste\",\n  \"numero\": 10,\n  \"bairro\": \"Centro\",\n  \"cidade\": \"Brasilia\",\n  \"uf\": \"DF\",\n  \"senha\": \"{{senhaEntregador}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sair",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/sair",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "sair"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "emailEmpresa",
+      "value": "cantina@example.com"
+    },
+    {
+      "key": "senhaSeed",
+      "value": "Vemvindo@123"
+    },
+    {
+      "key": "senhaEntregador",
+      "value": "SenhaPostman@2026"
+    },
+    {
+      "key": "cpfNovo",
+      "value": ""
+    },
+    {
+      "key": "cpfConvite",
+      "value": ""
+    },
+    {
+      "key": "cpfEmpresaNova",
+      "value": ""
+    },
+    {
+      "key": "emailEmpresaNova",
+      "value": ""
+    },
+    {
+      "key": "cadastroEmpresa",
+      "value": ""
+    },
+    {
+      "key": "exibirMapa",
+      "value": ""
+    },
+    {
+      "key": "taxaFixa",
+      "value": ""
+    },
+    {
+      "key": "coeficienteKm",
+      "value": ""
+    },
+    {
+      "key": "senhaTemporaria",
+      "value": ""
+    },
+    {
+      "key": "idVinculo",
+      "value": ""
+    },
+    {
+      "key": "idPedido",
+      "value": ""
+    },
+    {
+      "key": "chaveIntegracao",
+      "value": ""
+    },
+    {
+      "key": "chaveAnterior",
+      "value": ""
+    },
+    {
+      "key": "idExterno",
+      "value": ""
+    },
+    {
+      "key": "idPendencia",
+      "value": ""
+    },
+    {
+      "key": "tokenRastreio",
+      "value": ""
+    },
+    {
+      "key": "codigoRecebedor",
+      "value": ""
+    },
+    {
+      "key": "codigoErrado",
+      "value": ""
+    }
+  ]
+}

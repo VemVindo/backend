@@ -23,7 +23,7 @@ export interface ResultadoDaRemocao {
 type Candidato = { cpf: string; nome: string };
 
 type ParametrosCongelados = Awaited<
-  ReturnType<GanhoEntregaService['capturar_parametros']>
+  ReturnType<GanhoEntregaService['capturarParametros']>
 >;
 
 const SEM_PARAMETROS_CONGELADOS = {
@@ -77,7 +77,7 @@ export class RemocaoDaFrotaRepository {
       for (const { id_pedido: idPedido } of pedidos) {
         const novo = await this.ocuparProximo(tx, candidatos);
         if (novo) {
-          parametros ??= await this.ganhos.capturar_parametros(
+          parametros ??= await this.ganhos.capturarParametros(
             tx,
             idEmpresa,
             agora,

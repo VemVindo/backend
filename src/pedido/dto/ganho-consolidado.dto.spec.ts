@@ -6,11 +6,11 @@ import { PedidoComEntregador, PedidoComEmpresa } from '../pedido.repository';
 describe('Contratos E-US16', () => {
   it.each([null, 0, 1430])(
     'expoe ganho %s sem substituir valorEntrega',
-    (ganho_consolidado_centavos) => {
+    (ganho) => {
       const pedido = {
         id_pedido: 1,
         valor_entrega: 999,
-        ganho_consolidado_centavos: ganho_consolidado_centavos,
+        ganho_consolidado_centavos: ganho,
         distancia_conhecida: true,
         data_criacao: new Date(),
         status: 'FINALIZADO',
@@ -24,7 +24,7 @@ describe('Contratos E-US16', () => {
       ]) {
         expect(resposta).toMatchObject({
           valorEntrega: 999,
-          ganhoConsolidadoCentavos: ganho_consolidado_centavos,
+          ganhoConsolidadoCentavos: ganho,
           distanciaConhecida: true,
         });
       }

@@ -134,7 +134,7 @@ function montar() {
     procurarDetalheDaEmpresa: jest.fn().mockResolvedValue(null),
 
     criar: jest.fn().mockResolvedValue(pedidoPendente),
-    corrigir_distancia: jest
+    corrigirDistancia: jest
       .fn()
       .mockResolvedValue({ ...pedidoEmAndamento, entregador: null }),
 
@@ -883,62 +883,61 @@ describe('PedidoService e o rastreio em tempo real', () => {
   });
 });
 
-describe('PedidoService.corrigir_distancia', () => {
+describe('PedidoService.corrigirDistancia', () => {
   it('falha de localizacao apos commit nao provoca segunda consolidacao', async () => {
     const {
-      service: servico_pedidos,
-      pedidos: repositorio_pedidos,
-      localizacao: servico_localizacao,
+      service: servicoPedidos,
+      pedidos: repositorioPedidos,
+      localizacao: servicoLocalizacao,
     } = montar();
-    servico_localizacao.aoMudarStatus.mockRejectedValueOnce(
+    servicoLocalizacao.aoMudarStatus.mockRejectedValueOnce(
       new Error('localizacao indisponivel'),
     );
     await expect(
-      servico_pedidos.finalizar(CPF_ENTREGADOR, ID_PEDIDO, '482913'),
+      servicoPedidos.finalizar(CPF_ENTREGADOR, ID_PEDIDO, '482913'),
     ).rejects.toThrow('localizacao indisponivel');
-    repositorio_pedidos.procurarAtribuidoAoEntregador.mockResolvedValue({
+    repositorioPedidos.procurarAtribuidoAoEntregador.mockResolvedValue({
       ...pedidoEmAndamento,
       status: StatusPedido.FINALIZADO,
     });
     await expect(
-      servico_pedidos.finalizar(CPF_ENTREGADOR, ID_PEDIDO, '482913'),
+      servicoPedidos.finalizar(CPF_ENTREGADOR, ID_PEDIDO, '482913'),
     ).rejects.toThrow(ConflictException);
-    expect(repositorio_pedidos.atualizarStatus).toHaveBeenCalledTimes(1);
+    expect(repositorioPedidos.atualizarStatus).toHaveBeenCalledTimes(1);
   });
 
   it('nao permite acessar pedido de outra empresa', async () => {
-    const { service: servico_pedidos, pedidos: repositorio_pedidos } = montar();
-    repositorio_pedidos.procurarPorEmpresa.mockResolvedValue(null);
+    const { service: servicoPedidos, pedidos: repositorioPedidos } = montar();
+    repositorioPedidos.procurarPorEmpresa.mockResolvedValue(null);
     await expect(
-      servico_pedidos.corrigir_distancia(ID_EMPRESA, ID_PEDIDO, 0),
+      servicoPedidos.corrigirDistancia(ID_EMPRESA, ID_PEDIDO, 0),
     ).rejects.toThrow(NotFoundException);
-    expect(repositorio_pedidos.procurarPorEmpresa).toHaveBeenCalledWith(
+    expect(repositorioPedidos.procurarPorEmpresa).toHaveBeenCalledWith(
       ID_PEDIDO,
       ID_EMPRESA,
     );
-    expect(repositorio_pedidos.corrigir_distancia).not.toHaveBeenCalled();
+    expect(repositorioPedidos.corrigirDistancia).not.toHaveBeenCalled();
   });
 
   it.each([StatusPedido.FINALIZADO, StatusPedido.CANCELADO])(
     'bloqueia correcao em %s',
     async (status) => {
-      const { service: servico_pedidos, pedidos: repositorio_pedidos } =
-        montar();
-      repositorio_pedidos.procurarPorEmpresa.mockResolvedValue({
+      const { service: servicoPedidos, pedidos: repositorioPedidos } = montar();
+      repositorioPedidos.procurarPorEmpresa.mockResolvedValue({
         ...pedidoEmAndamento,
         status,
       });
       await expect(
-        servico_pedidos.corrigir_distancia(ID_EMPRESA, ID_PEDIDO, 4200),
+        servicoPedidos.corrigirDistancia(ID_EMPRESA, ID_PEDIDO, 4200),
       ).rejects.toThrow(ConflictException);
-      expect(repositorio_pedidos.corrigir_distancia).not.toHaveBeenCalled();
+      expect(repositorioPedidos.corrigirDistancia).not.toHaveBeenCalled();
     },
   );
 
   it('permite confirmar distancia zero e preserva identidade da empresa', async () => {
-    const { service: servico_pedidos, pedidos: repositorio_pedidos } = montar();
-    await servico_pedidos.corrigir_distancia(ID_EMPRESA, ID_PEDIDO, 0);
-    expect(repositorio_pedidos.corrigir_distancia).toHaveBeenCalledWith(
+    const { service: servicoPedidos, pedidos: repositorioPedidos } = montar();
+    await servicoPedidos.corrigirDistancia(ID_EMPRESA, ID_PEDIDO, 0);
+    expect(repositorioPedidos.corrigirDistancia).toHaveBeenCalledWith(
       ID_PEDIDO,
       ID_EMPRESA,
       0,
@@ -946,12 +945,12 @@ describe('PedidoService.corrigir_distancia', () => {
   });
 
   it('mapeia corrida com conclusao para conflito', async () => {
-    const { service: servico_pedidos, pedidos: repositorio_pedidos } = montar();
-    repositorio_pedidos.corrigir_distancia.mockRejectedValue(
+    const { service: servicoPedidos, pedidos: repositorioPedidos } = montar();
+    repositorioPedidos.corrigirDistancia.mockRejectedValue(
       new PedidoAlteradoError(),
     );
     await expect(
-      servico_pedidos.corrigir_distancia(ID_EMPRESA, ID_PEDIDO, 4200),
+      servicoPedidos.corrigirDistancia(ID_EMPRESA, ID_PEDIDO, 4200),
     ).rejects.toThrow(ConflictException);
   });
 });

@@ -6,41 +6,41 @@ import { RemuneracaoRepository } from './remuneracao.repository';
 @Injectable()
 export class GanhoEntregaService {
   constructor(
-    private readonly repositorio_remuneracao: RemuneracaoRepository,
-    private readonly calculo_valor_entrega: CalculoValorEntregaService,
+    private readonly repositorioRemuneracao: RemuneracaoRepository,
+    private readonly calculoValorEntrega: CalculoValorEntregaService,
   ) {}
 
-  async capturar_parametros(
-    cliente_transacional: Prisma.TransactionClient,
-    id_empresa: number,
+  async capturarParametros(
+    clienteTransacional: Prisma.TransactionClient,
+    idEmpresa: number,
     agora: Date,
   ) {
-    const parametros_remuneracao =
-      await this.repositorio_remuneracao.procurarVigentes(
-        id_empresa,
+    const parametrosRemuneracao =
+      await this.repositorioRemuneracao.procurarVigentes(
+        idEmpresa,
         agora,
-        cliente_transacional,
+        clienteTransacional,
       );
-    if (!parametros_remuneracao) {
+    if (!parametrosRemuneracao) {
       throw new UnprocessableEntityException(
         'Configure os parâmetros de remuneração da empresa antes de atribuir a entrega',
       );
     }
 
-    this.calculo_valor_entrega.calcular_valor_entrega({
-      distancia_metros: 0,
-      taxa_fixa_centavos: parametros_remuneracao.taxa_fixa,
-      coeficiente_centavos_km: parametros_remuneracao.coeficiente,
+    this.calculoValorEntrega.calcularValorEntrega({
+      distanciaMetros: 0,
+      taxaFixaCentavos: parametrosRemuneracao.taxa_fixa,
+      coeficienteCentavosKm: parametrosRemuneracao.coeficiente,
     });
     return {
-      taxa_fixa_atribuicao_centavos: parametros_remuneracao.taxa_fixa,
-      coeficiente_atribuicao_centavos_km: parametros_remuneracao.coeficiente,
-      parametros_vigentes_desde: parametros_remuneracao.data,
+      taxa_fixa_atribuicao_centavos: parametrosRemuneracao.taxa_fixa,
+      coeficiente_atribuicao_centavos_km: parametrosRemuneracao.coeficiente,
+      parametros_vigentes_desde: parametrosRemuneracao.data,
       remuneracao_atribuida_em: agora,
     };
   }
 
-  consolidar_ganho(pedido: Pedido): number {
+  consolidarGanho(pedido: Pedido): number {
     if (
       pedido.taxa_fixa_atribuicao_centavos == null ||
       pedido.coeficiente_atribuicao_centavos_km == null ||
@@ -56,10 +56,10 @@ export class GanhoEntregaService {
         'Distância da entrega desconhecida; informe uma distância válida antes de finalizar',
       );
     }
-    return this.calculo_valor_entrega.calcular_valor_entrega({
-      distancia_metros: pedido.distancia,
-      taxa_fixa_centavos: pedido.taxa_fixa_atribuicao_centavos,
-      coeficiente_centavos_km: pedido.coeficiente_atribuicao_centavos_km,
+    return this.calculoValorEntrega.calcularValorEntrega({
+      distanciaMetros: pedido.distancia,
+      taxaFixaCentavos: pedido.taxa_fixa_atribuicao_centavos,
+      coeficienteCentavosKm: pedido.coeficiente_atribuicao_centavos_km,
     });
   }
 }

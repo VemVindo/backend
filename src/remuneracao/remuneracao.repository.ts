@@ -14,9 +14,9 @@ export class RemuneracaoRepository {
   procurarVigentes(
     idEmpresa: number,
     agora: Date,
-    cliente_transacional: Prisma.TransactionClient = this.prisma,
+    clienteTransacional: Prisma.TransactionClient = this.prisma,
   ): Promise<MetricasPagamento | null> {
-    return cliente_transacional.metricasPagamento.findFirst({
+    return clienteTransacional.metricasPagamento.findFirst({
       where: { idEmpresa, data: { lte: agora } },
       orderBy: { data: 'desc' },
     });

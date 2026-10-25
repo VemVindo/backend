@@ -60,7 +60,7 @@ describe('PedidoController rotas de entregador e reatribuicao', () => {
       atualizarStatus: jest.fn().mockResolvedValue({}),
       reatribuir: jest.fn().mockResolvedValue({}),
       atribuir: jest.fn().mockResolvedValue({}),
-      corrigir_distancia: jest.fn().mockResolvedValue({}),
+      corrigirDistancia: jest.fn().mockResolvedValue({}),
       listarHistoricoDeEntregadores: jest.fn().mockResolvedValue([]),
       listarDaEmpresa: jest.fn().mockResolvedValue([]),
       listarDoEntregador: jest.fn().mockResolvedValue([]),
@@ -84,12 +84,12 @@ describe('PedidoController rotas de entregador e reatribuicao', () => {
   });
 
   it('corrige distancia usando a empresa do token', async () => {
-    const { controller: controlador_pedidos, service: servico_pedidos } =
+    const { controller: controladorPedidos, service: servicoPedidos } =
       montar();
-    await controlador_pedidos.corrigir_distancia(EMPRESA, 1, {
+    await controladorPedidos.corrigirDistancia(EMPRESA, 1, {
       distanciaMetros: 0,
     });
-    expect(servico_pedidos.corrigir_distancia).toHaveBeenCalledWith(7, 1, 0);
+    expect(servicoPedidos.corrigirDistancia).toHaveBeenCalledWith(7, 1, 0);
   });
 
   it('atualiza status com o cpf do entregador logado', async () => {
