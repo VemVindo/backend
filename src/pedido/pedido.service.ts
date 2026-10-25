@@ -209,8 +209,6 @@ export class PedidoService {
     return this.trocarEntregador(idEmpresa, pedido, cpfNovoEntregador);
   }
 
-  // E-US08: so o primeiro entregador. Trocar quem ja esta no pedido e a
-  // reatribuicao (E-US11), que registra o entregador anterior.
   async atribuir(
     idEmpresa: number,
     idPedido: number,
@@ -369,7 +367,6 @@ export class PedidoService {
     return paraPedidoResumo(reatribuido);
   }
 
-  // Vinculo ATIVO: a empresa so atribui entregador da propria frota.
   private async exigirEntregadorDisponivel(
     idEmpresa: number,
     cpfEntregador: string,

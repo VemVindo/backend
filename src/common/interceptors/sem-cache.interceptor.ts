@@ -7,7 +7,6 @@ import {
 import type { Response } from 'express';
 import { Observable } from 'rxjs';
 
-// Gravado antes do handler para valer tambem nas respostas de erro.
 @Injectable()
 export class SemCacheInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {

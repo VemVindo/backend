@@ -8,7 +8,6 @@ import {
   FiltroDeAvaliacoes,
 } from './avaliacao.repository';
 
-// O recebedor tem esse prazo, contado da finalizacao, para avaliar.
 export const PRAZO_PARA_AVALIAR_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type SituacaoDaAvaliacao =
@@ -42,7 +41,6 @@ export class AvaliacaoService {
     };
   }
 
-  // R-US05: uma nota por pedido, so depois da entrega finalizada.
   async avaliar(
     acesso: AcessoComPedido,
     nota: number,
@@ -68,7 +66,6 @@ export class AvaliacaoService {
     }
   }
 
-  // R-US06: o comentario vem depois da nota, uma vez so.
   async comentar(
     acesso: AcessoComPedido,
     comentario: string,
@@ -94,7 +91,6 @@ export class AvaliacaoService {
     };
   }
 
-  // E-US17: da mais recente para a mais antiga, so da propria empresa.
   async listarDaEmpresa(
     idEmpresa: number,
     filtro: FiltroDeAvaliacoes,

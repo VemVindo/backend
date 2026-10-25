@@ -2,10 +2,6 @@ import { Prisma } from '../generated/prisma/client';
 import { StatusPedido } from '../generated/prisma/enums';
 import { EntregadorIndisponivelError } from './pedido.erros';
 
-// Passos de escrita da troca de entregador, sempre dentro de uma transacao.
-// Usados pela atribuicao/reatribuicao (E-US08, E-US11) e pela remocao do
-// entregador da frota (E-US06).
-
 export async function registrarTroca(
   tx: Prisma.TransactionClient,
   idPedido: number,
@@ -23,8 +19,6 @@ export async function registrarTroca(
   });
 }
 
-// So ocupa se ainda estiver disponivel: duas atribuicoes simultaneas nao
-// conseguem pegar o mesmo entregador.
 export async function tentarOcuparEntregador(
   tx: Prisma.TransactionClient,
   cpfEntregador: string,
@@ -45,8 +39,6 @@ export async function ocuparEntregador(
   }
 }
 
-// A disponibilidade vale para todas as empresas do entregador, entao so
-// volta a true quando nao sobra nenhuma entrega em andamento.
 export async function liberarSeOcioso(
   tx: Prisma.TransactionClient,
   cpfEntregador: string,

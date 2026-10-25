@@ -17,7 +17,6 @@ export interface PedidoReatribuido {
 
 export interface ResultadoDaRemocao {
   reatribuidos: PedidoReatribuido[];
-  // Sem outro entregador livre na frota: o pedido volta para a fila.
   pendentes: { idPedido: number }[];
 }
 
@@ -27,8 +26,6 @@ type ParametrosCongelados = Awaited<
   ReturnType<GanhoEntregaService['capturarParametros']>
 >;
 
-// Campos que a atribuicao congela (E-US16); o pedido de volta na fila fica
-// sem eles, como um PENDENTE recem-criado.
 const SEM_PARAMETROS_CONGELADOS = {
   taxa_fixa_atribuicao_centavos: null,
   coeficiente_atribuicao_centavos_km: null,
@@ -43,9 +40,6 @@ export class RemocaoDaFrotaRepository {
     private readonly ganhos: GanhoEntregaService,
   ) {}
 
-  // E-US06: encerra o contrato e tira do entregador as entregas em andamento
-  // desta empresa, tudo na mesma transacao. Devolve null sem vinculo ativo.
-  // Os pedidos de outras empresas e o acesso do entregador nao mudam.
   remover(
     idEmpresa: number,
     cpfEntregador: string,
@@ -79,8 +73,6 @@ export class RemocaoDaFrotaRepository {
       }
 
       const candidatos = await this.candidatos(tx, idEmpresa, cpfEntregador);
-      // Como na reatribuicao (E-US11), o novo entregador recebe pelos
-      // parametros vigentes agora. Sem parametros, a remocao inteira falha.
       let parametros: ParametrosCongelados | undefined;
       for (const { id_pedido: idPedido } of pedidos) {
         const novo = await this.ocuparProximo(tx, candidatos);
@@ -106,8 +98,6 @@ export class RemocaoDaFrotaRepository {
     });
   }
 
-  // Outro entregador com vinculo ATIVO nesta empresa e disponivel. Quem tem
-  // entrega em andamento ja esta com disponivel = false.
   private candidatos(
     tx: Prisma.TransactionClient,
     idEmpresa: number,
@@ -124,8 +114,6 @@ export class RemocaoDaFrotaRepository {
     });
   }
 
-  // Cada candidato assume no maximo um pedido. Se outra operacao o ocupou
-  // depois da leitura, tenta o seguinte.
   private async ocuparProximo(
     tx: Prisma.TransactionClient,
     candidatos: Candidato[],
@@ -154,8 +142,6 @@ export class RemocaoDaFrotaRepository {
     await registrarTroca(tx, idPedido, cpfAnterior, cpfNovo, agora);
   }
 
-  // PENDENTE e o unico status sem entregador; o inicio da entrega volta a
-  // ser marcado na proxima atribuicao (E-US08).
   private async devolverParaFila(
     tx: Prisma.TransactionClient,
     idPedido: number,
@@ -169,7 +155,6 @@ export class RemocaoDaFrotaRepository {
     });
   }
 
-  // Se o pedido mudou depois da leitura (ex.: foi finalizado), desfaz tudo.
   private async alterarPedido(
     tx: Prisma.TransactionClient,
     idPedido: number,

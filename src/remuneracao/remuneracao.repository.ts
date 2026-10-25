@@ -11,8 +11,6 @@ export interface NovosParametros {
 export class RemuneracaoRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Os parametros nunca sao sobrescritos: cada alteracao vira uma linha nova,
-  // e a vigente e a mais recente que ja comecou a valer.
   procurarVigentes(
     idEmpresa: number,
     agora: Date,

@@ -181,7 +181,6 @@ export class PedidoController {
     );
   }
 
-  // Fica por ultimo: ':id' nao pode capturar as rotas fixas acima.
   @Get(':id')
   @Cargos(Cargo.ESTABELECIMENTO)
   detalhar(

@@ -11,7 +11,6 @@ export class RegistrarPosicaoDto {
   @Max(180, { message: 'Longitude inválida' })
   lng: number;
 
-  // Raio de incerteza informado pelo navegador, em metros.
   @IsOptional()
   @IsNumber({}, { message: 'Precisão inválida' })
   @Min(0, { message: 'Precisão inválida' })

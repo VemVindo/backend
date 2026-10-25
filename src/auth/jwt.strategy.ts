@@ -40,8 +40,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  // A versao da sessao e conferida no banco a cada requisicao: trocar a senha
-  // ou sair de todos os aparelhos invalida os tokens emitidos antes.
   async validate(payload: JwtPayload): Promise<UsuarioAutenticado> {
     if (!payload?.sub || !Object.values(Cargo).includes(payload.cargo)) {
       throw new UnauthorizedException();

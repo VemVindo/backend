@@ -6,7 +6,6 @@ import {
   RemuneracaoRepository,
 } from './remuneracao.repository';
 
-// Valores em centavos: taxa por entrega e adicional por quilometro.
 export interface ParametrosRemuneracao {
   taxaFixa: number | null;
   coeficienteKm: number | null;
@@ -31,8 +30,6 @@ export class RemuneracaoService {
     return vigentes ? paraParametros(vigentes) : SEM_PARAMETROS;
   }
 
-  // E-US15: os novos valores valem a partir de agora; entregas ja calculadas
-  // mantem o valor que tinham.
   async salvar(
     idEmpresa: number,
     parametros: NovosParametros,

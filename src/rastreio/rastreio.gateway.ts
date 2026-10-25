@@ -15,9 +15,6 @@ export function salaDoPedido(idPedido: number): string {
   return `pedido:${idPedido}`;
 }
 
-// O recebedor so escuta: entra na sala do pedido com o token do link e recebe
-// as posicoes que o entregador envia por HTTP. Sem @SubscribeMessage, nenhum
-// evento do cliente e processado. O CORS vem do AdaptadorSocketIo (main.ts).
 @WebSocketGateway({ namespace: '/rastreio' })
 export class RastreioGateway implements OnGatewayConnection {
   private readonly logger = new Logger(RastreioGateway.name);
@@ -53,7 +50,6 @@ export class RastreioGateway implements OnGatewayConnection {
     this.servidor?.in(salaDoPedido(idPedido)).disconnectSockets(true);
   }
 
-  // Link trocado pela empresa: quem usava o anterior ve "link invalido".
   revogarLink(idPedido: number): void {
     this.publicar(idPedido, EVENTO_ACESSO_NEGADO, { situacao: 'invalido' });
     this.encerrarSala(idPedido);

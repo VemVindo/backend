@@ -5,9 +5,7 @@ import {
   modoDeViagem,
 } from './geo';
 
-// Pontos publicos de Brasilia, so para as contas.
 const ESPLANADA = { lat: -15.7939, lng: -47.8828 };
-// Uns 15 m da Esplanada: variacao normal do GPS com o entregador parado.
 const AO_LADO = { lat: -15.794, lng: -47.8829 };
 const PARQUE_DA_CIDADE = { lat: -15.8, lng: -47.9 };
 const AGORA = new Date('2026-10-15T12:00:00Z');
