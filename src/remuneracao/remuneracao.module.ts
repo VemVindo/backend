@@ -13,6 +13,10 @@ import { RemuneracaoService } from './remuneracao.service';
     RemuneracaoRepository,
     RemuneracaoService,
   ],
-  exports: [CalculoValorEntregaService, GanhoEntregaService],
+  exports: [
+    CalculoValorEntregaService,
+    GanhoEntregaService,
+    RemuneracaoService,
+  ],
 })
 export class RemuneracaoModule {}

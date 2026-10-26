@@ -1237,7 +1237,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nome_recebedor\": \"Recebedor Postman\",\n  \"telefone_recebedor\": \"61920008888\",\n  \"cep\": \"70000000\",\n  \"logradouro\": \"Rua de Teste\",\n  \"numero\": 2,\n  \"bairro\": \"Centro\",\n  \"cidade\": \"Brasilia\",\n  \"uf\": \"DF\",\n  \"descricao\": \"Pedido da colecao Postman\",\n  \"valor_entrega\": 1025,\n  \"distancia\": 1500\n}",
+              "raw": "{\n  \"nome_recebedor\": \"Recebedor Postman\",\n  \"telefone_recebedor\": \"61920008888\",\n  \"cep\": \"70000000\",\n  \"logradouro\": \"Rua de Teste\",\n  \"numero\": 2,\n  \"bairro\": \"Centro\",\n  \"cidade\": \"Brasilia\",\n  \"uf\": \"DF\",\n  \"descricao\": \"Pedido da colecao Postman\",\n  \"tipo_veiculo\": \"DRIVE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

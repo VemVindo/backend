@@ -73,6 +73,14 @@ describe('RotaDeCarroService.calcular', () => {
     expect(maps.calcularRota).toHaveBeenCalledWith(SAIDA, ENTREGA, 'DRIVE');
   });
 
+  it('pede a rota no modo de viagem informado', async () => {
+    const { servico, maps } = montar();
+
+    await servico.calcular(CANTINA, ENDERECO_DO_RECEBEDOR, 'BICYCLE');
+
+    expect(maps.calcularRota).toHaveBeenCalledWith(SAIDA, ENTREGA, 'BICYCLE');
+  });
+
   it('usa a coordenada ja salva da empresa sem geocodificar de novo', async () => {
     const { servico, maps } = montar();
 

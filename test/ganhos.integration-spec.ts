@@ -9,6 +9,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { PedidoRepository } from '../src/pedido/pedido.repository';
 import { PedidoAlteradoError } from '../src/pedido/pedido.erros';
 import { CriarPedidoDto } from '../src/pedido/dto/criar-pedido.dto';
+import { EntregaCalculada } from '../src/pedido/calculo-da-entrega.service';
 import { RemuneracaoRepository } from '../src/remuneracao/remuneracao.repository';
 import { GanhoEntregaService } from '../src/remuneracao/ganho-entrega.service';
 import { CalculoValorEntregaService } from '../src/remuneracao/calculo-valor-entrega.service';
@@ -18,6 +19,13 @@ const TEMPO_LIMITE_PREPARACAO_MS = 60_000;
 const MIGRACAO_GANHOS = '20261024000000_ganhos_por_entrega';
 const urlBancoTeste = process.env.TEST_DATABASE_URL;
 const descreverIntegracao = urlBancoTeste ? describe : describe.skip;
+const ENTREGA: EntregaCalculada = {
+  distancia: 4200,
+  distanciaConhecida: true,
+  destinoLat: null,
+  destinoLng: null,
+  valorEntrega: 123,
+};
 
 descreverIntegracao('E-US16 PostgreSQL: transacoes reais e migration', () => {
   const pastaMigracoes = join(__dirname, '../prisma/migrations');
@@ -47,8 +55,6 @@ descreverIntegracao('E-US16 PostgreSQL: transacoes reais e migration', () => {
       descricao: 'Entrega de teste',
       status: cpf ? StatusPedido.EM_ANDAMENTO : StatusPedido.PENDENTE,
       data_criacao: new Date().toISOString(),
-      distancia: 4200,
-      valor_entrega: 123,
       cpf_entregador: cpf,
     }) as CriarPedidoDto;
   const finalizarPedido = (idPedido: number, cpfEntregador = cpfEntregadorA) =>
@@ -60,7 +66,11 @@ descreverIntegracao('E-US16 PostgreSQL: transacoes reais e migration', () => {
       finalizar: true,
     });
   const criarPedidoAtribuido = () =>
-    repositorioPedidos.criar(criarDadosPedido(cpfEntregadorA), idEmpresaA);
+    repositorioPedidos.criar(
+      criarDadosPedido(cpfEntregadorA),
+      idEmpresaA,
+      ENTREGA,
+    );
 
   async function abrirConexoesTeste() {
     conexaoAdministrativa = new Pool({
@@ -409,6 +419,7 @@ descreverIntegracao('E-US16 PostgreSQL: transacoes reais e migration', () => {
     const pedidoEmpresaB = await repositorioPedidos.criar(
       criarDadosPedido(cpfEntregadorA),
       idEmpresaB,
+      ENTREGA,
     );
     expect(pedidoEmpresaB).toMatchObject({
       taxa_fixa_atribuicao_centavos: 200,
@@ -490,7 +501,11 @@ descreverIntegracao('E-US16 PostgreSQL: transacoes reais e migration', () => {
     });
     try {
       await expect(
-        repositorioPedidos.criar(criarDadosPedido(cpfEntregadorA), idEmpresaB),
+        repositorioPedidos.criar(
+          criarDadosPedido(cpfEntregadorA),
+          idEmpresaB,
+          ENTREGA,
+        ),
       ).rejects.toThrow('Configure os parâmetros');
       expect(
         await clientePrisma.pedido.count({

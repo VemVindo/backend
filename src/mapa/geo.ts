@@ -5,7 +5,9 @@ export interface Coordenada {
   lng: number;
 }
 
-export type ModoDeViagem = 'DRIVE' | 'BICYCLE';
+export const MODOS_DE_VIAGEM = ['DRIVE', 'BICYCLE'] as const;
+
+export type ModoDeViagem = (typeof MODOS_DE_VIAGEM)[number];
 
 export interface Trajeto {
   distanciaM: number;

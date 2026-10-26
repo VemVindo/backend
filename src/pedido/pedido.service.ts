@@ -35,6 +35,7 @@ import {
   DetalheDoPedidoDto,
   paraDetalheDoPedido,
 } from './dto/detalhe-do-pedido.dto';
+import { CalculoDaEntregaService } from './calculo-da-entrega.service';
 
 const STATUS_REATRIBUIVEIS: readonly StatusPedido[] = [
   StatusPedido.PENDENTE,
@@ -48,6 +49,7 @@ export class PedidoService {
     private readonly entregadorRepository: EntregadorRepository,
     private readonly localizacao: LocalizacaoService,
     private readonly codigoDoRecebedor: CodigoDoRecebedorService,
+    private readonly calculoDaEntrega: CalculoDaEntregaService,
   ) {}
 
   async criar(idEmpresa: number, pedido: CriarPedidoDto): Promise<Pedido> {
@@ -55,10 +57,11 @@ export class PedidoService {
       await this.exigirEntregadorDisponivel(idEmpresa, pedido.cpf_entregador);
     }
 
+    const entrega = await this.calculoDaEntrega.calcular(idEmpresa, pedido);
     pedido.status = StatusFactory.criar(pedido.cpf_entregador);
     pedido.data_criacao = new Date().toISOString();
     return this.comControleDeConcorrencia(() =>
-      this.pedidoRepository.criar(pedido, idEmpresa),
+      this.pedidoRepository.criar(pedido, idEmpresa, entrega),
     );
   }
 
