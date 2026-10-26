@@ -12,20 +12,20 @@ const EMPRESA: UsuarioAutenticado = {
 };
 
 describe('EmpresaController', () => {
-  const service = {
+  const servico = {
     consultarConfiguracoes: jest.fn().mockResolvedValue({ exibirMapa: true }),
     atualizarConfiguracoes: jest.fn().mockResolvedValue({ exibirMapa: false }),
   };
-  const controller = new EmpresaController(
-    service as unknown as EmpresaService,
+  const controlador = new EmpresaController(
+    servico as unknown as EmpresaService,
   );
 
   it('usa a empresa do token, nunca um id vindo do corpo', async () => {
-    await controller.consultar(EMPRESA);
-    await controller.atualizar(EMPRESA, { exibirMapa: false });
+    await controlador.consultar(EMPRESA);
+    await controlador.atualizar(EMPRESA, { exibirMapa: false });
 
-    expect(service.consultarConfiguracoes).toHaveBeenCalledWith(3);
-    expect(service.atualizarConfiguracoes).toHaveBeenCalledWith(3, {
+    expect(servico.consultarConfiguracoes).toHaveBeenCalledWith(3);
+    expect(servico.atualizarConfiguracoes).toHaveBeenCalledWith(3, {
       exibirMapa: false,
     });
   });

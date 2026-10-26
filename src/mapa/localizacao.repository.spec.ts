@@ -67,6 +67,17 @@ describe('LocalizacaoRepository', () => {
     });
   });
 
+  it('so encontra o pedido da propria empresa', async () => {
+    const { repositorio, prisma } = montar();
+
+    await repositorio.procurarDaEmpresa(42, 1);
+
+    expect(prisma.pedido.findFirst).toHaveBeenCalledWith({
+      where: { id_pedido: 42, idEmpresa: 1 },
+      include: INCLUI_MAPA,
+    });
+  });
+
   it('busca por id com a configuracao da empresa e a ultima posicao', async () => {
     const { repositorio, prisma } = montar();
 

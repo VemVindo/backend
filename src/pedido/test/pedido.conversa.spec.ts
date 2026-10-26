@@ -4,14 +4,8 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { StatusPedido } from '../../generated/prisma/enums';
-import { EntregadorRepository } from '../../entregador/entregador.repository';
-import { LocalizacaoService } from '../../mapa/localizacao.service';
-import { CodigoDoRecebedorService } from '../../rastreio/codigo-do-recebedor.service';
+import { ConversaDoPedidoService } from '../conversa-do-pedido.service';
 import { PedidoComContatos, PedidoRepository } from '../pedido.repository';
-import { PedidoService } from '../pedido.service';
-import { RemuneracaoService } from '../../remuneracao/remuneracao.service';
-import { CalculoValorEntregaService } from '../../remuneracao/calculo-valor-entrega.service';
-import { GoogleMapsClient } from '../../mapa/google-maps.client';
 
 jest.mock('../../prisma/prisma.service', () => ({
   PrismaService: class {},
@@ -43,23 +37,17 @@ function montar(encontrado: PedidoComContatos | null = pedido()) {
   const pedidos = {
     procurarComContatos: jest.fn().mockResolvedValue(encontrado),
   };
-  const service = new PedidoService(
+  const servico = new ConversaDoPedidoService(
     pedidos as unknown as PedidoRepository,
-    {} as EntregadorRepository,
-    {} as LocalizacaoService,
-    {} as CodigoDoRecebedorService,
-    {} as RemuneracaoService,
-    {} as CalculoValorEntregaService,
-    {} as GoogleMapsClient,
   );
-  return { service, pedidos };
+  return { servico, pedidos };
 }
 
-describe('PedidoService conversa pelo WhatsApp (E-US20 + EN-US07)', () => {
+describe('ConversaDoPedidoService conversa pelo WhatsApp (E-US20 + EN-US07)', () => {
   it('a empresa recebe o link para o telefone do entregador atual', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
 
-    const conversa = await service.conversaComEntregador(ID_EMPRESA, ID_PEDIDO);
+    const conversa = await servico.conversaComEntregador(ID_EMPRESA, ID_PEDIDO);
 
     expect(pedidos.procurarComContatos).toHaveBeenCalledWith(ID_PEDIDO, {
       idEmpresa: ID_EMPRESA,
@@ -72,9 +60,9 @@ describe('PedidoService conversa pelo WhatsApp (E-US20 + EN-US07)', () => {
   });
 
   it('o entregador recebe o link para o telefone do estabelecimento', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
 
-    const conversa = await service.conversaComEstabelecimento(CPF, ID_PEDIDO);
+    const conversa = await servico.conversaComEstabelecimento(CPF, ID_PEDIDO);
 
     expect(pedidos.procurarComContatos).toHaveBeenCalledWith(ID_PEDIDO, {
       cpf_entregador: CPF,
@@ -84,13 +72,13 @@ describe('PedidoService conversa pelo WhatsApp (E-US20 + EN-US07)', () => {
   });
 
   it('pedido de outra empresa ou de outro entregador vira 404', async () => {
-    const { service } = montar(null);
+    const { servico } = montar(null);
 
     await expect(
-      service.conversaComEntregador(ID_EMPRESA, ID_PEDIDO),
+      servico.conversaComEntregador(ID_EMPRESA, ID_PEDIDO),
     ).rejects.toThrow(NotFoundException);
     await expect(
-      service.conversaComEstabelecimento(CPF, ID_PEDIDO),
+      servico.conversaComEstabelecimento(CPF, ID_PEDIDO),
     ).rejects.toThrow(NotFoundException);
   });
 
@@ -99,42 +87,42 @@ describe('PedidoService conversa pelo WhatsApp (E-US20 + EN-US07)', () => {
     StatusPedido.FINALIZADO,
     StatusPedido.CANCELADO,
   ])('recusa a conversa com o pedido %s', async (status) => {
-    const { service } = montar(pedido({ status }));
+    const { servico } = montar(pedido({ status }));
 
     await expect(
-      service.conversaComEntregador(ID_EMPRESA, ID_PEDIDO),
+      servico.conversaComEntregador(ID_EMPRESA, ID_PEDIDO),
     ).rejects.toThrow(ConflictException);
   });
 
   it('recusa a conversa sem entregador atribuido', async () => {
-    const { service } = montar(pedido({ entregador: null }));
+    const { servico } = montar(pedido({ entregador: null }));
 
     await expect(
-      service.conversaComEntregador(ID_EMPRESA, ID_PEDIDO),
+      servico.conversaComEntregador(ID_EMPRESA, ID_PEDIDO),
     ).rejects.toThrow(ConflictException);
   });
 
   it('avisa quando o telefone cadastrado nao serve para o WhatsApp', async () => {
-    const { service } = montar(
+    const { servico } = montar(
       pedido({ entregador: { nome: 'Joao Silva', telefone: '123' } }),
     );
 
     await expect(
-      service.conversaComEntregador(ID_EMPRESA, ID_PEDIDO),
+      servico.conversaComEntregador(ID_EMPRESA, ID_PEDIDO),
     ).rejects.toThrow(UnprocessableEntityException);
   });
 });
 
-describe('PedidoService conversa com o recebedor pelo WhatsApp (E-US19)', () => {
+describe('ConversaDoPedidoService conversa com o recebedor pelo WhatsApp (E-US19)', () => {
   const COM_RECEBEDOR = {
     nome_recebedor: 'Carla Menezes',
     telefone_recebedor: '61920000001',
   };
 
   it('a empresa recebe o link para o telefone do recebedor', async () => {
-    const { service, pedidos } = montar(pedido(COM_RECEBEDOR));
+    const { servico, pedidos } = montar(pedido(COM_RECEBEDOR));
 
-    const conversa = await service.conversaComRecebedor(ID_EMPRESA, ID_PEDIDO);
+    const conversa = await servico.conversaComRecebedor(ID_EMPRESA, ID_PEDIDO);
 
     expect(pedidos.procurarComContatos).toHaveBeenCalledWith(ID_PEDIDO, {
       idEmpresa: ID_EMPRESA,
@@ -145,7 +133,7 @@ describe('PedidoService conversa com o recebedor pelo WhatsApp (E-US19)', () => 
   });
 
   it('libera a conversa antes de o pedido ter entregador', async () => {
-    const { service } = montar(
+    const { servico } = montar(
       pedido({
         ...COM_RECEBEDOR,
         status: StatusPedido.PENDENTE,
@@ -154,36 +142,36 @@ describe('PedidoService conversa com o recebedor pelo WhatsApp (E-US19)', () => 
     );
 
     await expect(
-      service.conversaComRecebedor(ID_EMPRESA, ID_PEDIDO),
+      servico.conversaComRecebedor(ID_EMPRESA, ID_PEDIDO),
     ).resolves.toEqual(expect.objectContaining({ contato: 'Carla Menezes' }));
   });
 
   it('pedido de outra empresa vira 404', async () => {
-    const { service } = montar(null);
+    const { servico } = montar(null);
 
     await expect(
-      service.conversaComRecebedor(ID_EMPRESA, ID_PEDIDO),
+      servico.conversaComRecebedor(ID_EMPRESA, ID_PEDIDO),
     ).rejects.toThrow(NotFoundException);
   });
 
   it.each([StatusPedido.FINALIZADO, StatusPedido.CANCELADO])(
     'recusa a conversa com o pedido %s',
     async (status) => {
-      const { service } = montar(pedido({ ...COM_RECEBEDOR, status }));
+      const { servico } = montar(pedido({ ...COM_RECEBEDOR, status }));
 
       await expect(
-        service.conversaComRecebedor(ID_EMPRESA, ID_PEDIDO),
+        servico.conversaComRecebedor(ID_EMPRESA, ID_PEDIDO),
       ).rejects.toThrow(ConflictException);
     },
   );
 
   it('avisa quando o telefone do recebedor nao serve para o WhatsApp', async () => {
-    const { service } = montar(
+    const { servico } = montar(
       pedido({ ...COM_RECEBEDOR, telefone_recebedor: '123' }),
     );
 
     await expect(
-      service.conversaComRecebedor(ID_EMPRESA, ID_PEDIDO),
+      servico.conversaComRecebedor(ID_EMPRESA, ID_PEDIDO),
     ).rejects.toThrow(UnprocessableEntityException);
   });
 });

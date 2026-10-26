@@ -1,40 +1,42 @@
 import type { CookieOptions, Request, Response } from 'express';
 
-export const AUTH_COOKIE = 'vemvindo_token';
+export const COOKIE_DE_AUTENTICACAO = 'vemvindo_token';
 
 function opcoesCookie(): CookieOptions {
-  const sameSite = process.env.COOKIE_SAMESITE === 'none' ? 'none' : 'lax';
+  const politicaSameSite =
+    process.env.COOKIE_SAMESITE === 'none' ? 'none' : 'lax';
   return {
     httpOnly: true,
-    secure: sameSite === 'none' || process.env.NODE_ENV === 'production',
-    sameSite,
+    secure:
+      politicaSameSite === 'none' || process.env.NODE_ENV === 'production',
+    sameSite: politicaSameSite,
     path: '/',
   };
 }
 
-export function definirCookieAuth(
-  res: Response,
+export function definirCookieDeAutenticacao(
+  resposta: Response,
   tokenAcesso: string,
   expiraEm: Date,
 ) {
-  res.cookie(AUTH_COOKIE, tokenAcesso, {
+  resposta.cookie(COOKIE_DE_AUTENTICACAO, tokenAcesso, {
     ...opcoesCookie(),
     expires: expiraEm,
   });
 }
 
-export function limparCookieAuth(res: Response) {
-  res.clearCookie(AUTH_COOKIE, opcoesCookie());
+export function limparCookieDeAutenticacao(resposta: Response) {
+  resposta.clearCookie(COOKIE_DE_AUTENTICACAO, opcoesCookie());
 }
 
-export function extrairTokenDoCookie(req: Request): string | null {
-  const header = req?.headers?.cookie;
-  if (!header) {
+export function extrairTokenDoCookie(requisicao: Request): string | null {
+  const cabecalho = requisicao?.headers?.cookie;
+  if (!cabecalho) {
     return null;
   }
-  for (const parte of header.split(';')) {
+  for (const parte of cabecalho.split(';')) {
     const [nome, ...valor] = parte.trim().split('=');
-    if (nome === AUTH_COOKIE && valor.length > 0) {
+    if (nome === COOKIE_DE_AUTENTICACAO && valor.length > 0) {
       return decodeURIComponent(valor.join('='));
     }
   }

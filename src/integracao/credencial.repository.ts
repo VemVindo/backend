@@ -31,12 +31,12 @@ export class CredencialRepository {
     prefixo: string,
     hash: string,
   ): Promise<CredencialIntegracao> {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.credencialIntegracao.updateMany({
+    return this.prisma.$transaction(async (transacao) => {
+      await transacao.credencialIntegracao.updateMany({
         where: { idEmpresa, data_revogacao: null },
         data: { data_revogacao: new Date() },
       });
-      return tx.credencialIntegracao.create({
+      return transacao.credencialIntegracao.create({
         data: { idEmpresa, prefixo, hash },
       });
     });

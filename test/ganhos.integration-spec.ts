@@ -8,7 +8,7 @@ import { StatusPedido } from '../src/generated/prisma/enums';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { PedidoRepository } from '../src/pedido/pedido.repository';
 import { PedidoAlteradoError } from '../src/pedido/pedido.erros';
-import { CriaPedidoReqDto } from '../src/pedido/dto/cria-pedido.dto';
+import { CriarPedidoDto } from '../src/pedido/dto/criar-pedido.dto';
 import { RemuneracaoRepository } from '../src/remuneracao/remuneracao.repository';
 import { GanhoEntregaService } from '../src/remuneracao/ganho-entrega.service';
 import { CalculoValorEntregaService } from '../src/remuneracao/calculo-valor-entrega.service';
@@ -34,7 +34,7 @@ descreverIntegracao('E-US16 PostgreSQL: transacoes reais e migration', () => {
   const cpfEntregadorB = '11144477735';
   const inicioVigenciaOriginal = new Date('2020-01-01T00:00:00Z');
 
-  const criarDadosPedido = (cpf?: string): CriaPedidoReqDto =>
+  const criarDadosPedido = (cpf?: string): CriarPedidoDto =>
     ({
       nome_recebedor: 'Teste E-US16',
       telefone_recebedor: '61999999999',
@@ -50,14 +50,11 @@ descreverIntegracao('E-US16 PostgreSQL: transacoes reais e migration', () => {
       distancia: 4200,
       valor_entrega: 123,
       cpf_entregador: cpf,
-    }) as CriaPedidoReqDto;
-  const finalizarPedido = (
-    id_pedido: number,
-    cpf_entregador = cpfEntregadorA,
-  ) =>
+    }) as CriarPedidoDto;
+  const finalizarPedido = (idPedido: number, cpfEntregador = cpfEntregadorA) =>
     repositorioPedidos.atualizarStatus({
-      idPedido: id_pedido,
-      cpfEntregador: cpf_entregador,
+      idPedido,
+      cpfEntregador,
       statusAtual: StatusPedido.EM_ANDAMENTO,
       novoStatus: StatusPedido.FINALIZADO,
       finalizar: true,

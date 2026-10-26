@@ -33,12 +33,12 @@ function dados(
 }
 
 describe('CalculoValorEntregaService', () => {
-  const service = new CalculoValorEntregaService();
+  const servico = new CalculoValorEntregaService();
 
   it.each(casosValidos)(
     'calcula %i metros com taxa %i e coeficiente %i como %i centavos',
     (distancia, taxa, coeficiente, esperado) => {
-      const resultado = service.calcularValorEntrega(
+      const resultado = servico.calcularValorEntrega(
         dados(distancia, taxa, coeficiente),
       );
       expect(resultado).toBe(esperado);
@@ -74,7 +74,7 @@ describe('CalculoValorEntregaService', () => {
     ),
   )('rejeita $campo com valor $valor', ({ campo, valor }) => {
     const entrada = { ...dados(4200, 800, 150), [campo]: valor };
-    expect(() => service.calcularValorEntrega(entrada)).toThrow(
+    expect(() => servico.calcularValorEntrega(entrada)).toThrow(
       BadRequestException,
     );
   });
@@ -83,7 +83,7 @@ describe('CalculoValorEntregaService', () => {
     const entrada: Partial<DadosCalculoValorEntrega> = dados(4200, 800, 150);
     delete entrada[campo];
     expect(() =>
-      service.calcularValorEntrega(entrada as DadosCalculoValorEntrega),
+      servico.calcularValorEntrega(entrada as DadosCalculoValorEntrega),
     ).toThrow(BadRequestException);
   });
 
@@ -91,7 +91,7 @@ describe('CalculoValorEntregaService', () => {
     'rejeita objeto de entrada invalido %p',
     (entrada) => {
       expect(() =>
-        service.calcularValorEntrega(entrada as DadosCalculoValorEntrega),
+        servico.calcularValorEntrega(entrada as DadosCalculoValorEntrega),
       ).toThrow(BadRequestException);
     },
   );
@@ -104,7 +104,7 @@ describe('CalculoValorEntregaService', () => {
     [1000, Number.MAX_SAFE_INTEGER, 1],
   ])('rejeita resultado excedente para %i, %i, %i', (distancia, taxa, coef) => {
     expect(() =>
-      service.calcularValorEntrega(dados(distancia, taxa, coef)),
+      servico.calcularValorEntrega(dados(distancia, taxa, coef)),
     ).toThrow(BadRequestException);
   });
 
@@ -113,8 +113,8 @@ describe('CalculoValorEntregaService', () => {
     (distancia, taxa, coeficiente, esperado) => {
       const entrada = Object.freeze(dados(distancia, taxa, coeficiente));
       const original = { ...entrada };
-      expect(service.calcularValorEntrega(entrada)).toBe(esperado);
-      expect(service.calcularValorEntrega(entrada)).toBe(esperado);
+      expect(servico.calcularValorEntrega(entrada)).toBe(esperado);
+      expect(servico.calcularValorEntrega(entrada)).toBe(esperado);
       expect(entrada).toEqual(original);
     },
   );

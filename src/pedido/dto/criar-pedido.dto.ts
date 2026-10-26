@@ -12,7 +12,7 @@ import {
 import { StatusPedido } from '../../generated/prisma/enums';
 import type { ModoDeViagem } from 'src/mapa/geo';
 
-export class CriaPedidoReqDto {
+export class CriarPedidoDto {
   @IsEmpty()
   id_pedido!: string;
 
@@ -93,7 +93,7 @@ export class CriaPedidoReqDto {
   tipo_veiculo!: ModoDeViagem;
 }
 
-export class CriaPedidoResDto {
+export class PedidoCriadoDto {
   @IsNumber()
   id_pedido!: number;
 

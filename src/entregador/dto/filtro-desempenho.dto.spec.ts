@@ -3,14 +3,14 @@ import { validateSync } from 'class-validator';
 import { FiltroDesempenhoDto } from './filtro-desempenho.dto';
 
 describe('FiltroDesempenhoDto', () => {
-  const periodo_valido = {
+  const periodoValido = {
     de: '2026-10-01T00:00:00-03:00',
     ate: '2026-11-01T03:00:00.000Z',
   };
 
   it('aceita instantes com offset ou UTC', () => {
     expect(
-      validateSync(plainToInstance(FiltroDesempenhoDto, periodo_valido)),
+      validateSync(plainToInstance(FiltroDesempenhoDto, periodoValido)),
     ).toEqual([]);
   });
 
@@ -29,15 +29,15 @@ describe('FiltroDesempenhoDto', () => {
     {},
   ])(
     'rejeita datas invalidas, ausentes ou repetidas: %p',
-    (valor_filtro_invalido) => {
-      for (const campo_periodo of ['de', 'ate']) {
-        const filtro_periodo = plainToInstance(FiltroDesempenhoDto, {
-          ...periodo_valido,
-          [campo_periodo]: valor_filtro_invalido,
+    (valorFiltroInvalido) => {
+      for (const campoPeriodo of ['de', 'ate']) {
+        const filtroPeriodo = plainToInstance(FiltroDesempenhoDto, {
+          ...periodoValido,
+          [campoPeriodo]: valorFiltroInvalido,
         });
         expect(
-          validateSync(filtro_periodo).some(
-            (erro_validacao) => erro_validacao.property === campo_periodo,
+          validateSync(filtroPeriodo).some(
+            (erroValidacao) => erroValidacao.property === campoPeriodo,
           ),
         ).toBe(true);
       }

@@ -37,30 +37,42 @@ export interface PontosDaEntrega {
   destino: Coordenada | null;
 }
 
+const SEM_LOCALIZACAO = {
+  exibirMapa: true,
+  entregador: null,
+  rota: null,
+  distanciaRestanteM: null,
+  duracaoRestanteS: null,
+  estimado: true,
+  entregadorProximo: false,
+  atualizadaEm: null,
+} satisfies Omit<VisaoDaEntrega, keyof PontosDaEntrega>;
+
 export function montarVisao(
-  { status, origem, destino }: PontosDaEntrega,
+  pontos: PontosDaEntrega,
   localizacao: LocalizacaoEntrega | null,
 ): VisaoDaEntrega {
-  const distancia = localizacao?.distancia_restante_m ?? null;
+  if (!localizacao) {
+    return { ...pontos, ...SEM_LOCALIZACAO };
+  }
+  const distancia = localizacao.distancia_restante_m;
   return {
-    status,
+    ...pontos,
     exibirMapa: true,
-    origem,
-    destino,
-    entregador: localizacao && {
+    entregador: {
       lat: localizacao.lat,
       lng: localizacao.lng,
       precisaoM: localizacao.precisao_m,
     },
-    rota: localizacao?.rota_polyline ?? null,
+    rota: localizacao.rota_polyline,
     distanciaRestanteM: distancia,
-    duracaoRestanteS: localizacao?.duracao_restante_s ?? null,
-    estimado: localizacao?.estimado ?? true,
+    duracaoRestanteS: localizacao.duracao_restante_s,
+    estimado: localizacao.estimado,
     entregadorProximo:
-      status === StatusPedido.EM_ANDAMENTO &&
+      pontos.status === StatusPedido.EM_ANDAMENTO &&
       distancia !== null &&
       distancia <= DISTANCIA_PROXIMO_M,
-    atualizadaEm: localizacao?.registrada_em ?? null,
+    atualizadaEm: localizacao.registrada_em,
   };
 }
 

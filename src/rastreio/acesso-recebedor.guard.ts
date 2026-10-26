@@ -17,8 +17,10 @@ export type RequisicaoRecebedor = Request & {
 export class AcessoRecebedorGuard implements CanActivate {
   constructor(private readonly validador: ValidadorDeLink) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requisicao = context.switchToHttp().getRequest<RequisicaoRecebedor>();
+  async canActivate(contexto: ExecutionContext): Promise<boolean> {
+    const requisicao = contexto
+      .switchToHttp()
+      .getRequest<RequisicaoRecebedor>();
     const token = requisicao.params?.token;
     const resultado = await this.validador.autenticar(
       typeof token === 'string' ? token : '',

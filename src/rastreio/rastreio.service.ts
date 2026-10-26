@@ -22,7 +22,7 @@ import { linhaDoTempo } from './linha-do-tempo';
 export class RastreioService {
   constructor(
     private readonly rastreio: RastreioRepository,
-    private readonly config: ConfigService,
+    private readonly configuracao: ConfigService,
     private readonly gateway: RastreioGateway,
   ) {}
 
@@ -72,8 +72,8 @@ export class RastreioService {
 
   private montarLink(token: string): string {
     const base =
-      this.config.get<string>('URL_FRONTEND') ??
-      this.config.get<string>('CORS_ORIGIN') ??
+      this.configuracao.get<string>('URL_FRONTEND') ??
+      this.configuracao.get<string>('CORS_ORIGIN') ??
       'http://localhost:3000';
     return `${base.replace(/\/+$/, '')}/rastreio/${token}`;
   }

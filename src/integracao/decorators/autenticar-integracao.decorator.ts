@@ -1,6 +1,6 @@
 import { applyDecorators, UseGuards } from '@nestjs/common';
-import { Public } from '../../auth/decorators/public.decorator';
+import { RotaPublica } from '../../auth/decorators/rota-publica.decorator';
 import { CredencialIntegracaoGuard } from '../credencial-integracao.guard';
 
 export const AutenticarIntegracao = () =>
-  applyDecorators(Public(), UseGuards(CredencialIntegracaoGuard));
+  applyDecorators(RotaPublica(), UseGuards(CredencialIntegracaoGuard));

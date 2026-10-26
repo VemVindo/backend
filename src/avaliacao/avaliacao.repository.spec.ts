@@ -25,6 +25,15 @@ const INCLUDE = {
 };
 
 describe('AvaliacaoRepository', () => {
+  it('procura a avaliacao pelo pedido', async () => {
+    const { repo, prisma } = montar();
+
+    await expect(repo.procurar(42)).resolves.toBeNull();
+    expect(prisma.avaliacao.findUnique).toHaveBeenCalledWith({
+      where: { idpedidos: 42 },
+    });
+  });
+
   it('cria a nota sem comentario', async () => {
     const { repo, prisma } = montar();
     const data = new Date('2026-10-20T13:00:00Z');

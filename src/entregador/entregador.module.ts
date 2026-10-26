@@ -8,6 +8,7 @@ import { EntregadorController } from './entregador.controller';
 import { EntregadorRepository } from './entregador.repository';
 import { EntregadorService } from './entregador.service';
 import { RemocaoDaFrotaRepository } from './remocao-da-frota.repository';
+import { RemocaoDaFrotaService } from './remocao-da-frota.service';
 
 @Module({
   imports: [ContratoModule, MapaModule, RemuneracaoModule],
@@ -18,6 +19,7 @@ import { RemocaoDaFrotaRepository } from './remocao-da-frota.repository';
     RepositorioDesempenhoEntregador,
     ServicoDesempenhoEntregador,
     RemocaoDaFrotaRepository,
+    RemocaoDaFrotaService,
   ],
   exports: [EntregadorRepository],
 })

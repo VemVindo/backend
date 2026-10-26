@@ -17,8 +17,8 @@ export type RequisicaoIntegracao = Request & {
 export class CredencialIntegracaoGuard implements CanActivate {
   constructor(private readonly credenciais: CredencialService) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requisicao = context
+  async canActivate(contexto: ExecutionContext): Promise<boolean> {
+    const requisicao = contexto
       .switchToHttp()
       .getRequest<RequisicaoIntegracao>();
     const chave = requisicao.headers[CABECALHO_CHAVE];

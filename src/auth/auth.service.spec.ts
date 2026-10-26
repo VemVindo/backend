@@ -45,13 +45,13 @@ function montar() {
     comparar: jest.fn().mockResolvedValue(true),
     verificar: jest.fn().mockResolvedValue(false),
   };
-  const service = new AuthService(
+  const servico = new AuthService(
     empresas as unknown as EmpresaRepository,
     entregadores as unknown as EntregadorRepository,
     jwt as unknown as JwtService,
     senha,
   );
-  return { service, empresas, entregadores, jwt, senha };
+  return { servico, empresas, entregadores, jwt, senha };
 }
 
 const cadastro = {
@@ -71,25 +71,81 @@ const cadastro = {
 
 describe('AuthService.cadastrarEmpresa', () => {
   it('exige exatamente um documento', async () => {
-    const { service } = montar();
+    const { servico } = montar();
     await expect(
-      service.cadastrarEmpresa({ ...cadastro, cnpj: undefined }),
+      servico.cadastrarEmpresa({ ...cadastro, cnpj: undefined }),
     ).rejects.toThrow(BadRequestException);
     await expect(
-      service.cadastrarEmpresa({ ...cadastro, cpf: CPF_FICTICIO }),
+      servico.cadastrarEmpresa({ ...cadastro, cpf: CPF_FICTICIO }),
     ).rejects.toThrow(BadRequestException);
   });
 
+  it('exige a razao social de quem se cadastra por CNPJ', async () => {
+    const { servico, empresas } = montar();
+
+    await expect(
+      servico.cadastrarEmpresa({ ...cadastro, razaoSocial: undefined }),
+    ).rejects.toThrow('Razao social e obrigatoria para CNPJ');
+    expect(empresas.criar).not.toHaveBeenCalled();
+  });
+
+  it('recusa e-mail ou documento que ja tem cadastro', async () => {
+    const { servico, empresas } = montar();
+    empresas.procurarPorEmail.mockResolvedValueOnce({ id_empresa: 1 });
+    await expect(servico.cadastrarEmpresa(cadastro)).rejects.toThrow(
+      'E-mail ja cadastrado',
+    );
+
+    empresas.procurarPorDocumento.mockResolvedValueOnce({ id_empresa: 1 });
+    await expect(servico.cadastrarEmpresa(cadastro)).rejects.toThrow(
+      'Documento ja cadastrado',
+    );
+    expect(empresas.criar).not.toHaveBeenCalled();
+  });
+
+  it('cadastra por CPF sem CNPJ nem razao social', async () => {
+    const { servico, empresas } = montar();
+    empresas.criar.mockResolvedValue({ id_empresa: 8, sessao_versao: 0 });
+
+    await servico.cadastrarEmpresa({
+      ...cadastro,
+      cnpj: undefined,
+      razaoSocial: undefined,
+      cpf: CPF_FICTICIO,
+    });
+
+    expect(empresas.procurarPorDocumento).toHaveBeenCalledWith(
+      null,
+      CPF_FICTICIO,
+    );
+    expect(empresas.criar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cnpj: null,
+        cpf: CPF_FICTICIO,
+        razaoSocial: null,
+        senhaHash: 'hash',
+      }),
+    );
+  });
+
   it('converte corrida no unique do banco em 409', async () => {
-    const { service, empresas } = montar();
+    const { servico, empresas } = montar();
     empresas.criar.mockRejectedValue({ code: 'P2002' });
-    await expect(service.cadastrarEmpresa(cadastro)).rejects.toThrow(
+    await expect(servico.cadastrarEmpresa(cadastro)).rejects.toThrow(
       ConflictException,
     );
   });
 
+  it('repassa outros erros do banco', async () => {
+    const { servico, empresas } = montar();
+    const falha = new Error('conexao perdida');
+    empresas.criar.mockRejectedValue(falha);
+
+    await expect(servico.cadastrarEmpresa(cadastro)).rejects.toBe(falha);
+  });
+
   it('assina o token com cargo, empresaId e versao da sessao', async () => {
-    const { service, empresas, jwt } = montar();
+    const { servico, empresas, jwt } = montar();
     empresas.criar.mockResolvedValue({
       id_empresa: 7,
       nome_fantasia: 'Loja Teste',
@@ -97,7 +153,7 @@ describe('AuthService.cadastrarEmpresa', () => {
       sessao_versao: 0,
     });
 
-    const resposta = await service.cadastrarEmpresa(cadastro);
+    const resposta = await servico.cadastrarEmpresa(cadastro);
 
     expect(jwt.sign).toHaveBeenCalledWith({
       sub: '7',
@@ -118,23 +174,23 @@ describe('AuthService.cadastrarEmpresa', () => {
 
 describe('AuthService login', () => {
   it('passa pelo bcrypt mesmo quando o e-mail nao existe', async () => {
-    const { service, senha } = montar();
+    const { servico, senha } = montar();
     await expect(
-      service.loginEmpresa({ email: 'nada@example.com', senha: 'x' }),
+      servico.loginEmpresa({ email: 'nada@example.com', senha: 'x' }),
     ).rejects.toThrow(UnauthorizedException);
     expect(senha.verificar).toHaveBeenCalledWith('x', undefined);
   });
 
   it('passa pelo bcrypt mesmo quando o CPF nao existe', async () => {
-    const { service, senha } = montar();
+    const { servico, senha } = montar();
     await expect(
-      service.loginEntregador({ cpf: CPF_FICTICIO, senha: 'x' }),
+      servico.loginEntregador({ cpf: CPF_FICTICIO, senha: 'x' }),
     ).rejects.toThrow(UnauthorizedException);
     expect(senha.verificar).toHaveBeenCalledWith('x', undefined);
   });
 
   it('autentica entregador com senha temporaria dentro do prazo', async () => {
-    const { service, entregadores, senha, jwt } = montar();
+    const { servico, entregadores, senha, jwt } = montar();
     entregadores.procurarPorCpf.mockResolvedValue({
       cpf: CPF_FICTICIO,
       nome: 'Entregador Teste',
@@ -145,7 +201,7 @@ describe('AuthService login', () => {
     });
     senha.verificar.mockResolvedValue(true);
 
-    const resposta = await service.loginEntregador({
+    const resposta = await servico.loginEntregador({
       cpf: CPF_FICTICIO,
       senha: 'x',
     });
@@ -169,13 +225,13 @@ describe('AuthService login com a senha errada', () => {
   ] as const)(
     'recusa %s cadastrado com a mesma mensagem de quem nao existe',
     async (_perfil, metodo, busca) => {
-      const { service, empresas, entregadores } = montar();
+      const { servico, empresas, entregadores } = montar();
       const repositorio =
         busca === 'procurarPorEmail' ? empresas : entregadores;
       (repositorio[busca] as jest.Mock).mockResolvedValue({ senha: 'hash' });
 
       await expect(
-        service[metodo]({
+        servico[metodo]({
           email: 'loja@example.com',
           cpf: CPF_FICTICIO,
           senha: 'x',
@@ -185,7 +241,7 @@ describe('AuthService login com a senha errada', () => {
   );
 
   it('autentica a empresa com a senha certa', async () => {
-    const { service, empresas, senha } = montar();
+    const { servico, empresas, senha } = montar();
     empresas.procurarPorEmail.mockResolvedValue({
       id_empresa: 7,
       nome_fantasia: 'Loja Teste',
@@ -195,7 +251,7 @@ describe('AuthService login com a senha errada', () => {
     });
     senha.verificar.mockResolvedValue(true);
 
-    const resposta = await service.loginEmpresa({
+    const resposta = await servico.loginEmpresa({
       email: 'loja@example.com',
       senha: 'x',
     });
@@ -208,7 +264,7 @@ describe('AuthService login com a senha errada', () => {
 
 describe('AuthService.minhasInformacoes', () => {
   it('devolve os dados da empresa logada, sem a senha', async () => {
-    const { service, empresas } = montar();
+    const { servico, empresas } = montar();
     empresas.procurarPorId.mockResolvedValue({
       id_empresa: 7,
       nome_fantasia: 'Loja Teste',
@@ -216,7 +272,7 @@ describe('AuthService.minhasInformacoes', () => {
       senha: 'hash',
     });
 
-    const infos = await service.minhasInformacoes({
+    const infos = await servico.minhasInformacoes({
       usuarioId: '7',
       cargo: Cargo.ESTABELECIMENTO,
     });
@@ -231,7 +287,7 @@ describe('AuthService.minhasInformacoes', () => {
   });
 
   it('devolve os dados do entregador com a situacao da senha temporaria', async () => {
-    const { service, entregadores } = montar();
+    const { servico, entregadores } = montar();
     entregadores.procurarPorCpf.mockResolvedValue({
       cpf: CPF_FICTICIO,
       nome: 'Entregador Teste',
@@ -240,7 +296,7 @@ describe('AuthService.minhasInformacoes', () => {
       senha_temporaria_expira_em: DAQUI_A_UM_DIA,
     });
 
-    const infos = await service.minhasInformacoes({
+    const infos = await servico.minhasInformacoes({
       usuarioId: CPF_FICTICIO,
       cargo: Cargo.ENTREGADOR,
     });
@@ -258,9 +314,9 @@ describe('AuthService.minhasInformacoes', () => {
     ['empresa', { usuarioId: '7', cargo: Cargo.ESTABELECIMENTO }],
     ['entregador', { usuarioId: CPF_FICTICIO, cargo: Cargo.ENTREGADOR }],
   ])('recusa token de %s que nao existe mais', async (_perfil, usuario) => {
-    const { service } = montar();
+    const { servico } = montar();
 
-    await expect(service.minhasInformacoes(usuario)).rejects.toThrow(
+    await expect(servico.minhasInformacoes(usuario)).rejects.toThrow(
       UnauthorizedException,
     );
   });
@@ -268,7 +324,7 @@ describe('AuthService.minhasInformacoes', () => {
 
 describe('AuthService login com senha temporaria expirada', () => {
   it('recusa mesmo com a senha certa', async () => {
-    const { service, entregadores, senha, jwt } = montar();
+    const { servico, entregadores, senha, jwt } = montar();
     entregadores.procurarPorCpf.mockResolvedValue({
       cpf: CPF_FICTICIO,
       senha: 'hash',
@@ -278,13 +334,13 @@ describe('AuthService login com senha temporaria expirada', () => {
     senha.verificar.mockResolvedValue(true);
 
     await expect(
-      service.loginEntregador({ cpf: CPF_FICTICIO, senha: 'x' }),
+      servico.loginEntregador({ cpf: CPF_FICTICIO, senha: 'x' }),
     ).rejects.toThrow(/expirada/);
     expect(jwt.sign).not.toHaveBeenCalled();
   });
 
   it('recusa senha temporaria sem prazo gravado', async () => {
-    const { service, entregadores, senha } = montar();
+    const { servico, entregadores, senha } = montar();
     entregadores.procurarPorCpf.mockResolvedValue({
       cpf: CPF_FICTICIO,
       senha: 'hash',
@@ -294,12 +350,12 @@ describe('AuthService login com senha temporaria expirada', () => {
     senha.verificar.mockResolvedValue(true);
 
     await expect(
-      service.loginEntregador({ cpf: CPF_FICTICIO, senha: 'x' }),
+      servico.loginEntregador({ cpf: CPF_FICTICIO, senha: 'x' }),
     ).rejects.toThrow(UnauthorizedException);
   });
 
   it('ignora o prazo de quem ja criou a propria senha', async () => {
-    const { service, entregadores, senha } = montar();
+    const { servico, entregadores, senha } = montar();
     entregadores.procurarPorCpf.mockResolvedValue({
       cpf: CPF_FICTICIO,
       nome: 'Entregador Teste',
@@ -311,16 +367,16 @@ describe('AuthService login com senha temporaria expirada', () => {
     senha.verificar.mockResolvedValue(true);
 
     await expect(
-      service.loginEntregador({ cpf: CPF_FICTICIO, senha: 'x' }),
+      servico.loginEntregador({ cpf: CPF_FICTICIO, senha: 'x' }),
     ).resolves.toBeDefined();
   });
 });
 
 describe('AuthService.sairDeTodosOsAparelhos', () => {
   it('encerra as sessoes da empresa', async () => {
-    const { service, empresas, entregadores } = montar();
+    const { servico, empresas, entregadores } = montar();
 
-    await service.sairDeTodosOsAparelhos({
+    await servico.sairDeTodosOsAparelhos({
       usuarioId: '7',
       cargo: Cargo.ESTABELECIMENTO,
       empresaId: '7',
@@ -331,9 +387,9 @@ describe('AuthService.sairDeTodosOsAparelhos', () => {
   });
 
   it('encerra as sessoes do entregador', async () => {
-    const { service, empresas, entregadores } = montar();
+    const { servico, empresas, entregadores } = montar();
 
-    await service.sairDeTodosOsAparelhos({
+    await servico.sairDeTodosOsAparelhos({
       usuarioId: CPF_FICTICIO,
       cargo: Cargo.ENTREGADOR,
     });
@@ -355,10 +411,10 @@ describe('AuthService.trocarSenhaEntregador', () => {
   };
 
   it('recusa token de entregador que nao existe mais', async () => {
-    const { service } = montar();
+    const { servico } = montar();
 
     await expect(
-      service.trocarSenhaEntregador(usuario, {
+      servico.trocarSenhaEntregador(usuario, {
         senhaAtual: 'x',
         novaSenha: 'NovaSenha@1',
       }),
@@ -366,12 +422,12 @@ describe('AuthService.trocarSenhaEntregador', () => {
   });
 
   it('recusa quando a senha atual nao confere, sem gravar', async () => {
-    const { service, entregadores, senha } = montar();
+    const { servico, entregadores, senha } = montar();
     entregadores.procurarPorCpf.mockResolvedValue(temporario);
     senha.comparar.mockResolvedValue(false);
 
     await expect(
-      service.trocarSenhaEntregador(usuario, {
+      servico.trocarSenhaEntregador(usuario, {
         senhaAtual: 'errada',
         novaSenha: 'NovaSenha@1',
         cienteDadosCompartilhados: true,
@@ -381,14 +437,14 @@ describe('AuthService.trocarSenhaEntregador', () => {
   });
 
   it('recusa trocar uma senha temporaria que ja expirou', async () => {
-    const { service, entregadores } = montar();
+    const { servico, entregadores } = montar();
     entregadores.procurarPorCpf.mockResolvedValue({
       ...temporario,
       senha_temporaria_expira_em: ONTEM,
     });
 
     await expect(
-      service.trocarSenhaEntregador(usuario, {
+      servico.trocarSenhaEntregador(usuario, {
         senhaAtual: 'Temp@2026',
         novaSenha: 'NovaSenha@1',
         cienteDadosCompartilhados: true,
@@ -398,11 +454,11 @@ describe('AuthService.trocarSenhaEntregador', () => {
   });
 
   it('recusa nova senha igual a atual', async () => {
-    const { service, entregadores } = montar();
+    const { servico, entregadores } = montar();
     entregadores.procurarPorCpf.mockResolvedValue(temporario);
 
     await expect(
-      service.trocarSenhaEntregador(usuario, {
+      servico.trocarSenhaEntregador(usuario, {
         senhaAtual: 'mesma-senha',
         novaSenha: 'mesma-senha',
         cienteDadosCompartilhados: true,
@@ -412,11 +468,11 @@ describe('AuthService.trocarSenhaEntregador', () => {
   });
 
   it('no primeiro acesso exige a ciencia dos dados compartilhados', async () => {
-    const { service, entregadores } = montar();
+    const { servico, entregadores } = montar();
     entregadores.procurarPorCpf.mockResolvedValue(temporario);
 
     await expect(
-      service.trocarSenhaEntregador(usuario, {
+      servico.trocarSenhaEntregador(usuario, {
         senhaAtual: 'Temp@2026',
         novaSenha: 'NovaSenha@1',
       }),
@@ -425,10 +481,10 @@ describe('AuthService.trocarSenhaEntregador', () => {
   });
 
   it('registra a data da ciencia no primeiro acesso', async () => {
-    const { service, entregadores } = montar();
+    const { servico, entregadores } = montar();
     entregadores.procurarPorCpf.mockResolvedValue(temporario);
 
-    const resposta = await service.trocarSenhaEntregador(usuario, {
+    const resposta = await servico.trocarSenhaEntregador(usuario, {
       senhaAtual: 'Temp@2026',
       novaSenha: 'NovaSenha@1',
       cienteDadosCompartilhados: true,
@@ -443,10 +499,10 @@ describe('AuthService.trocarSenhaEntregador', () => {
   });
 
   it('emite o token novo com a versao de sessao ja incrementada', async () => {
-    const { service, entregadores, jwt } = montar();
+    const { servico, entregadores, jwt } = montar();
     entregadores.procurarPorCpf.mockResolvedValue(temporario);
 
-    await service.trocarSenhaEntregador(usuario, {
+    await servico.trocarSenhaEntregador(usuario, {
       senhaAtual: 'Temp@2026',
       novaSenha: 'NovaSenha@1',
       cienteDadosCompartilhados: true,
@@ -458,13 +514,13 @@ describe('AuthService.trocarSenhaEntregador', () => {
   });
 
   it('fora do primeiro acesso troca sem pedir a ciencia de novo', async () => {
-    const { service, entregadores } = montar();
+    const { servico, entregadores } = montar();
     entregadores.procurarPorCpf.mockResolvedValue({
       ...temporario,
       senha_temporaria: false,
     });
 
-    await service.trocarSenhaEntregador(usuario, {
+    await servico.trocarSenhaEntregador(usuario, {
       senhaAtual: 'SenhaAntiga@1',
       novaSenha: 'NovaSenha@1',
     });

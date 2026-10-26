@@ -4,13 +4,11 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
 import { PedidoService } from '../pedido.service';
 import { PedidoRepository } from '../pedido.repository';
 import { LocalizacaoService } from '../../mapa/localizacao.service';
 import { EntregadorRepository } from '../../entregador/entregador.repository';
-import { CriaPedidoReqDto } from '../dto/cria-pedido.dto';
-import { Pedido } from '../../generated/prisma/client';
+import { CriarPedidoDto } from '../dto/criar-pedido.dto';
 import { StatusPedido } from '../../generated/prisma/enums';
 import {
   EntregadorIndisponivelError,
@@ -21,100 +19,11 @@ import {
   ConferenciaDoCodigo,
 } from '../../rastreio/codigo-do-recebedor.service';
 import { RemuneracaoService } from '../../remuneracao/remuneracao.service';
-import { CalculoValorEntregaService } from '../../remuneracao/calculo-valor-entrega.service';
 import { GoogleMapsClient } from '../../mapa/google-maps.client';
 
 jest.mock('../../prisma/prisma.service', () => ({
   PrismaService: class {},
 }));
-
-describe('PedidoService', () => {
-  let service: PedidoService;
-  let repository: PedidoRepository;
-
-  describe('CRIAR', () => {
-    beforeEach(async () => {
-      const module: TestingModule = await Test.createTestingModule({
-        providers: [
-          PedidoService,
-          {
-            provide: PedidoRepository,
-            useValue: { criar: jest.fn() },
-          },
-          {
-            provide: EntregadorRepository,
-            useValue: {
-              procurarAtivoPorEmpresa: jest
-                .fn()
-                .mockResolvedValue({ disponivel: true }),
-            },
-          },
-          { provide: LocalizacaoService, useValue: {} },
-          { provide: CodigoDoRecebedorService, useValue: {} },
-          {
-            provide: RemuneracaoService,
-            useValue: {
-              consultar: jest
-                .fn()
-                .mockResolvedValue({ taxaFixa: 500, coeficienteKm: 100 }),
-            },
-          },
-          {
-            provide: CalculoValorEntregaService,
-            useValue: {
-              calcularValorEntrega: jest.fn().mockReturnValue(1500),
-            },
-          },
-          {
-            provide: GoogleMapsClient,
-            useValue: {
-              calcularRota: jest.fn().mockResolvedValue({ distanciaM: 2000 }),
-            },
-          },
-        ],
-      }).compile();
-      service = module.get<PedidoService>(PedidoService);
-      repository = module.get<PedidoRepository>(PedidoRepository);
-    });
-
-    it('CAIXA BRANCA: Entregador sem CPF', async () => {
-      const dummy = {} as CriaPedidoReqDto;
-      const spy = jest.spyOn(repository, 'criar');
-      await service.criar(1, dummy);
-      expect(spy.mock.calls[0][0].status).toBe(StatusPedido.PENDENTE);
-      expect(spy.mock.calls[0][0].cpf_entregador).toBeUndefined();
-    });
-
-    it('CAIXA BRANCA: Entregador com CPF', async () => {
-      const stub = {
-        cpf_entregador: 'teste',
-      };
-      const spy = jest.spyOn(repository, 'criar');
-      await service.criar(1, stub as CriaPedidoReqDto);
-      expect(spy.mock.calls[0][0].status).toBe(StatusPedido.EM_ANDAMENTO);
-      expect(spy.mock.calls[0][0].cpf_entregador).not.toBeUndefined();
-    });
-
-    it('CAIXA BRANCA: Data Criacao', async () => {
-      const stub = {
-        cpf_entregador: 'teste',
-      };
-      const spy = jest.spyOn(repository, 'criar');
-      await service.criar(1, stub as CriaPedidoReqDto);
-      expect(spy.mock.calls[0][0].data_criacao).toMatch(
-        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/, //Formato ISOString pra datas
-      );
-    });
-
-    it('CAIXA CINZA: Fluxo Completo', () => {
-      const dummyReq = {} as CriaPedidoReqDto;
-      const dummyRes = {} as Promise<Pedido>;
-      jest.spyOn(repository, 'criar').mockImplementation(() => dummyRes);
-      const result = service.criar(1, dummyReq);
-      expect(result).toBeInstanceOf(Promise<Pedido>);
-    });
-  });
-});
 
 const CPF_ENTREGADOR = '52998224725';
 const NOVO_CPF = '11144477735';
@@ -246,18 +155,18 @@ function montar() {
     }),
   };
 
-  const service = new PedidoService(
+  const servico = new PedidoService(
     pedidos as unknown as PedidoRepository,
     entregadores as unknown as EntregadorRepository,
     localizacao as unknown as LocalizacaoService,
     codigoDoRecebedor as unknown as CodigoDoRecebedorService,
     remuneracaoService as unknown as RemuneracaoService,
-    calculoValorEntregaService as unknown as CalculoValorEntregaService,
+    calculoValorEntregaService,
     googleMapsClient as unknown as GoogleMapsClient,
   );
 
   return {
-    service,
+    servico,
     pedidos,
     entregadores,
     localizacao,
@@ -270,11 +179,11 @@ function montar() {
 
 describe('PedidoService.atualizarStatus', () => {
   it('responde 404 quando o pedido nao esta atribuido ao entregador', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     pedidos.procurarAtribuidoAoEntregador.mockResolvedValue(null);
 
     await expect(
-      service.atualizarStatus(
+      servico.atualizarStatus(
         CPF_ENTREGADOR,
         ID_PEDIDO,
         StatusPedido.EM_ANDAMENTO,
@@ -283,19 +192,19 @@ describe('PedidoService.atualizarStatus', () => {
   });
 
   it('recusa uma transicao de status incompativel sem gravar', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
 
     await expect(
-      service.atualizarStatus(CPF_ENTREGADOR, ID_PEDIDO, StatusPedido.PENDENTE),
+      servico.atualizarStatus(CPF_ENTREGADOR, ID_PEDIDO, StatusPedido.PENDENTE),
     ).rejects.toThrow(ConflictException);
     expect(pedidos.atualizarStatus).not.toHaveBeenCalled();
   });
 
   it('recusa finalizar pela troca de status, que nao pede o codigo', async () => {
-    const { service, pedidos, codigoDoRecebedor } = montar();
+    const { servico, pedidos, codigoDoRecebedor } = montar();
 
     await expect(
-      service.atualizarStatus(
+      servico.atualizarStatus(
         CPF_ENTREGADOR,
         ID_PEDIDO,
         StatusPedido.FINALIZADO,
@@ -308,10 +217,10 @@ describe('PedidoService.atualizarStatus', () => {
   });
 
   it('busca o pedido usando o id e o cpf do entregador', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     pedidos.procurarAtribuidoAoEntregador.mockResolvedValue(pedidoPendente);
 
-    await service.atualizarStatus(
+    await servico.atualizarStatus(
       CPF_ENTREGADOR,
       ID_PEDIDO,
       StatusPedido.EM_ANDAMENTO,
@@ -324,10 +233,10 @@ describe('PedidoService.atualizarStatus', () => {
   });
 
   it('grava condicionado ao status lido sem finalizar', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     pedidos.procurarAtribuidoAoEntregador.mockResolvedValue(pedidoPendente);
 
-    await service.atualizarStatus(
+    await servico.atualizarStatus(
       CPF_ENTREGADOR,
       ID_PEDIDO,
       StatusPedido.EM_ANDAMENTO,
@@ -343,11 +252,11 @@ describe('PedidoService.atualizarStatus', () => {
   });
 
   it('retorna o resumo do pedido no mesmo formato da reatribuicao', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     pedidos.procurarAtribuidoAoEntregador.mockResolvedValue(pedidoPendente);
 
     await expect(
-      service.atualizarStatus(
+      servico.atualizarStatus(
         CPF_ENTREGADOR,
         ID_PEDIDO,
         StatusPedido.EM_ANDAMENTO,
@@ -367,12 +276,12 @@ describe('PedidoService.atualizarStatus', () => {
   });
 
   it('responde 409 quando o pedido mudou entre a leitura e a escrita', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     pedidos.procurarAtribuidoAoEntregador.mockResolvedValue(pedidoPendente);
     pedidos.atualizarStatus.mockRejectedValue(new PedidoAlteradoError());
 
     await expect(
-      service.atualizarStatus(
+      servico.atualizarStatus(
         CPF_ENTREGADOR,
         ID_PEDIDO,
         StatusPedido.EM_ANDAMENTO,
@@ -385,9 +294,9 @@ describe('PedidoService.finalizar', () => {
   const CODIGO = '482913';
 
   it('confere o codigo do pedido e grava a finalizacao liberando o entregador', async () => {
-    const { service, pedidos, codigoDoRecebedor } = montar();
+    const { servico, pedidos, codigoDoRecebedor } = montar();
 
-    await service.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO);
+    await servico.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO);
 
     expect(codigoDoRecebedor.conferir).toHaveBeenCalledWith(ID_PEDIDO, CODIGO);
     expect(pedidos.atualizarStatus).toHaveBeenCalledWith({
@@ -400,10 +309,10 @@ describe('PedidoService.finalizar', () => {
   });
 
   it('retorna o resumo do pedido finalizado', async () => {
-    const { service } = montar();
+    const { servico } = montar();
 
     await expect(
-      service.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO),
+      servico.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO),
     ).resolves.toMatchObject({
       id: ID_PEDIDO,
       status: StatusPedido.FINALIZADO,
@@ -411,33 +320,33 @@ describe('PedidoService.finalizar', () => {
   });
 
   it('responde 404 quando o pedido nao esta atribuido ao entregador', async () => {
-    const { service, pedidos, codigoDoRecebedor } = montar();
+    const { servico, pedidos, codigoDoRecebedor } = montar();
     pedidos.procurarAtribuidoAoEntregador.mockResolvedValue(null);
 
     await expect(
-      service.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO),
+      servico.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO),
     ).rejects.toThrow(NotFoundException);
     expect(codigoDoRecebedor.conferir).not.toHaveBeenCalled();
   });
 
   it('nao gasta tentativa quando o pedido nao esta em andamento', async () => {
-    const { service, pedidos, codigoDoRecebedor } = montar();
+    const { servico, pedidos, codigoDoRecebedor } = montar();
     pedidos.procurarAtribuidoAoEntregador.mockResolvedValue(pedidoPendente);
 
     await expect(
-      service.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO),
+      servico.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO),
     ).rejects.toThrow(ConflictException);
     expect(codigoDoRecebedor.conferir).not.toHaveBeenCalled();
   });
 
   it('responde 422 com as tentativas restantes quando o codigo esta errado', async () => {
-    const { service, pedidos, codigoDoRecebedor } = montar();
+    const { servico, pedidos, codigoDoRecebedor } = montar();
     codigoDoRecebedor.conferir.mockResolvedValue({
       situacao: 'incorreto',
       tentativasRestantes: 3,
     });
 
-    const erro = await service
+    const erro = await servico
       .finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO)
       .catch((falha: unknown) => falha);
 
@@ -450,14 +359,14 @@ describe('PedidoService.finalizar', () => {
   });
 
   it('responde 429 com o horario de liberacao quando esta bloqueado', async () => {
-    const { service, pedidos, codigoDoRecebedor } = montar();
+    const { servico, pedidos, codigoDoRecebedor } = montar();
     const liberaEm = new Date('2026-10-22T15:00:00Z');
     codigoDoRecebedor.conferir.mockResolvedValue({
       situacao: 'bloqueado',
       liberaEm,
     });
 
-    const erro = await service
+    const erro = await servico
       .finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO)
       .catch((falha: unknown) => falha);
 
@@ -471,11 +380,11 @@ describe('PedidoService.finalizar', () => {
   });
 
   it('responde 409 quando o recebedor ainda nao tem codigo', async () => {
-    const { service, pedidos, codigoDoRecebedor } = montar();
+    const { servico, pedidos, codigoDoRecebedor } = montar();
     codigoDoRecebedor.conferir.mockResolvedValue({ situacao: 'sem_codigo' });
 
     await expect(
-      service.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO),
+      servico.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO),
     ).rejects.toThrow(ConflictException);
     expect(pedidos.atualizarStatus).not.toHaveBeenCalled();
   });
@@ -483,10 +392,10 @@ describe('PedidoService.finalizar', () => {
 
 describe('PedidoService.obterStatusDisponiveis', () => {
   it('tira a finalizacao dos botoes de status e indica que ela pede o codigo', async () => {
-    const { service } = montar();
+    const { servico } = montar();
 
     await expect(
-      service.obterStatusDisponiveis(CPF_ENTREGADOR, ID_PEDIDO),
+      servico.obterStatusDisponiveis(CPF_ENTREGADOR, ID_PEDIDO),
     ).resolves.toEqual({
       statusAtual: StatusPedido.EM_ANDAMENTO,
       statusDisponiveis: [],
@@ -495,11 +404,11 @@ describe('PedidoService.obterStatusDisponiveis', () => {
   });
 
   it('nao oferece finalizar um pedido pendente', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     pedidos.procurarAtribuidoAoEntregador.mockResolvedValue(pedidoPendente);
 
     await expect(
-      service.obterStatusDisponiveis(CPF_ENTREGADOR, ID_PEDIDO),
+      servico.obterStatusDisponiveis(CPF_ENTREGADOR, ID_PEDIDO),
     ).resolves.toEqual({
       statusAtual: StatusPedido.PENDENTE,
       statusDisponiveis: [StatusPedido.EM_ANDAMENTO],
@@ -508,23 +417,23 @@ describe('PedidoService.obterStatusDisponiveis', () => {
   });
 
   it('responde 404 quando o pedido nao esta atribuido ao entregador', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     pedidos.procurarAtribuidoAoEntregador.mockResolvedValue(null);
 
     await expect(
-      service.obterStatusDisponiveis(CPF_ENTREGADOR, ID_PEDIDO),
+      servico.obterStatusDisponiveis(CPF_ENTREGADOR, ID_PEDIDO),
     ).rejects.toThrow(NotFoundException);
   });
 
   it('retorna lista vazia para um pedido finalizado', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     pedidos.procurarAtribuidoAoEntregador.mockResolvedValue({
       ...pedidoEmAndamento,
       status: StatusPedido.FINALIZADO,
     });
 
     await expect(
-      service.obterStatusDisponiveis(CPF_ENTREGADOR, ID_PEDIDO),
+      servico.obterStatusDisponiveis(CPF_ENTREGADOR, ID_PEDIDO),
     ).resolves.toEqual({
       statusAtual: StatusPedido.FINALIZADO,
       statusDisponiveis: [],
@@ -535,35 +444,35 @@ describe('PedidoService.obterStatusDisponiveis', () => {
 
 describe('PedidoService.reatribuir', () => {
   it('responde 404 quando o pedido nao pertence a empresa', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     pedidos.procurarPorEmpresa.mockResolvedValue(null);
 
     await expect(
-      service.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
+      servico.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
     ).rejects.toThrow(NotFoundException);
   });
 
   it.each([StatusPedido.FINALIZADO, StatusPedido.CANCELADO])(
     'recusa reatribuicao de pedido %s sem gravar',
     async (status) => {
-      const { service, pedidos } = montar();
+      const { servico, pedidos } = montar();
       pedidos.procurarPorEmpresa.mockResolvedValue({
         ...pedidoEmAndamento,
         status,
       });
 
       await expect(
-        service.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
+        servico.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
       ).rejects.toThrow(ConflictException);
       expect(pedidos.reatribuir).not.toHaveBeenCalled();
     },
   );
 
   it('atribui o entregador a um pedido pendente sem entregador', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     pedidos.procurarPorEmpresa.mockResolvedValue(pedidoPendente);
 
-    await service.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF);
+    await servico.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF);
 
     expect(pedidos.reatribuir).toHaveBeenCalledWith({
       idPedido: ID_PEDIDO,
@@ -574,39 +483,39 @@ describe('PedidoService.reatribuir', () => {
   });
 
   it('recusa reatribuicao para o entregador atual', async () => {
-    const { service } = montar();
+    const { servico } = montar();
 
     await expect(
-      service.reatribuir(ID_EMPRESA, ID_PEDIDO, CPF_ENTREGADOR),
+      servico.reatribuir(ID_EMPRESA, ID_PEDIDO, CPF_ENTREGADOR),
     ).rejects.toThrow(ConflictException);
   });
 
   it('responde 404 quando o novo entregador nao possui vinculo ativo com a empresa', async () => {
-    const { service, entregadores } = montar();
+    const { servico, entregadores } = montar();
     entregadores.procurarAtivoPorEmpresa.mockResolvedValue(null);
 
     await expect(
-      service.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
+      servico.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
     ).rejects.toThrow(NotFoundException);
   });
 
   it('recusa reatribuicao quando o novo entregador esta indisponivel', async () => {
-    const { service, entregadores, pedidos } = montar();
+    const { servico, entregadores, pedidos } = montar();
     entregadores.procurarAtivoPorEmpresa.mockResolvedValue({
       ...novoEntregador,
       disponivel: false,
     });
 
     await expect(
-      service.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
+      servico.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
     ).rejects.toThrow(ConflictException);
     expect(pedidos.reatribuir).not.toHaveBeenCalled();
   });
 
   it('troca o entregador condicionado ao status e ao entregador lidos', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
 
-    await service.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF);
+    await servico.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF);
 
     expect(pedidos.reatribuir).toHaveBeenCalledWith({
       idPedido: ID_PEDIDO,
@@ -617,10 +526,10 @@ describe('PedidoService.reatribuir', () => {
   });
 
   it('retorna o pedido com o novo entregador', async () => {
-    const { service } = montar();
+    const { servico } = montar();
 
     await expect(
-      service.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
+      servico.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
     ).resolves.toEqual({
       id: ID_PEDIDO,
       recebedor: 'Carla Menezes',
@@ -639,32 +548,32 @@ describe('PedidoService.reatribuir', () => {
     ['o pedido mudou', new PedidoAlteradoError()],
     ['o entregador ficou indisponivel', new EntregadorIndisponivelError()],
   ])('responde 409 quando %s durante a gravacao', async (_caso, erro) => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     pedidos.reatribuir.mockRejectedValue(erro);
 
     await expect(
-      service.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
+      servico.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
     ).rejects.toThrow(ConflictException);
   });
 
   it('repassa erros que nao sao de concorrencia', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     const falha = new Error('conexao perdida');
     pedidos.reatribuir.mockRejectedValue(falha);
 
     await expect(
-      service.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
+      servico.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
     ).rejects.toBe(falha);
   });
 });
 
 describe('PedidoService.atribuir', () => {
   it('responde 404 quando o pedido nao pertence a empresa', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     pedidos.procurarPorEmpresa.mockResolvedValue(null);
 
     await expect(
-      service.atribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
+      servico.atribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
     ).rejects.toThrow(NotFoundException);
   });
 
@@ -678,28 +587,28 @@ describe('PedidoService.atribuir', () => {
   ])(
     'recusa atribuir quando o pedido %s, sem gravar',
     async (_caso, pedido) => {
-      const { service, pedidos } = montar();
+      const { servico, pedidos } = montar();
       pedidos.procurarPorEmpresa.mockResolvedValue(pedido);
 
       await expect(
-        service.atribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
+        servico.atribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
       ).rejects.toThrow(ConflictException);
       expect(pedidos.reatribuir).not.toHaveBeenCalled();
     },
   );
 
   it('responde 404 quando o entregador nao e da frota da empresa', async () => {
-    const { service, pedidos, entregadores } = montar();
+    const { servico, pedidos, entregadores } = montar();
     pedidos.procurarPorEmpresa.mockResolvedValue(pedidoPendente);
     entregadores.procurarAtivoPorEmpresa.mockResolvedValue(null);
 
     await expect(
-      service.atribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
+      servico.atribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
     ).rejects.toThrow(NotFoundException);
   });
 
   it('recusa entregador indisponivel sem gravar', async () => {
-    const { service, pedidos, entregadores } = montar();
+    const { servico, pedidos, entregadores } = montar();
     pedidos.procurarPorEmpresa.mockResolvedValue(pedidoPendente);
     entregadores.procurarAtivoPorEmpresa.mockResolvedValue({
       ...novoEntregador,
@@ -707,16 +616,16 @@ describe('PedidoService.atribuir', () => {
     });
 
     await expect(
-      service.atribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
+      servico.atribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
     ).rejects.toThrow(ConflictException);
     expect(pedidos.reatribuir).not.toHaveBeenCalled();
   });
 
   it('grava o primeiro entregador condicionado ao pedido pendente', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     pedidos.procurarPorEmpresa.mockResolvedValue(pedidoPendente);
 
-    await service.atribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF);
+    await servico.atribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF);
 
     expect(pedidos.reatribuir).toHaveBeenCalledWith({
       idPedido: ID_PEDIDO,
@@ -727,25 +636,25 @@ describe('PedidoService.atribuir', () => {
   });
 
   it('responde 409 quando outro usuario atribuiu antes', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     pedidos.procurarPorEmpresa.mockResolvedValue(pedidoPendente);
     pedidos.reatribuir.mockRejectedValue(new PedidoAlteradoError());
 
     await expect(
-      service.atribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
+      servico.atribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF),
     ).rejects.toThrow(ConflictException);
   });
 });
 
 describe('PedidoService.criar com entregador', () => {
   const pedido = () =>
-    ({ cpf_entregador: NOVO_CPF }) as unknown as CriaPedidoReqDto;
+    ({ cpf_entregador: NOVO_CPF }) as unknown as CriarPedidoDto;
 
   it('exige que o entregador seja da frota da empresa do token', async () => {
-    const { service, entregadores, pedidos } = montar();
+    const { servico, entregadores, pedidos } = montar();
     entregadores.procurarAtivoPorEmpresa.mockResolvedValue(null);
 
-    await expect(service.criar(ID_EMPRESA, pedido())).rejects.toThrow(
+    await expect(servico.criar(ID_EMPRESA, pedido())).rejects.toThrow(
       NotFoundException,
     );
     expect(entregadores.procurarAtivoPorEmpresa).toHaveBeenCalledWith(
@@ -756,54 +665,81 @@ describe('PedidoService.criar com entregador', () => {
   });
 
   it('recusa entregador indisponivel', async () => {
-    const { service, entregadores, pedidos } = montar();
+    const { servico, entregadores, pedidos } = montar();
     entregadores.procurarAtivoPorEmpresa.mockResolvedValue({
       ...novoEntregador,
       disponivel: false,
     });
 
-    await expect(service.criar(ID_EMPRESA, pedido())).rejects.toThrow(
+    await expect(servico.criar(ID_EMPRESA, pedido())).rejects.toThrow(
       ConflictException,
     );
     expect(pedidos.criar).not.toHaveBeenCalled();
   });
 
   it('responde 409 se o entregador foi ocupado durante a gravacao', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     pedidos.criar.mockRejectedValue(new EntregadorIndisponivelError());
 
-    await expect(service.criar(ID_EMPRESA, pedido())).rejects.toThrow(
+    await expect(servico.criar(ID_EMPRESA, pedido())).rejects.toThrow(
       ConflictException,
     );
   });
 
   it('grava o pedido com a empresa do token', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     const dto = pedido();
 
-    await service.criar(ID_EMPRESA, dto);
+    await servico.criar(ID_EMPRESA, dto);
 
     expect(pedidos.criar).toHaveBeenCalledWith(dto, ID_EMPRESA);
     expect(dto.status).toBe(StatusPedido.EM_ANDAMENTO);
   });
 });
 
+describe('PedidoService.criar sem entregador', () => {
+  it('grava o pedido como pendente sem consultar a frota', async () => {
+    const { servico, pedidos, entregadores } = montar();
+    const dadosDoPedido = { nome_recebedor: 'Carla Menezes' } as CriarPedidoDto;
+
+    await expect(servico.criar(ID_EMPRESA, dadosDoPedido)).resolves.toBe(
+      pedidoPendente,
+    );
+
+    expect(entregadores.procurarAtivoPorEmpresa).not.toHaveBeenCalled();
+    expect(pedidos.criar).toHaveBeenCalledWith(dadosDoPedido, ID_EMPRESA);
+    expect(dadosDoPedido.status).toBe(StatusPedido.PENDENTE);
+    expect(dadosDoPedido.cpf_entregador).toBeUndefined();
+  });
+
+  it('carimba a data de criacao no formato ISO', async () => {
+    jest.useFakeTimers({ now: DATA_CRIACAO });
+    const { servico } = montar();
+    const dadosDoPedido = {} as CriarPedidoDto;
+
+    await servico.criar(ID_EMPRESA, dadosDoPedido);
+
+    expect(dadosDoPedido.data_criacao).toBe('2026-10-07T17:02:00.000Z');
+    jest.useRealTimers();
+  });
+});
+
 describe('PedidoService.listarHistoricoDeEntregadores', () => {
   it('responde 404 quando o pedido nao pertence a empresa', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     pedidos.procurarPorEmpresa.mockResolvedValue(null);
 
     await expect(
-      service.listarHistoricoDeEntregadores(ID_EMPRESA, ID_PEDIDO),
+      servico.listarHistoricoDeEntregadores(ID_EMPRESA, ID_PEDIDO),
     ).rejects.toThrow(NotFoundException);
     expect(pedidos.listarHistoricoDeEntregadores).not.toHaveBeenCalled();
   });
 
   it('devolve so os nomes e a data de cada troca', async () => {
-    const { service } = montar();
+    const { servico } = montar();
 
     await expect(
-      service.listarHistoricoDeEntregadores(ID_EMPRESA, ID_PEDIDO),
+      servico.listarHistoricoDeEntregadores(ID_EMPRESA, ID_PEDIDO),
     ).resolves.toEqual([
       { anterior: null, novo: 'Bruno Lima', data: DATA_CRIACAO },
     ]);
@@ -812,9 +748,9 @@ describe('PedidoService.listarHistoricoDeEntregadores', () => {
 
 describe('PedidoService listagens', () => {
   it('lista os pedidos da empresa no formato resumido', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
 
-    await expect(service.listarDaEmpresa(ID_EMPRESA)).resolves.toEqual([
+    await expect(servico.listarDaEmpresa(ID_EMPRESA)).resolves.toEqual([
       {
         id: ID_PEDIDO,
         recebedor: 'Carla Menezes',
@@ -838,7 +774,7 @@ describe('PedidoService listagens', () => {
   ])(
     'mostra o pedido finalizado %s',
     async (_caso, avaliacao, notaEsperada) => {
-      const { service, pedidos } = montar();
+      const { servico, pedidos } = montar();
       const finalizadoEm = new Date('2026-10-07T18:00:00Z');
       pedidos.listarDaEmpresa.mockResolvedValue([
         {
@@ -850,7 +786,7 @@ describe('PedidoService listagens', () => {
         },
       ]);
 
-      const [pedido] = await service.listarDaEmpresa(ID_EMPRESA);
+      const [pedido] = await servico.listarDaEmpresa(ID_EMPRESA);
 
       expect(pedido).toMatchObject({
         status: StatusPedido.FINALIZADO,
@@ -864,9 +800,9 @@ describe('PedidoService listagens', () => {
   );
 
   it('lista as entregas do entregador com endereco montado e sem telefone', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
 
-    const [entrega] = await service.listarDoEntregador(CPF_ENTREGADOR);
+    const [entrega] = await servico.listarDoEntregador(CPF_ENTREGADOR);
 
     expect(pedidos.listarDoEntregador).toHaveBeenCalledWith(CPF_ENTREGADOR);
     expect(entrega).toEqual({
@@ -888,9 +824,9 @@ describe('PedidoService listagens', () => {
 
 describe('PedidoService e o rastreio em tempo real', () => {
   it('avisa o rastreio depois de gravar a finalizacao', async () => {
-    const { service, pedidos, localizacao } = montar();
+    const { servico, pedidos, localizacao } = montar();
 
-    await service.finalizar(CPF_ENTREGADOR, ID_PEDIDO, '482913');
+    await servico.finalizar(CPF_ENTREGADOR, ID_PEDIDO, '482913');
 
     expect(localizacao.aoMudarStatus).toHaveBeenCalledWith(
       ID_PEDIDO,
@@ -902,28 +838,28 @@ describe('PedidoService e o rastreio em tempo real', () => {
   });
 
   it('nao avisa o rastreio quando a troca de status e recusada', async () => {
-    const { service, localizacao } = montar();
+    const { servico, localizacao } = montar();
 
     await expect(
-      service.atualizarStatus(CPF_ENTREGADOR, ID_PEDIDO, StatusPedido.PENDENTE),
+      servico.atualizarStatus(CPF_ENTREGADOR, ID_PEDIDO, StatusPedido.PENDENTE),
     ).rejects.toThrow(ConflictException);
     expect(localizacao.aoMudarStatus).not.toHaveBeenCalled();
   });
 
   it('reinicia a posicao ao trocar o entregador sem mudar o status', async () => {
-    const { service, localizacao } = montar();
+    const { servico, localizacao } = montar();
 
-    await service.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF);
+    await servico.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF);
 
     expect(localizacao.aoTrocarEntregador).toHaveBeenCalledWith(ID_PEDIDO);
     expect(localizacao.aoMudarStatus).not.toHaveBeenCalled();
   });
 
   it('avisa a mudanca de status quando a atribuicao inicia a entrega', async () => {
-    const { service, pedidos, localizacao } = montar();
+    const { servico, pedidos, localizacao } = montar();
     pedidos.procurarPorEmpresa.mockResolvedValue(pedidoPendente);
 
-    await service.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF);
+    await servico.reatribuir(ID_EMPRESA, ID_PEDIDO, NOVO_CPF);
 
     expect(localizacao.aoMudarStatus).toHaveBeenCalledWith(
       ID_PEDIDO,
@@ -935,7 +871,7 @@ describe('PedidoService e o rastreio em tempo real', () => {
 describe('PedidoService.corrigirDistancia', () => {
   it('falha de localizacao apos commit nao provoca segunda consolidacao', async () => {
     const {
-      service: servicoPedidos,
+      servico: servicoPedidos,
       pedidos: repositorioPedidos,
       localizacao: servicoLocalizacao,
     } = montar();
@@ -956,7 +892,7 @@ describe('PedidoService.corrigirDistancia', () => {
   });
 
   it('nao permite acessar pedido de outra empresa', async () => {
-    const { service: servicoPedidos, pedidos: repositorioPedidos } = montar();
+    const { servico: servicoPedidos, pedidos: repositorioPedidos } = montar();
     repositorioPedidos.procurarPorEmpresa.mockResolvedValue(null);
     await expect(
       servicoPedidos.corrigirDistancia(ID_EMPRESA, ID_PEDIDO, 0),
@@ -971,7 +907,7 @@ describe('PedidoService.corrigirDistancia', () => {
   it.each([StatusPedido.FINALIZADO, StatusPedido.CANCELADO])(
     'bloqueia correcao em %s',
     async (status) => {
-      const { service: servicoPedidos, pedidos: repositorioPedidos } = montar();
+      const { servico: servicoPedidos, pedidos: repositorioPedidos } = montar();
       repositorioPedidos.procurarPorEmpresa.mockResolvedValue({
         ...pedidoEmAndamento,
         status,
@@ -984,7 +920,7 @@ describe('PedidoService.corrigirDistancia', () => {
   );
 
   it('permite confirmar distancia zero e preserva identidade da empresa', async () => {
-    const { service: servicoPedidos, pedidos: repositorioPedidos } = montar();
+    const { servico: servicoPedidos, pedidos: repositorioPedidos } = montar();
     await servicoPedidos.corrigirDistancia(ID_EMPRESA, ID_PEDIDO, 0);
     expect(repositorioPedidos.corrigirDistancia).toHaveBeenCalledWith(
       ID_PEDIDO,
@@ -994,7 +930,7 @@ describe('PedidoService.corrigirDistancia', () => {
   });
 
   it('mapeia corrida com conclusao para conflito', async () => {
-    const { service: servicoPedidos, pedidos: repositorioPedidos } = montar();
+    const { servico: servicoPedidos, pedidos: repositorioPedidos } = montar();
     repositorioPedidos.corrigirDistancia.mockRejectedValue(
       new PedidoAlteradoError(),
     );
@@ -1025,10 +961,10 @@ describe('PedidoService.detalhar', () => {
   };
 
   it('devolve recebedor, endereco, entregador e a linha do tempo', async () => {
-    const { service, pedidos } = montar();
+    const { servico, pedidos } = montar();
     pedidos.procurarDetalheDaEmpresa.mockResolvedValue(completo);
 
-    const detalhe = await service.detalhar(ID_EMPRESA, ID_PEDIDO);
+    const detalhe = await servico.detalhar(ID_EMPRESA, ID_PEDIDO);
 
     expect(detalhe).toMatchObject({
       id: ID_PEDIDO,
@@ -1048,9 +984,9 @@ describe('PedidoService.detalhar', () => {
   });
 
   it('responde 404 para pedido de outra empresa', async () => {
-    const { service } = montar();
+    const { servico } = montar();
 
-    await expect(service.detalhar(ID_EMPRESA, ID_PEDIDO)).rejects.toThrow(
+    await expect(servico.detalhar(ID_EMPRESA, ID_PEDIDO)).rejects.toThrow(
       NotFoundException,
     );
   });

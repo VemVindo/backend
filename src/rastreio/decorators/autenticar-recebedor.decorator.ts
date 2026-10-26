@@ -1,6 +1,6 @@
 import { applyDecorators, UseGuards } from '@nestjs/common';
-import { Public } from '../../auth/decorators/public.decorator';
+import { RotaPublica } from '../../auth/decorators/rota-publica.decorator';
 import { AcessoRecebedorGuard } from '../acesso-recebedor.guard';
 
 export const AutenticarRecebedor = () =>
-  applyDecorators(Public(), UseGuards(AcessoRecebedorGuard));
+  applyDecorators(RotaPublica(), UseGuards(AcessoRecebedorGuard));

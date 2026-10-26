@@ -54,17 +54,17 @@ function montar() {
       .fn()
       .mockResolvedValue({ ...EMPRESA, cadastro_atualizado_em: AGORA }),
   };
-  const service = new EmpresaService(
+  const servico = new EmpresaService(
     repositorio as unknown as EmpresaRepository,
   );
-  return { service, repositorio };
+  return { servico, repositorio };
 }
 
 describe('EmpresaService.consultarCadastro', () => {
   it('mostra os dados cadastrais com o documento e as datas', async () => {
-    const { service } = montar();
+    const { servico } = montar();
 
-    await expect(service.consultarCadastro(3)).resolves.toEqual({
+    await expect(servico.consultarCadastro(3)).resolves.toEqual({
       nomeFantasia: 'Cantina Dona Marta',
       razaoSocial: 'Cantina Dona Marta Ltda',
       documento: { tipo: 'CNPJ', numero: '11222333000181' },
@@ -85,7 +85,7 @@ describe('EmpresaService.consultarCadastro', () => {
   });
 
   it('cadastro por CPF mostra o CPF como documento', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
     repositorio.procurarPorId.mockResolvedValue({
       ...EMPRESA,
       CNPJ: null,
@@ -93,17 +93,30 @@ describe('EmpresaService.consultarCadastro', () => {
       cpf: '52998224725',
     });
 
-    const cadastro = await service.consultarCadastro(3);
+    const cadastro = await servico.consultarCadastro(3);
 
     expect(cadastro.documento).toEqual({ tipo: 'CPF', numero: '52998224725' });
     expect(cadastro.razaoSocial).toBeNull();
   });
 
+  it('cadastro legado sem documento mostra CPF vazio em vez de quebrar', async () => {
+    const { servico, repositorio } = montar();
+    repositorio.procurarPorId.mockResolvedValue({
+      ...EMPRESA,
+      CNPJ: null,
+      cpf: null,
+    });
+
+    const cadastro = await servico.consultarCadastro(3);
+
+    expect(cadastro.documento).toEqual({ tipo: 'CPF', numero: '' });
+  });
+
   it('responde 404 para empresa inexistente', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
     repositorio.procurarPorId.mockResolvedValue(null);
 
-    await expect(service.consultarCadastro(3)).rejects.toThrow(
+    await expect(servico.consultarCadastro(3)).rejects.toThrow(
       NotFoundException,
     );
   });
@@ -111,9 +124,9 @@ describe('EmpresaService.consultarCadastro', () => {
 
 describe('EmpresaService.atualizarCadastro', () => {
   it('grava os dados e a data da atualizacao', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
 
-    const resposta = await service.atualizarCadastro(
+    const resposta = await servico.atualizarCadastro(
       3,
       { ...DADOS, telefone: '61940000000' },
       AGORA,
@@ -135,9 +148,9 @@ describe('EmpresaService.atualizarCadastro', () => {
   ])(
     'mudar o %s pede nova geocodificacao da origem',
     async (_campo, mudanca) => {
-      const { service, repositorio } = montar();
+      const { servico, repositorio } = montar();
 
-      await service.atualizarCadastro(3, { ...DADOS, ...mudanca }, AGORA);
+      await servico.atualizarCadastro(3, { ...DADOS, ...mudanca }, AGORA);
 
       expect(repositorio.atualizarCadastro).toHaveBeenCalledWith(
         3,
@@ -149,48 +162,48 @@ describe('EmpresaService.atualizarCadastro', () => {
   );
 
   it('recusa e-mail de outra empresa sem gravar', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
     repositorio.procurarPorEmail.mockResolvedValue({
       ...EMPRESA,
       id_empresa: 9,
     });
 
     await expect(
-      service.atualizarCadastro(3, { ...DADOS, email: 'outra@empresa.test' }),
+      servico.atualizarCadastro(3, { ...DADOS, email: 'outra@empresa.test' }),
     ).rejects.toThrow(ConflictException);
     expect(repositorio.atualizarCadastro).not.toHaveBeenCalled();
   });
 
   it('manter o proprio e-mail nao consulta duplicidade', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
 
-    await service.atualizarCadastro(3, DADOS, AGORA);
+    await servico.atualizarCadastro(3, DADOS, AGORA);
 
     expect(repositorio.procurarPorEmail).not.toHaveBeenCalled();
   });
 
   it('responde 409 quando outra empresa pega o e-mail ao mesmo tempo', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
     repositorio.atualizarCadastro.mockRejectedValue({ code: 'P2002' });
 
     await expect(
-      service.atualizarCadastro(3, { ...DADOS, email: 'nova@cantina.test' }),
+      servico.atualizarCadastro(3, { ...DADOS, email: 'nova@cantina.test' }),
     ).rejects.toThrow(ConflictException);
   });
 
   it('repassa outros erros do banco', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
     const falha = new Error('conexao perdida');
     repositorio.atualizarCadastro.mockRejectedValue(falha);
 
-    await expect(service.atualizarCadastro(3, DADOS)).rejects.toBe(falha);
+    await expect(servico.atualizarCadastro(3, DADOS)).rejects.toBe(falha);
   });
 
   it('responde 404 para empresa inexistente', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
     repositorio.procurarPorId.mockResolvedValue(null);
 
-    await expect(service.atualizarCadastro(3, DADOS)).rejects.toThrow(
+    await expect(servico.atualizarCadastro(3, DADOS)).rejects.toThrow(
       NotFoundException,
     );
   });
@@ -248,19 +261,19 @@ describe('CadastroEmpresaController', () => {
   };
 
   it('usa a empresa do token, nunca um id vindo do corpo', async () => {
-    const service = {
+    const servico = {
       consultarCadastro: jest.fn().mockResolvedValue({}),
       atualizarCadastro: jest.fn().mockResolvedValue({}),
     };
-    const controller = new CadastroEmpresaController(
-      service as unknown as EmpresaService,
+    const controlador = new CadastroEmpresaController(
+      servico as unknown as EmpresaService,
     );
 
-    await controller.consultar(usuario);
-    await controller.atualizar(usuario, { ...DADOS, complemento: undefined });
+    await controlador.consultar(usuario);
+    await controlador.atualizar(usuario, { ...DADOS, complemento: undefined });
 
-    expect(service.consultarCadastro).toHaveBeenCalledWith(3);
-    expect(service.atualizarCadastro).toHaveBeenCalledWith(3, DADOS);
+    expect(servico.consultarCadastro).toHaveBeenCalledWith(3);
+    expect(servico.atualizarCadastro).toHaveBeenCalledWith(3, DADOS);
   });
 });
 

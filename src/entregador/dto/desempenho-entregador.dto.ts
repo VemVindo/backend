@@ -1,4 +1,4 @@
-export class DesempenhoEntregadorDto {
+export interface DesempenhoEntregadorDto {
   cpf_entregador: string;
   periodo: { de: string; ate: string };
   total_entregas: number;

@@ -1,7 +1,7 @@
 import { ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
-import { IS_PUBLIC_KEY } from './decorators/public.decorator';
+import { CHAVE_ROTA_PUBLICA } from './decorators/rota-publica.decorator';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -9,14 +9,14 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     super();
   }
 
-  canActivate(context: ExecutionContext) {
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    if (isPublic) {
+  canActivate(contexto: ExecutionContext) {
+    const rotaPublica = this.reflector.getAllAndOverride<boolean>(
+      CHAVE_ROTA_PUBLICA,
+      [contexto.getHandler(), contexto.getClass()],
+    );
+    if (rotaPublica) {
       return true;
     }
-    return super.canActivate(context);
+    return super.canActivate(contexto);
   }
 }

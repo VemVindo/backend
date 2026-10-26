@@ -9,31 +9,31 @@ function montar(exibeMapa: boolean | null = true) {
     exibeMapa: jest.fn().mockResolvedValue(exibeMapa),
     definirExibirMapa: jest.fn().mockResolvedValue(undefined),
   };
-  const service = new EmpresaService(
+  const servico = new EmpresaService(
     repositorio as unknown as EmpresaRepository,
   );
-  return { service, repositorio };
+  return { servico, repositorio };
 }
 
 describe('EmpresaService configuracoes', () => {
   it('consulta se o recebedor ve o mapa', async () => {
-    const { service } = montar(false);
-    await expect(service.consultarConfiguracoes(1)).resolves.toEqual({
+    const { servico } = montar(false);
+    await expect(servico.consultarConfiguracoes(1)).resolves.toEqual({
       exibirMapa: false,
     });
   });
 
   it('responde 404 para empresa inexistente', async () => {
-    const { service } = montar(null);
-    await expect(service.consultarConfiguracoes(1)).rejects.toThrow(
+    const { servico } = montar(null);
+    await expect(servico.consultarConfiguracoes(1)).rejects.toThrow(
       NotFoundException,
     );
   });
 
   it('grava a escolha da empresa', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
 
-    const resposta = await service.atualizarConfiguracoes(7, {
+    const resposta = await servico.atualizarConfiguracoes(7, {
       exibirMapa: false,
     });
 

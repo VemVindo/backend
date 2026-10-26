@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Cargos } from '../auth/decorators/cargos.decorator';
-import { Public } from '../auth/decorators/public.decorator';
+import { RotaPublica } from '../auth/decorators/rota-publica.decorator';
 import { UsuarioAtual } from '../auth/decorators/usuario-atual.decorator';
 import type { UsuarioAutenticado } from '../auth/jwt.strategy';
 import { Cargo } from '../common/enums/cargo.enum';
@@ -23,7 +23,7 @@ import { FiltroAvaliacoesDto } from './dto/filtro-avaliacoes.dto';
 const LIMITE_DE_ENVIOS = { default: { limit: 10, ttl: 60_000 } };
 
 @Controller('rastreio/:token/avaliacao')
-@Public()
+@RotaPublica()
 @UseGuards(AcessoParaAvaliarGuard)
 export class AvaliacaoDoRecebedorController {
   constructor(private readonly avaliacoes: AvaliacaoService) {}

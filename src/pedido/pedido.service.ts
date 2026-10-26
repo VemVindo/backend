@@ -1,21 +1,14 @@
 import {
   ConflictException,
-  HttpException,
-  HttpStatus,
   Injectable,
   NotFoundException,
-  UnprocessableEntityException,
 } from '@nestjs/common';
 import { EntregadorRepository } from '../entregador/entregador.repository';
 import { Pedido } from '../generated/prisma/client';
 import { StatusPedido } from '../generated/prisma/enums';
 import { LocalizacaoService } from '../mapa/localizacao.service';
-import { ConversaWhatsappDto } from './dto/conversa-whatsapp.dto';
-import {
-  CodigoDoRecebedorService,
-  ConferenciaDoCodigo,
-} from '../rastreio/codigo-do-recebedor.service';
-import { CriaPedidoReqDto } from './dto/cria-pedido.dto';
+import { CodigoDoRecebedorService } from '../rastreio/codigo-do-recebedor.service';
+import { CriarPedidoDto } from './dto/criar-pedido.dto';
 import {
   HistoricoEntregadorDto,
   paraHistoricoEntregador,
@@ -25,30 +18,19 @@ import {
   PedidoDoEntregadorDto,
 } from './dto/pedido-do-entregador.dto';
 import { paraPedidoResumo, PedidoResumoDto } from './dto/pedido-resumo.dto';
+import { exigirCodigoCorreto, exigirTransicao } from './exigencias-do-pedido';
 import { StatusFactory } from './factories/status.factory';
 import {
   EntregadorIndisponivelError,
   PedidoAlteradoError,
 } from './pedido.erros';
-import {
-  DonoDoPedido,
-  PedidoComContatos,
-  PedidoRepository,
-} from './pedido.repository';
+import { PedidoRepository } from './pedido.repository';
 import {
   exigeCodigoDoRecebedor,
   obterStatusDisponiveis,
   statusFinal,
   transicaoPermitida,
 } from './regras/status-pedido.regra';
-import {
-  DadosDaConversa,
-  montarLinkWhatsapp,
-  textoDaEmpresaParaEntregador,
-  textoDaEmpresaParaRecebedor,
-  textoDoEntregadorParaEmpresa,
-} from './whatsapp';
-
 import {
   DetalheDoPedidoDto,
   paraDetalheDoPedido,
@@ -66,11 +48,6 @@ const STATUS_REATRIBUIVEIS: readonly StatusPedido[] = [
   StatusPedido.EM_ANDAMENTO,
 ];
 
-const STATUS_COM_CONVERSA_DO_RECEBEDOR: readonly StatusPedido[] = [
-  StatusPedido.PENDENTE,
-  StatusPedido.EM_ANDAMENTO,
-];
-
 @Injectable()
 export class PedidoService {
   constructor(
@@ -83,7 +60,7 @@ export class PedidoService {
     private readonly googleMapsClient: GoogleMapsClient,
   ) {}
 
-  async criar(idEmpresa: number, pedido: CriaPedidoReqDto): Promise<Pedido> {
+  async criar(idEmpresa: number, pedido: CriarPedidoDto): Promise<Pedido> {
     if (pedido.cpf_entregador) {
       await this.exigirEntregadorDisponivel(idEmpresa, pedido.cpf_entregador);
     }
@@ -294,98 +271,6 @@ export class PedidoService {
     return registros.map(paraHistoricoEntregador);
   }
 
-  async conversaComEntregador(
-    idEmpresa: number,
-    idPedido: number,
-  ): Promise<ConversaWhatsappDto> {
-    const { pedido, dados } = await this.prepararConversa(idPedido, {
-      idEmpresa,
-    });
-    return {
-      link: this.exigirLink(
-        pedido.entregador.telefone,
-        textoDaEmpresaParaEntregador(dados),
-      ),
-      contato: dados.entregador,
-    };
-  }
-
-  async conversaComEstabelecimento(
-    cpfEntregador: string,
-    idPedido: number,
-  ): Promise<ConversaWhatsappDto> {
-    const { pedido, dados } = await this.prepararConversa(idPedido, {
-      cpf_entregador: cpfEntregador,
-    });
-    return {
-      link: this.exigirLink(
-        pedido.empresa.telefone,
-        textoDoEntregadorParaEmpresa(dados),
-      ),
-      contato: dados.empresa,
-    };
-  }
-
-  async conversaComRecebedor(
-    idEmpresa: number,
-    idPedido: number,
-  ): Promise<ConversaWhatsappDto> {
-    const pedido = await this.pedidoRepository.procurarComContatos(idPedido, {
-      idEmpresa,
-    });
-    if (!pedido) {
-      throw new NotFoundException('Pedido não encontrado');
-    }
-    if (!STATUS_COM_CONVERSA_DO_RECEBEDOR.includes(pedido.status)) {
-      throw new ConflictException(
-        'A conversa com o recebedor só fica disponível enquanto o pedido está aberto',
-      );
-    }
-    return {
-      link: this.exigirLink(
-        pedido.telefone_recebedor,
-        textoDaEmpresaParaRecebedor({
-          idPedido: pedido.id_pedido,
-          empresa: pedido.empresa.nome_fantasia,
-          recebedor: pedido.nome_recebedor,
-        }),
-      ),
-      contato: pedido.nome_recebedor,
-    };
-  }
-
-  private async prepararConversa(idPedido: number, dono: DonoDoPedido) {
-    const pedido = await this.pedidoRepository.procurarComContatos(
-      idPedido,
-      dono,
-    );
-    if (!pedido) {
-      throw new NotFoundException('Pedido não encontrado');
-    }
-    if (!conversaDisponivel(pedido)) {
-      throw new ConflictException(
-        'A conversa pelo WhatsApp só fica disponível com a entrega em andamento',
-      );
-    }
-
-    const dados: DadosDaConversa = {
-      idPedido: pedido.id_pedido,
-      empresa: pedido.empresa.nome_fantasia,
-      entregador: pedido.entregador.nome,
-    };
-    return { pedido, dados };
-  }
-
-  private exigirLink(telefone: string, texto: string): string {
-    const link = montarLinkWhatsapp(telefone, texto);
-    if (!link) {
-      throw new UnprocessableEntityException(
-        'O telefone cadastrado não é válido para o WhatsApp',
-      );
-    }
-    return link;
-  }
-
   private async trocarEntregador(
     idEmpresa: number,
     pedido: Pedido,
@@ -479,47 +364,5 @@ export class PedidoService {
       }
       throw erro;
     }
-  }
-}
-
-type PedidoEmConversa = PedidoComContatos & {
-  entregador: NonNullable<PedidoComContatos['entregador']>;
-};
-
-function conversaDisponivel(
-  pedido: PedidoComContatos,
-): pedido is PedidoEmConversa {
-  return pedido.status === StatusPedido.EM_ANDAMENTO && !!pedido.entregador;
-}
-
-function exigirTransicao(pedido: Pedido, novoStatus: StatusPedido): void {
-  if (!transicaoPermitida(pedido.status, novoStatus)) {
-    throw new ConflictException(
-      `Não é permitido alterar o pedido de ${pedido.status} para ${novoStatus}`,
-    );
-  }
-}
-
-function exigirCodigoCorreto(conferencia: ConferenciaDoCodigo): void {
-  switch (conferencia.situacao) {
-    case 'correto':
-      return;
-    case 'sem_codigo':
-      throw new ConflictException(
-        'O recebedor ainda não tem o código: peça à empresa para enviar o link de rastreio',
-      );
-    case 'bloqueado':
-      throw new HttpException(
-        {
-          message: 'Muitas tentativas erradas. Tente de novo mais tarde',
-          liberaEm: conferencia.liberaEm,
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    case 'incorreto':
-      throw new UnprocessableEntityException({
-        message: 'Código incorreto',
-        tentativasRestantes: conferencia.tentativasRestantes,
-      });
   }
 }

@@ -1,10 +1,11 @@
-import { Body, Controller, Get } from '@nestjs/common';
-import { DashboardService } from './dashboard.service';
+import { Controller, Get, Query } from '@nestjs/common';
 import { Cargos } from '../auth/decorators/cargos.decorator';
-import { Cargo } from '../common/enums/cargo.enum';
 import { UsuarioAtual } from '../auth/decorators/usuario-atual.decorator';
 import type { UsuarioAutenticado } from '../auth/jwt.strategy';
-import { DashboardReqDto, DashboardResDto } from './dto/dashboard.dto';
+import { Cargo } from '../common/enums/cargo.enum';
+import { DashboardService } from './dashboard.service';
+import { FiltroDashboardDto } from './dto/filtro-dashboard.dto';
+import { ResumoDoDashboardDto } from './dto/resumo-do-dashboard.dto';
 
 @Controller('dashboard')
 @Cargos(Cargo.ESTABELECIMENTO)
@@ -12,14 +13,13 @@ export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get()
-  async informacoes(
-    @UsuarioAtual() usuarioAtual: UsuarioAutenticado,
-    @Body() dashboardDto: DashboardReqDto,
-  ): Promise<DashboardResDto> {
-    const resultado = await this.dashboardService.montaDashboard(
-      Number(usuarioAtual.empresaId),
-      dashboardDto,
+  consultar(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Query() periodo: FiltroDashboardDto,
+  ): Promise<ResumoDoDashboardDto> {
+    return this.dashboardService.montarDashboard(
+      Number(usuario.empresaId),
+      periodo,
     );
-    return resultado;
   }
 }
