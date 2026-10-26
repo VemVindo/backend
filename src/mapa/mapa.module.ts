@@ -15,6 +15,6 @@ import { RotaDeCarroService } from './rota-de-carro.service';
     LocalizacaoService,
     RotaDeCarroService,
   ],
-  exports: [LocalizacaoService, RotaDeCarroService, GoogleMapsClient],
+  exports: [LocalizacaoService, RotaDeCarroService],
 })
 export class MapaModule {}

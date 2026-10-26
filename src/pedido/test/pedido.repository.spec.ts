@@ -1,6 +1,7 @@
 import { PedidoRepository } from '../pedido.repository';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CriarPedidoDto } from '../dto/criar-pedido.dto';
+import { EntregaCalculada } from '../calculo-da-entrega.service';
 import { StatusPedido } from '../../generated/prisma/enums';
 import { GanhoEntregaService } from '../../remuneracao/ganho-entrega.service';
 import { RemuneracaoRepository } from '../../remuneracao/remuneracao.repository';
@@ -14,6 +15,13 @@ const CPF_ANTERIOR = '52998224725';
 const CPF_NOVO = '11144477735';
 const ID_PEDIDO = 1;
 const ID_EMPRESA = 7;
+const ENTREGA: EntregaCalculada = {
+  distancia: 4200,
+  distanciaConhecida: true,
+  destinoLat: -15.83,
+  destinoLng: -47.92,
+  valorEntrega: 1430,
+};
 
 function montar() {
   const parametrosCongelados = {
@@ -90,10 +98,27 @@ function argumento<T = Record<string, Record<string, unknown>>>(
 describe('PedidoRepository.criar', () => {
   const pedido = { status: StatusPedido.PENDENTE } as CriarPedidoDto;
 
+  it('grava distancia, destino e valor calculados para a entrega', async () => {
+    const { repositorio, prisma } = montar();
+
+    await repositorio.criar(pedido, ID_EMPRESA, {
+      ...ENTREGA,
+      distanciaConhecida: false,
+    });
+
+    expect(argumento(prisma.pedido.create).data).toMatchObject({
+      distancia: ENTREGA.distancia,
+      distancia_conhecida: false,
+      destino_lat: ENTREGA.destinoLat,
+      destino_lng: ENTREGA.destinoLng,
+      valor_entrega: ENTREGA.valorEntrega,
+    });
+  });
+
   it('grava a empresa recebida do token, sem transacao quando nao ha entregador', async () => {
     const { repositorio, prisma } = montar();
 
-    await repositorio.criar(pedido, ID_EMPRESA);
+    await repositorio.criar(pedido, ID_EMPRESA, ENTREGA);
 
     expect(argumento(prisma.pedido.create).data.idEmpresa).toBe(ID_EMPRESA);
     expect(prisma.$transaction).not.toHaveBeenCalled();
@@ -109,6 +134,7 @@ describe('PedidoRepository.criar', () => {
         cpf_entregador: CPF_NOVO,
       },
       ID_EMPRESA,
+      ENTREGA,
     );
 
     expect(transacao.entregador.updateMany).toHaveBeenCalledWith({
@@ -126,6 +152,7 @@ describe('PedidoRepository.criar', () => {
     await repositorio.criar(
       { ...pedido, cpf_entregador: CPF_NOVO },
       ID_EMPRESA,
+      ENTREGA,
     );
 
     const { data } = argumento(transacao.historicoPedidoEntregadores.create);
@@ -144,7 +171,11 @@ describe('PedidoRepository.criar', () => {
     transacao.entregador.updateMany.mockResolvedValue({ count: 0 });
 
     await expect(
-      repositorio.criar({ ...pedido, cpf_entregador: CPF_NOVO }, ID_EMPRESA),
+      repositorio.criar(
+        { ...pedido, cpf_entregador: CPF_NOVO },
+        ID_EMPRESA,
+        ENTREGA,
+      ),
     ).rejects.toBeInstanceOf(EntregadorIndisponivelError);
     expect(transacao.pedido.create).not.toHaveBeenCalled();
   });
@@ -396,6 +427,7 @@ describe('E-US16: snapshot e consolidacao no repository', () => {
     await repositorioPedidos.criar(
       { cpf_entregador: CPF_NOVO } as CriarPedidoDto,
       ID_EMPRESA,
+      ENTREGA,
     );
     const { data: dadosPersistidos } = argumento(
       clienteTransacional.pedido.create,
@@ -427,6 +459,7 @@ describe('E-US16: snapshot e consolidacao no repository', () => {
       repositorioPedidos.criar(
         { cpf_entregador: CPF_NOVO } as CriarPedidoDto,
         ID_EMPRESA,
+        ENTREGA,
       ),
     ).rejects.toThrow('Configure os parâmetros');
     expect(clienteTransacional.entregador.updateMany).not.toHaveBeenCalled();

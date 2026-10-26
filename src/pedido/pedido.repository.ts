@@ -3,6 +3,7 @@ import { Pedido, Prisma } from '../generated/prisma/client';
 import { StatusPedido } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { GanhoEntregaService } from '../remuneracao/ganho-entrega.service';
+import type { EntregaCalculada } from './calculo-da-entrega.service';
 import { CriarPedidoDto } from './dto/criar-pedido.dto';
 import {
   bloquearPedido,
@@ -51,8 +52,12 @@ export class PedidoRepository {
     private readonly ganhos: GanhoEntregaService,
   ) {}
 
-  async criar(pedido: CriarPedidoDto, idEmpresa: number): Promise<Pedido> {
-    const dados = dadosDoNovoPedido(pedido, idEmpresa);
+  async criar(
+    pedido: CriarPedidoDto,
+    idEmpresa: number,
+    entrega: EntregaCalculada,
+  ): Promise<Pedido> {
+    const dados = dadosDoNovoPedido(pedido, idEmpresa, entrega);
     const cpfEntregador = pedido.cpf_entregador;
 
     if (!cpfEntregador) {
@@ -288,6 +293,7 @@ export class PedidoRepository {
 function dadosDoNovoPedido(
   pedido: CriarPedidoDto,
   idEmpresa: number,
+  entrega: EntregaCalculada,
 ): Prisma.PedidoUncheckedCreateInput {
   return {
     nome_recebedor: pedido.nome_recebedor,
@@ -302,10 +308,12 @@ function dadosDoNovoPedido(
     descricao: pedido.descricao,
     status: pedido.status,
     data_criacao: pedido.data_criacao,
-    valor_entrega: pedido.valor_entrega,
+    valor_entrega: entrega.valorEntrega,
     idEmpresa,
-    distancia: pedido.distancia,
-    distancia_conhecida: true,
+    distancia: entrega.distancia,
+    distancia_conhecida: entrega.distanciaConhecida,
+    destino_lat: entrega.destinoLat,
+    destino_lng: entrega.destinoLng,
     cpf_entregador: pedido.cpf_entregador,
   };
 }

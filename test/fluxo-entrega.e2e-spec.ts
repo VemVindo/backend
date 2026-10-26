@@ -107,8 +107,7 @@ describe('Fluxo da entrega (e2e)', () => {
         cidade: 'Brasilia',
         uf: 'DF',
         descricao: 'Pedido do teste e2e',
-        valor_entrega: 1025,
-        distancia: 1500,
+        tipo_veiculo: 'DRIVE',
       })
       .expect(201);
 

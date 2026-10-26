@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { coordenada } from './dto/visao-da-entrega.dto';
-import { Coordenada } from './geo';
+import { Coordenada, ModoDeViagem } from './geo';
 import { EnderecoDoPedido, GoogleMapsClient } from './google-maps.client';
 import { LocalizacaoRepository } from './localizacao.repository';
 
@@ -19,6 +19,7 @@ export class RotaDeCarroService {
   async calcular(
     idEmpresa: number,
     enderecoDoRecebedor: EnderecoDoPedido,
+    modo: ModoDeViagem = 'DRIVE',
   ): Promise<RotaAteORecebedor | null> {
     if (!this.maps.habilitado) {
       return null;
@@ -31,7 +32,7 @@ export class RotaDeCarroService {
     if (!destino) {
       return null;
     }
-    const rota = await this.maps.calcularRota(origem, destino, 'DRIVE');
+    const rota = await this.maps.calcularRota(origem, destino, modo);
     return rota && { distanciaM: rota.distanciaM, destino };
   }
 

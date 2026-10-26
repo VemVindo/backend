@@ -18,8 +18,10 @@ import {
   CodigoDoRecebedorService,
   ConferenciaDoCodigo,
 } from '../../rastreio/codigo-do-recebedor.service';
-import { RemuneracaoService } from '../../remuneracao/remuneracao.service';
-import { GoogleMapsClient } from '../../mapa/google-maps.client';
+import {
+  CalculoDaEntregaService,
+  EntregaCalculada,
+} from '../calculo-da-entrega.service';
 
 jest.mock('../../prisma/prisma.service', () => ({
   PrismaService: class {},
@@ -30,6 +32,14 @@ const NOVO_CPF = '11144477735';
 const ID_EMPRESA = 1;
 const ID_PEDIDO = 1;
 const DATA_CRIACAO = new Date('2026-10-07T17:02:00Z');
+
+const ENTREGA: EntregaCalculada = {
+  distancia: 4200,
+  distanciaConhecida: true,
+  destinoLat: -15.83,
+  destinoLng: -47.92,
+  valorEntrega: 1430,
+};
 
 const pedidoPendente = {
   id_pedido: ID_PEDIDO,
@@ -138,21 +148,8 @@ function montar() {
       .mockResolvedValue({ situacao: 'correto' }),
   };
 
-  const remuneracaoService = {
-    consultar: jest.fn().mockResolvedValue({
-      taxaFixa: 5.0,
-      coeficienteKm: 1.5,
-    }),
-  };
-
-  const calculoValorEntregaService = {
-    calcularValorEntrega: jest.fn(),
-  };
-
-  const googleMapsClient = {
-    calcularRota: jest.fn().mockResolvedValue({
-      distanciaM: 10,
-    }),
+  const calculoDaEntrega = {
+    calcular: jest.fn().mockResolvedValue(ENTREGA),
   };
 
   const servico = new PedidoService(
@@ -160,9 +157,7 @@ function montar() {
     entregadores as unknown as EntregadorRepository,
     localizacao as unknown as LocalizacaoService,
     codigoDoRecebedor as unknown as CodigoDoRecebedorService,
-    remuneracaoService as unknown as RemuneracaoService,
-    calculoValorEntregaService,
-    googleMapsClient as unknown as GoogleMapsClient,
+    calculoDaEntrega as unknown as CalculoDaEntregaService,
   );
 
   return {
@@ -171,9 +166,7 @@ function montar() {
     entregadores,
     localizacao,
     codigoDoRecebedor,
-    remuneracaoService,
-    calculoValorEntregaService,
-    googleMapsClient,
+    calculoDaEntrega,
   };
 }
 
@@ -692,7 +685,7 @@ describe('PedidoService.criar com entregador', () => {
 
     await servico.criar(ID_EMPRESA, dto);
 
-    expect(pedidos.criar).toHaveBeenCalledWith(dto, ID_EMPRESA);
+    expect(pedidos.criar).toHaveBeenCalledWith(dto, ID_EMPRESA, ENTREGA);
     expect(dto.status).toBe(StatusPedido.EM_ANDAMENTO);
   });
 });
@@ -707,7 +700,11 @@ describe('PedidoService.criar sem entregador', () => {
     );
 
     expect(entregadores.procurarAtivoPorEmpresa).not.toHaveBeenCalled();
-    expect(pedidos.criar).toHaveBeenCalledWith(dadosDoPedido, ID_EMPRESA);
+    expect(pedidos.criar).toHaveBeenCalledWith(
+      dadosDoPedido,
+      ID_EMPRESA,
+      ENTREGA,
+    );
     expect(dadosDoPedido.status).toBe(StatusPedido.PENDENTE);
     expect(dadosDoPedido.cpf_entregador).toBeUndefined();
   });
@@ -721,6 +718,30 @@ describe('PedidoService.criar sem entregador', () => {
 
     expect(dadosDoPedido.data_criacao).toBe('2026-10-07T17:02:00.000Z');
     jest.useRealTimers();
+  });
+});
+
+describe('PedidoService.criar calcula a entrega', () => {
+  it('calcula a entrega com a empresa do token antes de gravar', async () => {
+    const { servico, calculoDaEntrega } = montar();
+    const dadosDoPedido = { tipo_veiculo: 'BICYCLE' } as CriarPedidoDto;
+
+    await servico.criar(ID_EMPRESA, dadosDoPedido);
+
+    expect(calculoDaEntrega.calcular).toHaveBeenCalledWith(
+      ID_EMPRESA,
+      dadosDoPedido,
+    );
+  });
+
+  it('nao grava o pedido quando o calculo falha', async () => {
+    const { servico, pedidos, calculoDaEntrega } = montar();
+    calculoDaEntrega.calcular.mockRejectedValue(new ConflictException());
+
+    await expect(
+      servico.criar(ID_EMPRESA, {} as CriarPedidoDto),
+    ).rejects.toThrow(ConflictException);
+    expect(pedidos.criar).not.toHaveBeenCalled();
   });
 });
 
