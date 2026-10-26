@@ -14,8 +14,8 @@ export function cpfValido(cpf: unknown): boolean {
   const digitos = cpf.split('').map(Number);
   const verificador = (quantidade: number) => {
     let soma = 0;
-    for (let i = 0; i < quantidade; i++) {
-      soma += digitos[i] * (quantidade + 1 - i);
+    for (let posicao = 0; posicao < quantidade; posicao++) {
+      soma += digitos[posicao] * (quantidade + 1 - posicao);
     }
     const resto = (soma * 10) % 11;
     return resto === 10 ? 0 : resto;

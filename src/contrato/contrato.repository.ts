@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Contrato } from '../generated/prisma/client';
+import { Contrato, Prisma } from '../generated/prisma/client';
 import { StatusContrato } from '../generated/prisma/enums';
 
 export type ContratoComEmpresa = Contrato & {
@@ -42,41 +42,53 @@ export class ContratoRepository {
     });
   }
 
-  async aceitar(idContrato: number, cpfEntregador: string): Promise<boolean> {
-    const { count } = await this.prisma.contrato.updateMany({
-      where: {
-        id_contrato: idContrato,
-        cpf_entregador: cpfEntregador,
-        status: StatusContrato.PENDENTE,
+  aceitar(idContrato: number, cpfEntregador: string): Promise<boolean> {
+    return this.mudarStatus(
+      idContrato,
+      cpfEntregador,
+      StatusContrato.PENDENTE,
+      {
+        status: StatusContrato.ATIVO,
+        data_aceite: new Date(),
       },
-      data: { status: StatusContrato.ATIVO, data_aceite: new Date() },
-    });
-    return count > 0;
+    );
   }
 
-  async recusar(idContrato: number, cpfEntregador: string): Promise<boolean> {
-    const { count } = await this.prisma.contrato.updateMany({
-      where: {
-        id_contrato: idContrato,
-        cpf_entregador: cpfEntregador,
-        status: StatusContrato.PENDENTE,
+  recusar(idContrato: number, cpfEntregador: string): Promise<boolean> {
+    return this.mudarStatus(
+      idContrato,
+      cpfEntregador,
+      StatusContrato.PENDENTE,
+      {
+        status: StatusContrato.RECUSADO,
+        data_fim: new Date(),
       },
-      data: { status: StatusContrato.RECUSADO, data_fim: new Date() },
-    });
-    return count > 0;
+    );
   }
 
-  async encerrarPeloEntregador(
+  encerrarPeloEntregador(
     idContrato: number,
     cpfEntregador: string,
+  ): Promise<boolean> {
+    return this.mudarStatus(idContrato, cpfEntregador, StatusContrato.ATIVO, {
+      status: StatusContrato.ENCERRADO,
+      data_fim: new Date(),
+    });
+  }
+
+  private async mudarStatus(
+    idContrato: number,
+    cpfEntregador: string,
+    statusAtual: StatusContrato,
+    alteracao: Prisma.ContratoUpdateManyMutationInput,
   ): Promise<boolean> {
     const { count } = await this.prisma.contrato.updateMany({
       where: {
         id_contrato: idContrato,
         cpf_entregador: cpfEntregador,
-        status: StatusContrato.ATIVO,
+        status: statusAtual,
       },
-      data: { status: StatusContrato.ENCERRADO, data_fim: new Date() },
+      data: alteracao,
     });
     return count > 0;
   }

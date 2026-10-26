@@ -2,8 +2,8 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import type { AcessoComPedido } from '../rastreio.repository';
 
 export const AcessoDoRecebedor = createParamDecorator(
-  (_data: unknown, ctx: ExecutionContext): AcessoComPedido => {
-    const requisicao = ctx
+  (_dados: unknown, contexto: ExecutionContext): AcessoComPedido => {
+    const requisicao = contexto
       .switchToHttp()
       .getRequest<{ acessoRecebedor: AcessoComPedido }>();
     return requisicao.acessoRecebedor;

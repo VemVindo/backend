@@ -10,6 +10,11 @@ describe('cnpjValido', () => {
     expect(cnpjValido(CNPJ_FICTICIO)).toBe(true);
   });
 
+  it('usa digito zero quando o resto da divisao por 11 e menor que 2', () => {
+    expect(cnpjValido('11222386000100')).toBe(true);
+    expect(cnpjValido('11222386000101')).toBe(false);
+  });
+
   it('aceita CNPJ alfanumerico', () => {
     expect(cnpjValido(CNPJ_ALFANUMERICO_FICTICIO)).toBe(true);
   });

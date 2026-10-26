@@ -37,17 +37,17 @@ function montar() {
     revogarAtiva: jest.fn().mockResolvedValue(1),
     registrarUso: jest.fn().mockResolvedValue(undefined),
   };
-  const service = new CredencialService(
+  const servico = new CredencialService(
     credenciais as unknown as CredencialRepository,
   );
-  return { service, credenciais };
+  return { servico, credenciais };
 }
 
 describe('CredencialService.gerar', () => {
   it('devolve a chave uma vez e grava so o hash', async () => {
-    const { service, credenciais } = montar();
+    const { servico, credenciais } = montar();
 
-    const { chave, credencial: resumo } = await service.gerar(CANTINA);
+    const { chave, credencial: resumo } = await servico.gerar(CANTINA);
 
     const [, prefixoGravado, hashGravado] = credenciais.criar.mock.calls[0];
     expect(chave).toMatch(/^vv_[0-9a-f]{12}_[\w-]{43}$/);
@@ -62,27 +62,27 @@ describe('CredencialService.gerar', () => {
   });
 
   it('recusa quando ja existe credencial ativa', async () => {
-    const { service, credenciais } = montar();
+    const { servico, credenciais } = montar();
     credenciais.procurarAtiva.mockResolvedValue(credencial());
 
-    await expect(service.gerar(CANTINA)).rejects.toThrow(ConflictException);
+    await expect(servico.gerar(CANTINA)).rejects.toThrow(ConflictException);
     expect(credenciais.criar).not.toHaveBeenCalled();
   });
 
   it('traduz a corrida entre duas geracoes em 409', async () => {
-    const { service, credenciais } = montar();
+    const { servico, credenciais } = montar();
     credenciais.criar.mockRejectedValue({ code: 'P2002' });
 
-    await expect(service.gerar(CANTINA)).rejects.toThrow(ConflictException);
+    await expect(servico.gerar(CANTINA)).rejects.toThrow(ConflictException);
   });
 });
 
 describe('CredencialService.rotacionar', () => {
   it('substitui a credencial ativa por uma nova', async () => {
-    const { service, credenciais } = montar();
+    const { servico, credenciais } = montar();
     credenciais.procurarAtiva.mockResolvedValue(credencial());
 
-    const { chave } = await service.rotacionar(CANTINA);
+    const { chave } = await servico.rotacionar(CANTINA);
 
     expect(credenciais.substituir).toHaveBeenCalledWith(
       CANTINA,
@@ -93,9 +93,9 @@ describe('CredencialService.rotacionar', () => {
   });
 
   it('recusa quando nao ha credencial para rotacionar', async () => {
-    const { service, credenciais } = montar();
+    const { servico, credenciais } = montar();
 
-    await expect(service.rotacionar(CANTINA)).rejects.toThrow(
+    await expect(servico.rotacionar(CANTINA)).rejects.toThrow(
       NotFoundException,
     );
     expect(credenciais.substituir).not.toHaveBeenCalled();
@@ -104,10 +104,10 @@ describe('CredencialService.rotacionar', () => {
 
 describe('CredencialService.consultar', () => {
   it('mostra so o resumo da credencial ativa, sem o hash', async () => {
-    const { service, credenciais } = montar();
+    const { servico, credenciais } = montar();
     credenciais.procurarAtiva.mockResolvedValue(credencial());
 
-    const { credencial: resumo } = await service.consultar(CANTINA);
+    const { credencial: resumo } = await servico.consultar(CANTINA);
 
     expect(resumo).toEqual(
       expect.objectContaining({ prefixo: 'vv_aaaaaaaaaaaa' }),
@@ -116,9 +116,9 @@ describe('CredencialService.consultar', () => {
   });
 
   it('devolve nulo quando a empresa nao tem credencial ativa', async () => {
-    const { service } = montar();
+    const { servico } = montar();
 
-    await expect(service.consultar(CANTINA)).resolves.toEqual({
+    await expect(servico.consultar(CANTINA)).resolves.toEqual({
       credencial: null,
     });
   });
@@ -126,18 +126,18 @@ describe('CredencialService.consultar', () => {
 
 describe('CredencialService erros do banco', () => {
   it('ao gerar, converte corrida no unique em 409', async () => {
-    const { service, credenciais } = montar();
+    const { servico, credenciais } = montar();
     credenciais.criar.mockRejectedValue({ code: 'P2002' });
 
-    await expect(service.gerar(CANTINA)).rejects.toThrow(ConflictException);
+    await expect(servico.gerar(CANTINA)).rejects.toThrow(ConflictException);
   });
 
   it('ao rotacionar, converte corrida no unique em 409', async () => {
-    const { service, credenciais } = montar();
+    const { servico, credenciais } = montar();
     credenciais.procurarAtiva.mockResolvedValue(credencial());
     credenciais.substituir.mockRejectedValue({ code: 'P2002' });
 
-    await expect(service.rotacionar(CANTINA)).rejects.toThrow(
+    await expect(servico.rotacionar(CANTINA)).rejects.toThrow(
       ConflictException,
     );
   });
@@ -148,74 +148,74 @@ describe('CredencialService erros do banco', () => {
   ] as const)(
     'ao %s, propaga erro que nao e de unicidade',
     async (acao, metodo) => {
-      const { service, credenciais } = montar();
+      const { servico, credenciais } = montar();
       const falha = new Error('banco fora do ar');
       credenciais.procurarAtiva.mockResolvedValue(
         acao === 'rotacionar' ? credencial() : null,
       );
       credenciais[metodo].mockRejectedValue(falha);
 
-      await expect(service[acao](CANTINA)).rejects.toBe(falha);
+      await expect(servico[acao](CANTINA)).rejects.toBe(falha);
     },
   );
 });
 
 describe('CredencialService.revogar', () => {
   it('revoga a credencial ativa', async () => {
-    const { service, credenciais } = montar();
+    const { servico, credenciais } = montar();
 
-    await expect(service.revogar(CANTINA)).resolves.toBeUndefined();
+    await expect(servico.revogar(CANTINA)).resolves.toBeUndefined();
     expect(credenciais.revogarAtiva).toHaveBeenCalledWith(CANTINA);
   });
 
   it('recusa quando nao ha credencial ativa', async () => {
-    const { service, credenciais } = montar();
+    const { servico, credenciais } = montar();
     credenciais.revogarAtiva.mockResolvedValue(0);
 
-    await expect(service.revogar(CANTINA)).rejects.toThrow(NotFoundException);
+    await expect(servico.revogar(CANTINA)).rejects.toThrow(NotFoundException);
   });
 });
 
 describe('CredencialService.autenticar', () => {
   it('identifica a empresa dona da chave e registra o uso', async () => {
-    const { service, credenciais } = montar();
+    const { servico, credenciais } = montar();
     const { chave, prefixo, hash } = gerarChave();
     credenciais.procurarPorPrefixo.mockResolvedValue(
       credencial({ prefixo, hash, idEmpresa: PADARIA }),
     );
 
-    const integracao = await service.autenticar(chave);
+    const integracao = await servico.autenticar(chave);
 
     expect(integracao).toEqual({ empresaId: PADARIA, credencialId: 10 });
     expect(credenciais.registrarUso).toHaveBeenCalledWith(10);
   });
 
   it('nao consulta o banco quando o formato e invalido', async () => {
-    const { service, credenciais } = montar();
+    const { servico, credenciais } = montar();
 
-    await expect(service.autenticar('qualquer-coisa')).resolves.toBeNull();
+    await expect(servico.autenticar('qualquer-coisa')).resolves.toBeNull();
     expect(credenciais.procurarPorPrefixo).not.toHaveBeenCalled();
   });
 
   it('recusa prefixo desconhecido', async () => {
-    const { service } = montar();
+    const { servico } = montar();
 
-    await expect(service.autenticar(gerarChave().chave)).resolves.toBeNull();
+    await expect(servico.autenticar(gerarChave().chave)).resolves.toBeNull();
   });
 
   it('recusa credencial revogada', async () => {
-    const { service, credenciais } = montar();
+    const { servico, credenciais } = montar();
     const { chave, prefixo, hash } = gerarChave();
     credenciais.procurarPorPrefixo.mockResolvedValue(
       credencial({ prefixo, hash, data_revogacao: new Date() }),
     );
 
-    await expect(service.autenticar(chave)).resolves.toBeNull();
+    await expect(servico.autenticar(chave)).resolves.toBeNull();
     expect(credenciais.registrarUso).not.toHaveBeenCalled();
   });
 
   it('recusa segredo errado com prefixo de outra empresa', async () => {
-    const { service, credenciais } = montar();
+    const { servico, credenciais } = montar();
     const daCantina = gerarChave();
     const tentativa = gerarChave();
     credenciais.procurarPorPrefixo.mockResolvedValue(
@@ -223,6 +223,6 @@ describe('CredencialService.autenticar', () => {
     );
     const forjada = `vv_${daCantina.prefixo}_${tentativa.chave.split('_').slice(2).join('_')}`;
 
-    await expect(service.autenticar(forjada)).resolves.toBeNull();
+    await expect(servico.autenticar(forjada)).resolves.toBeNull();
   });
 });

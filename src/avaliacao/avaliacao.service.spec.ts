@@ -41,10 +41,10 @@ function montar(existente: typeof AVALIACAO | null = null) {
     registrarComentario: jest.fn().mockResolvedValue(true),
     listarDaEmpresa: jest.fn().mockResolvedValue([]),
   };
-  const service = new AvaliacaoService(
+  const servico = new AvaliacaoService(
     repositorio as unknown as AvaliacaoRepository,
   );
-  return { service, repositorio };
+  return { servico, repositorio };
 }
 
 describe('AvaliacaoService.consultar', () => {
@@ -56,17 +56,17 @@ describe('AvaliacaoService.consultar', () => {
     ['expirada', acesso(), null, DEPOIS_DO_PRAZO],
     ['avaliado', acesso(), AVALIACAO, DEPOIS_DO_PRAZO],
   ])('situacao %s', async (esperada, link, existente, agora) => {
-    const { service } = montar(existente);
+    const { servico } = montar(existente);
 
-    await expect(service.consultar(link, agora)).resolves.toMatchObject({
+    await expect(servico.consultar(link, agora)).resolves.toMatchObject({
       situacao: esperada,
     });
   });
 
   it('devolve a nota e o comentario ja enviados', async () => {
-    const { service } = montar({ ...AVALIACAO, comentario: 'Rapido' });
+    const { servico } = montar({ ...AVALIACAO, comentario: 'Rapido' });
 
-    await expect(service.consultar(acesso(), AGORA)).resolves.toEqual({
+    await expect(servico.consultar(acesso(), AGORA)).resolves.toEqual({
       situacao: 'avaliado',
       avaliacao: { nota: 4, comentario: 'Rapido', data: AGORA },
     });
@@ -75,9 +75,9 @@ describe('AvaliacaoService.consultar', () => {
 
 describe('AvaliacaoService.avaliar', () => {
   it('grava a nota com a data da avaliacao', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
 
-    const resposta = await service.avaliar(acesso(), 5, AGORA);
+    const resposta = await servico.avaliar(acesso(), 5, AGORA);
 
     expect(repositorio.criar).toHaveBeenCalledWith(42, 5, AGORA);
     expect(resposta).toEqual({
@@ -87,49 +87,67 @@ describe('AvaliacaoService.avaliar', () => {
   });
 
   it.each([
-    ['ja avaliada', acesso(), AVALIACAO, AGORA, ConflictException],
-    [
-      'em andamento',
-      acesso(StatusPedido.EM_ANDAMENTO, null),
-      null,
-      AGORA,
-      ConflictException,
-    ],
-    ['cancelada', acesso(StatusPedido.CANCELADO), null, AGORA, GoneException],
-    ['fora do prazo', acesso(), null, DEPOIS_DO_PRAZO, GoneException],
+    {
+      caso: 'ja avaliada',
+      link: acesso(),
+      existente: AVALIACAO,
+      agora: AGORA,
+      erro: ConflictException,
+    },
+    {
+      caso: 'em andamento',
+      link: acesso(StatusPedido.EM_ANDAMENTO, null),
+      existente: null,
+      agora: AGORA,
+      erro: ConflictException,
+    },
+    {
+      caso: 'cancelada',
+      link: acesso(StatusPedido.CANCELADO),
+      existente: null,
+      agora: AGORA,
+      erro: GoneException,
+    },
+    {
+      caso: 'fora do prazo',
+      link: acesso(),
+      existente: null,
+      agora: DEPOIS_DO_PRAZO,
+      erro: GoneException,
+    },
   ])(
-    'recusa entrega %s sem gravar',
-    async (_caso, link, existente, agora, erro) => {
-      const { service, repositorio } = montar(existente);
+    'recusa entrega $caso sem gravar',
+    async ({ link, existente, agora, erro }) => {
+      const { servico, repositorio } = montar(existente);
 
-      await expect(service.avaliar(link, 5, agora)).rejects.toThrow(erro);
+      await expect(servico.avaliar(link, 5, agora)).rejects.toThrow(erro);
       expect(repositorio.criar).not.toHaveBeenCalled();
     },
   );
 
   it('responde 409 quando duas notas chegam juntas', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
     repositorio.criar.mockRejectedValue({ code: 'P2002' });
 
-    await expect(service.avaliar(acesso(), 5, AGORA)).rejects.toThrow(
+    await expect(servico.avaliar(acesso(), 5, AGORA)).rejects.toThrow(
       ConflictException,
     );
   });
 
   it('repassa outros erros do banco', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
     const falha = new Error('conexao perdida');
     repositorio.criar.mockRejectedValue(falha);
 
-    await expect(service.avaliar(acesso(), 5, AGORA)).rejects.toBe(falha);
+    await expect(servico.avaliar(acesso(), 5, AGORA)).rejects.toBe(falha);
   });
 });
 
 describe('AvaliacaoService.comentar', () => {
   it('grava o comentario depois da nota', async () => {
-    const { service, repositorio } = montar(AVALIACAO);
+    const { servico, repositorio } = montar(AVALIACAO);
 
-    const resposta = await service.comentar(acesso(), 'Chegou quente', AGORA);
+    const resposta = await servico.comentar(acesso(), 'Chegou quente', AGORA);
 
     expect(repositorio.registrarComentario).toHaveBeenCalledWith(
       42,
@@ -143,35 +161,57 @@ describe('AvaliacaoService.comentar', () => {
   });
 
   it('exige a nota antes', async () => {
-    const { service } = montar(null);
+    const { servico } = montar(null);
 
-    await expect(service.comentar(acesso(), 'Oi', AGORA)).rejects.toThrow(
+    await expect(servico.comentar(acesso(), 'Oi', AGORA)).rejects.toThrow(
       ConflictException,
     );
   });
 
   it('recusa o segundo comentario', async () => {
-    const { service, repositorio } = montar(AVALIACAO);
+    const { servico, repositorio } = montar(AVALIACAO);
     repositorio.registrarComentario.mockResolvedValue(false);
 
-    await expect(service.comentar(acesso(), 'De novo', AGORA)).rejects.toThrow(
+    await expect(servico.comentar(acesso(), 'De novo', AGORA)).rejects.toThrow(
       ConflictException,
     );
   });
 
   it('recusa depois do prazo', async () => {
-    const { service, repositorio } = montar(AVALIACAO);
+    const { servico, repositorio } = montar(AVALIACAO);
 
     await expect(
-      service.comentar(acesso(), 'Tarde', DEPOIS_DO_PRAZO),
+      servico.comentar(acesso(), 'Tarde', DEPOIS_DO_PRAZO),
     ).rejects.toThrow(GoneException);
     expect(repositorio.registrarComentario).not.toHaveBeenCalled();
   });
 });
 
+describe('AvaliacaoService sem data informada', () => {
+  beforeEach(() => jest.useFakeTimers({ now: AGORA }));
+  afterEach(() => jest.useRealTimers());
+
+  it('usa o relogio do sistema para consultar, avaliar e comentar', async () => {
+    const { servico, repositorio } = montar();
+
+    await expect(servico.consultar(acesso())).resolves.toMatchObject({
+      situacao: 'disponivel',
+    });
+    await servico.avaliar(acesso(), 5);
+    expect(repositorio.criar).toHaveBeenCalledWith(42, 5, AGORA);
+
+    repositorio.procurar.mockResolvedValue(AVALIACAO);
+    await servico.comentar(acesso(), 'Chegou quente');
+    expect(repositorio.registrarComentario).toHaveBeenCalledWith(
+      42,
+      'Chegou quente',
+    );
+  });
+});
+
 describe('AvaliacaoService.listarDaEmpresa', () => {
   it('devolve nota, comentario, data, pedido e entregador', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
     repositorio.listarDaEmpresa.mockResolvedValue([
       {
         ...AVALIACAO,
@@ -186,7 +226,7 @@ describe('AvaliacaoService.listarDaEmpresa', () => {
     ]);
     const filtro = { notas: [4, 5] };
 
-    const lista = await service.listarDaEmpresa(3, filtro);
+    const lista = await servico.listarDaEmpresa(3, filtro);
 
     expect(repositorio.listarDaEmpresa).toHaveBeenCalledWith(3, filtro);
     expect(lista).toEqual([

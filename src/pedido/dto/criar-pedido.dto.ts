@@ -10,7 +10,7 @@ import {
 } from 'class-validator';
 import { StatusPedido } from '../../generated/prisma/enums';
 
-export class CriaPedidoReqDto {
+export class CriarPedidoDto {
   @IsEmpty()
   id_pedido!: string;
 
@@ -71,7 +71,7 @@ export class CriaPedidoReqDto {
   cpf_entregador?: string;
 }
 
-export class CriaPedidoResDto {
+export class PedidoCriadoDto {
   @IsNumber()
   id_pedido!: number;
 

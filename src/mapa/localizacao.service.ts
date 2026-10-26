@@ -4,7 +4,6 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { LocalizacaoEntrega } from '../generated/prisma/client';
 import { StatusPedido } from '../generated/prisma/enums';
 import {
   destinoDoPedido,
@@ -19,7 +18,6 @@ import {
   deveRecalcularRota,
   estimarTrajeto,
   modoDeViagem,
-  Trajeto,
 } from './geo';
 import { EnderecoDoPedido, GoogleMapsClient } from './google-maps.client';
 import {
@@ -32,6 +30,14 @@ import {
   EVENTO_STATUS,
   RastreioGateway,
 } from '../rastreio/rastreio.gateway';
+import {
+  dadosDaRota,
+  SEM_TRAJETO,
+  trajetoEstimado,
+  TrajetoDaPosicao,
+  trajetoRecalculado,
+  ultimoCalculo,
+} from './trajeto-da-posicao';
 
 export interface PosicaoRecebida extends Coordenada {
   precisao?: number;
@@ -45,6 +51,13 @@ const STATUS_ENCERRADOS: readonly StatusPedido[] = [
 const ESPERA_NOVA_GEOCODIFICACAO_MS = 5 * 60_000;
 
 export const INTERVALO_MINIMO_POSICAO_MS = 2_000;
+
+interface Geocodificacao {
+  chave: string;
+  salva: Coordenada | null;
+  endereco: EnderecoDoPedido;
+  gravar: (coordenada: Coordenada) => Promise<void>;
+}
 
 @Injectable()
 export class LocalizacaoService {
@@ -191,29 +204,30 @@ export class LocalizacaoService {
   ): Promise<PontosDaEntrega> {
     const { empresa } = pedido;
     const destino = await this.geocodificarUmaVez(
-      chaveDoPedido(pedido.id_pedido),
-      destinoDoPedido(pedido),
-      pedido,
-      (coordenada) =>
-        this.localizacoes.salvarDestino(pedido.id_pedido, coordenada),
+      {
+        chave: chaveDoPedido(pedido.id_pedido),
+        salva: destinoDoPedido(pedido),
+        endereco: pedido,
+        gravar: (coordenada) =>
+          this.localizacoes.salvarDestino(pedido.id_pedido, coordenada),
+      },
       agora,
     );
     const origem = await this.geocodificarUmaVez(
-      `empresa:${empresa.id_empresa}`,
-      origemDaEmpresa(pedido),
-      { ...empresa, uf: empresa.UF },
-      (coordenada) =>
-        this.localizacoes.salvarOrigem(empresa.id_empresa, coordenada),
+      {
+        chave: `empresa:${empresa.id_empresa}`,
+        salva: origemDaEmpresa(pedido),
+        endereco: { ...empresa, uf: empresa.UF },
+        gravar: (coordenada) =>
+          this.localizacoes.salvarOrigem(empresa.id_empresa, coordenada),
+      },
       agora,
     );
     return { status: pedido.status, origem, destino };
   }
 
   private async geocodificarUmaVez(
-    chave: string,
-    salva: Coordenada | null,
-    endereco: EnderecoDoPedido,
-    gravar: (coordenada: Coordenada) => Promise<void>,
+    { chave, salva, endereco, gravar }: Geocodificacao,
     agora: Date,
   ): Promise<Coordenada | null> {
     if (salva || !this.maps.habilitado) {
@@ -250,40 +264,37 @@ export class LocalizacaoService {
     if (!destino) {
       return { ...base, ...SEM_TRAJETO };
     }
+    return {
+      ...base,
+      ...(await this.trajetoAte(pedido, destino, posicao, agora)),
+    };
+  }
 
+  private async trajetoAte(
+    pedido: PedidoComMapa,
+    destino: Coordenada,
+    posicao: Coordenada,
+    agora: Date,
+  ): Promise<TrajetoDaPosicao> {
     const anterior = pedido.localizacao;
     const tipoVeiculo = pedido.entregador?.tipo_veiculo ?? '';
-    const estimativa = () => estimarTrajeto(posicao, destino, tipoVeiculo);
+    const estimativa = estimarTrajeto(posicao, destino, tipoVeiculo);
 
-    if (
-      this.maps.habilitado &&
-      deveRecalcularRota(ultimoCalculo(anterior), posicao, agora)
-    ) {
+    if (!this.maps.habilitado) {
+      return trajetoEstimado(estimativa, anterior, posicao);
+    }
+    if (deveRecalcularRota(ultimoCalculo(anterior), posicao, agora)) {
       const rota = await this.maps.calcularRota(
         posicao,
         destino,
         modoDeViagem(tipoVeiculo),
       );
-      return {
-        ...base,
-        ...trajeto(rota ?? estimativa(), rota?.polyline ?? null, !rota),
-        origem_rota_lat: posicao.lat,
-        origem_rota_lng: posicao.lng,
-        rota_calculada_em: agora,
-      };
+      return trajetoRecalculado(rota, estimativa, posicao, agora);
     }
-
-    if (this.maps.habilitado && anterior && !anterior.estimado) {
-      return { ...base, ...dadosDaRota(anterior) };
+    if (anterior && !anterior.estimado) {
+      return dadosDaRota(anterior);
     }
-
-    return {
-      ...base,
-      ...trajeto(estimativa(), null, true),
-      origem_rota_lat: anterior?.origem_rota_lat ?? posicao.lat,
-      origem_rota_lng: anterior?.origem_rota_lng ?? posicao.lng,
-      rota_calculada_em: anterior?.rota_calculada_em ?? null,
-    };
+    return trajetoEstimado(estimativa, anterior, posicao);
   }
 }
 
@@ -296,47 +307,5 @@ function pontosSalvos(pedido: PedidoComMapa): PontosDaEntrega {
     status: pedido.status,
     origem: origemDaEmpresa(pedido),
     destino: destinoDoPedido(pedido),
-  };
-}
-
-const SEM_TRAJETO = {
-  origem_rota_lat: null,
-  origem_rota_lng: null,
-  rota_polyline: null,
-  distancia_restante_m: null,
-  duracao_restante_s: null,
-  estimado: true,
-  rota_calculada_em: null,
-};
-
-function ultimoCalculo(anterior: LocalizacaoEntrega | null) {
-  if (!anterior) {
-    return null;
-  }
-  const origem =
-    anterior.origem_rota_lat !== null && anterior.origem_rota_lng !== null
-      ? { lat: anterior.origem_rota_lat, lng: anterior.origem_rota_lng }
-      : null;
-  return { origem, calculadoEm: anterior.rota_calculada_em };
-}
-
-function trajeto(valores: Trajeto, polyline: string | null, estimado: boolean) {
-  return {
-    rota_polyline: polyline,
-    distancia_restante_m: valores.distanciaM,
-    duracao_restante_s: valores.duracaoS,
-    estimado,
-  };
-}
-
-function dadosDaRota(anterior: LocalizacaoEntrega) {
-  return {
-    origem_rota_lat: anterior.origem_rota_lat,
-    origem_rota_lng: anterior.origem_rota_lng,
-    rota_polyline: anterior.rota_polyline,
-    distancia_restante_m: anterior.distancia_restante_m,
-    duracao_restante_s: anterior.duracao_restante_s,
-    estimado: anterior.estimado,
-    rota_calculada_em: anterior.rota_calculada_em,
   };
 }

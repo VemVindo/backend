@@ -3,20 +3,20 @@ import { RepositorioDesempenhoEntregador } from './desempenho-entregador.reposit
 import { ServicoDesempenhoEntregador } from './desempenho-entregador.service';
 
 describe('ServicoDesempenhoEntregador', () => {
-  const agregar_desempenho = jest.fn();
-  const servico_desempenho = new ServicoDesempenhoEntregador({
-    agregar_desempenho,
+  const agregarDesempenho = jest.fn();
+  const servicoDesempenho = new ServicoDesempenhoEntregador({
+    agregarDesempenho,
   } as unknown as RepositorioDesempenhoEntregador);
-  const filtro_periodo = {
+  const filtroPeriodo = {
     de: '2026-10-01T00:00:00-03:00',
     ate: '2026-11-01T00:00:00-03:00',
   };
-  const cpf_entregador = '52998224725';
+  const cpfEntregador = '52998224725';
 
   beforeEach(() => jest.resetAllMocks());
 
   it('normaliza o periodo em UTC e preserva indicadores nulos e zeros', async () => {
-    const indicadores_desempenho = {
+    const indicadoresDesempenho = {
       total_entregas: 0,
       tempo_medio_entrega_segundos: null,
       entregas_com_tempo_valido: 0,
@@ -28,55 +28,47 @@ describe('ServicoDesempenhoEntregador', () => {
       entregas_com_distancia_conhecida: 0,
       entregas_com_distancia_desconhecida: 0,
     };
-    agregar_desempenho.mockResolvedValue(indicadores_desempenho);
+    agregarDesempenho.mockResolvedValue(indicadoresDesempenho);
     await expect(
-      servico_desempenho.consultar_desempenho(
-        10,
-        cpf_entregador,
-        filtro_periodo,
-      ),
+      servicoDesempenho.consultarDesempenho(10, cpfEntregador, filtroPeriodo),
     ).resolves.toEqual({
-      cpf_entregador,
+      cpf_entregador: cpfEntregador,
       periodo: {
         de: '2026-10-01T03:00:00.000Z',
         ate: '2026-11-01T03:00:00.000Z',
       },
-      ...indicadores_desempenho,
+      ...indicadoresDesempenho,
     });
-    expect(agregar_desempenho).toHaveBeenCalledWith(
+    expect(agregarDesempenho).toHaveBeenCalledWith(
       10,
-      cpf_entregador,
-      new Date(filtro_periodo.de),
-      new Date(filtro_periodo.ate),
+      cpfEntregador,
+      new Date(filtroPeriodo.de),
+      new Date(filtroPeriodo.ate),
     );
   });
 
   it('retorna 404 sem revelar se o entregador existe ou esta em outra empresa', async () => {
-    agregar_desempenho.mockResolvedValue(null);
+    agregarDesempenho.mockResolvedValue(null);
     await expect(
-      servico_desempenho.consultar_desempenho(
-        10,
-        cpf_entregador,
-        filtro_periodo,
-      ),
+      servicoDesempenho.consultarDesempenho(10, cpfEntregador, filtroPeriodo),
     ).rejects.toThrow(NotFoundException);
   });
 
   it.each([
-    { de: filtro_periodo.ate, ate: filtro_periodo.de },
-    { de: filtro_periodo.de, ate: filtro_periodo.de },
-    { de: 'invalida', ate: filtro_periodo.ate },
+    { de: filtroPeriodo.ate, ate: filtroPeriodo.de },
+    { de: filtroPeriodo.de, ate: filtroPeriodo.de },
+    { de: 'invalida', ate: filtroPeriodo.ate },
   ])(
     'recusa intervalos invalidos antes de consultar: %p',
-    async (intervalo_invalido) => {
+    async (intervaloInvalido) => {
       await expect(
-        servico_desempenho.consultar_desempenho(
+        servicoDesempenho.consultarDesempenho(
           10,
-          cpf_entregador,
-          intervalo_invalido,
+          cpfEntregador,
+          intervaloInvalido,
         ),
       ).rejects.toThrow(BadRequestException);
-      expect(agregar_desempenho).not.toHaveBeenCalled();
+      expect(agregarDesempenho).not.toHaveBeenCalled();
     },
   );
 });

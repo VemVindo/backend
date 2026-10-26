@@ -15,16 +15,16 @@ const ENTREGADOR: UsuarioAutenticado = {
 };
 
 function montar() {
-  const service = {
+  const servico = {
     registrarPosicao: jest.fn().mockResolvedValue({ status: 'EM_ANDAMENTO' }),
     consultarParaEntregador: jest.fn().mockResolvedValue({}),
     consultarParaEmpresa: jest.fn().mockResolvedValue({}),
     consultarParaRecebedor: jest.fn().mockResolvedValue({}),
   };
-  const controller = new LocalizacaoController(
-    service as unknown as LocalizacaoService,
+  const controlador = new LocalizacaoController(
+    servico as unknown as LocalizacaoService,
   );
-  return { controller, service };
+  return { controlador, servico };
 }
 
 function errosDa(corpo: object): string[] {
@@ -35,12 +35,12 @@ function errosDa(corpo: object): string[] {
 
 describe('LocalizacaoController', () => {
   it('registra a posicao com o CPF do entregador logado', async () => {
-    const { controller, service } = montar();
+    const { controlador, servico } = montar();
     const posicao = { lat: -15.79, lng: -47.88, precisao: 8 };
 
-    await controller.registrarPosicao(ENTREGADOR, 42, posicao);
+    await controlador.registrarPosicao(ENTREGADOR, 42, posicao);
 
-    expect(service.registrarPosicao).toHaveBeenCalledWith(
+    expect(servico.registrarPosicao).toHaveBeenCalledWith(
       '98765432100',
       42,
       posicao,
@@ -48,36 +48,36 @@ describe('LocalizacaoController', () => {
   });
 
   it('consulta a rota do entregador logado', async () => {
-    const { controller, service } = montar();
+    const { controlador, servico } = montar();
 
-    await controller.consultarRota(ENTREGADOR, 42);
+    await controlador.consultarRota(ENTREGADOR, 42);
 
-    expect(service.consultarParaEntregador).toHaveBeenCalledWith(
+    expect(servico.consultarParaEntregador).toHaveBeenCalledWith(
       '98765432100',
       42,
     );
   });
 
   it('a empresa consulta a rota com o id do token, nunca o CPF', async () => {
-    const { controller, service } = montar();
+    const { controlador, servico } = montar();
 
-    await controller.consultarRota(
+    await controlador.consultarRota(
       { usuarioId: '7', cargo: Cargo.ESTABELECIMENTO, empresaId: '7' },
       42,
     );
 
-    expect(service.consultarParaEmpresa).toHaveBeenCalledWith(7, 42);
-    expect(service.consultarParaEntregador).not.toHaveBeenCalled();
+    expect(servico.consultarParaEmpresa).toHaveBeenCalledWith(7, 42);
+    expect(servico.consultarParaEntregador).not.toHaveBeenCalled();
   });
 
   it('o recebedor consulta o pedido do proprio link', async () => {
-    const { controller, service } = montar();
+    const { controlador, servico } = montar();
 
-    await controller.consultarParaRecebedor({
+    await controlador.consultarParaRecebedor({
       idPedido: 42,
     } as AcessoComPedido);
 
-    expect(service.consultarParaRecebedor).toHaveBeenCalledWith(42);
+    expect(servico.consultarParaRecebedor).toHaveBeenCalledWith(42);
   });
 });
 

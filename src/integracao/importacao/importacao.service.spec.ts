@@ -30,7 +30,7 @@ const METRICAS = {
 } as MetricasPagamento;
 
 type Repositorio = ImportacaoRepository;
-const mockDe = <K extends keyof Repositorio>() =>
+const simuladoDe = <K extends keyof Repositorio>() =>
   jest.fn<ReturnType<Repositorio[K]>, Parameters<Repositorio[K]>>();
 const pedido = (idPedido: number) => ({ id_pedido: idPedido }) as Pedido;
 const importado = (dados: Partial<PedidoImportado>) => dados as PedidoImportado;
@@ -55,21 +55,21 @@ const ROTA_DE_4_KM: RotaAteORecebedor = {
 function montar() {
   const importacoes = {
     procurarPorIdExterno:
-      mockDe<'procurarPorIdExterno'>().mockResolvedValue(null),
+      simuladoDe<'procurarPorIdExterno'>().mockResolvedValue(null),
     procurarMetricasVigentes:
-      mockDe<'procurarMetricasVigentes'>().mockResolvedValue(METRICAS),
-    criarPendencia: mockDe<'criarPendencia'>().mockResolvedValue(
+      simuladoDe<'procurarMetricasVigentes'>().mockResolvedValue(METRICAS),
+    criarPendencia: simuladoDe<'criarPendencia'>().mockResolvedValue(
       importado({ id_importacao: 7 }),
     ),
-    criarPedidoImportado: mockDe<'criarPedidoImportado'>().mockResolvedValue(
-      pedido(42),
-    ),
-    listarPendencias: mockDe<'listarPendencias'>().mockResolvedValue([]),
-    procurarPendencia: mockDe<'procurarPendencia'>().mockResolvedValue(null),
-    atualizarPendencia: mockDe<'atualizarPendencia'>().mockResolvedValue(
+    criarPedidoImportado:
+      simuladoDe<'criarPedidoImportado'>().mockResolvedValue(pedido(42)),
+    listarPendencias: simuladoDe<'listarPendencias'>().mockResolvedValue([]),
+    procurarPendencia:
+      simuladoDe<'procurarPendencia'>().mockResolvedValue(null),
+    atualizarPendencia: simuladoDe<'atualizarPendencia'>().mockResolvedValue(
       importado({}),
     ),
-    converterPendencia: mockDe<'converterPendencia'>().mockResolvedValue(
+    converterPendencia: simuladoDe<'converterPendencia'>().mockResolvedValue(
       pedido(43),
     ),
   };
@@ -81,19 +81,19 @@ function montar() {
       >()
       .mockResolvedValue(null),
   };
-  const service = new ImportacaoService(
+  const servico = new ImportacaoService(
     importacoes as unknown as ImportacaoRepository,
     new CalculoValorEntregaService(),
     rotaDeCarro as unknown as RotaDeCarroService,
   );
-  return { service, importacoes, rotaDeCarro };
+  return { servico, importacoes, rotaDeCarro };
 }
 
 describe('ImportacaoService.importar', () => {
   it('cria o pedido pendente com a taxa fixa da empresa como valor', async () => {
-    const { service, importacoes } = montar();
+    const { servico, importacoes } = montar();
 
-    const { resultados, resumo } = await service.importar(CANTINA, [completo]);
+    const { resultados, resumo } = await servico.importar(CANTINA, [completo]);
 
     expect(resultados).toEqual([
       { idExterno: 'PED-1', situacao: 'importado', idPedido: 42 },
@@ -117,10 +117,10 @@ describe('ImportacaoService.importar', () => {
   });
 
   it('cobra pelo km da rota de carro ate o recebedor e guarda o destino', async () => {
-    const { service, importacoes, rotaDeCarro } = montar();
+    const { servico, importacoes, rotaDeCarro } = montar();
     rotaDeCarro.calcular.mockResolvedValue(ROTA_DE_4_KM);
 
-    await service.importar(CANTINA, [completo]);
+    await servico.importar(CANTINA, [completo]);
 
     expect(rotaDeCarro.calcular).toHaveBeenCalledWith(
       CANTINA,
@@ -142,9 +142,9 @@ describe('ImportacaoService.importar', () => {
   });
 
   it('preserva previsao, mas marca distancia como desconhecida quando nao ha rota', async () => {
-    const { service, importacoes } = montar();
+    const { servico, importacoes } = montar();
 
-    const { resultados } = await service.importar(CANTINA, [completo]);
+    const { resultados } = await servico.importar(CANTINA, [completo]);
 
     expect(resultados[0].situacao).toBe('importado');
     expect(importacoes.criarPedidoImportado.mock.calls[0][3]).toEqual(
@@ -159,17 +159,17 @@ describe('ImportacaoService.importar', () => {
   });
 
   it('nao gasta chamada ao Google com pedido incompleto', async () => {
-    const { service, rotaDeCarro } = montar();
+    const { servico, rotaDeCarro } = montar();
 
-    await service.importar(CANTINA, [{ ...completo, cep: undefined }]);
+    await servico.importar(CANTINA, [{ ...completo, cep: undefined }]);
 
     expect(rotaDeCarro.calcular).not.toHaveBeenCalled();
   });
 
   it('distingue rota conhecida com zero metros do fallback sem rota', async () => {
-    const { service, importacoes, rotaDeCarro } = montar();
+    const { servico, importacoes, rotaDeCarro } = montar();
     rotaDeCarro.calcular.mockResolvedValue({ ...ROTA_DE_4_KM, distanciaM: 0 });
-    await service.importar(CANTINA, [completo]);
+    await servico.importar(CANTINA, [completo]);
     expect(importacoes.criarPedidoImportado.mock.calls[0][3]).toMatchObject({
       distancia: 0,
       distancia_conhecida: true,
@@ -177,9 +177,9 @@ describe('ImportacaoService.importar', () => {
   });
 
   it('usa sempre a empresa da credencial, mesmo com idEmpresa no corpo', async () => {
-    const { service, importacoes } = montar();
+    const { servico, importacoes } = montar();
 
-    await service.importar(CANTINA, [{ ...completo, idEmpresa: PADARIA }]);
+    await servico.importar(CANTINA, [{ ...completo, idEmpresa: PADARIA }]);
 
     const [idEmpresa, , dados, pedido] =
       importacoes.criarPedidoImportado.mock.calls[0];
@@ -189,9 +189,9 @@ describe('ImportacaoService.importar', () => {
   });
 
   it('junta as observacoes na descricao', async () => {
-    const { service, importacoes } = montar();
+    const { servico, importacoes } = montar();
 
-    await service.importar(CANTINA, [
+    await servico.importar(CANTINA, [
       { ...completo, observacoes: 'Interfone 304' },
     ]);
 
@@ -200,9 +200,9 @@ describe('ImportacaoService.importar', () => {
   });
 
   it('guarda pedido com dado faltando como pendencia de completude', async () => {
-    const { service, importacoes } = montar();
+    const { servico, importacoes } = montar();
 
-    const { resultados } = await service.importar(CANTINA, [
+    const { resultados } = await servico.importar(CANTINA, [
       { ...completo, telefoneRecebedor: '123', cep: undefined },
     ]);
 
@@ -216,10 +216,10 @@ describe('ImportacaoService.importar', () => {
   });
 
   it('importa com valor zero quando a empresa nao tem parametros de remuneracao', async () => {
-    const { service, importacoes } = montar();
+    const { servico, importacoes } = montar();
     importacoes.procurarMetricasVigentes.mockResolvedValue(null);
 
-    const { resultados } = await service.importar(CANTINA, [completo]);
+    const { resultados } = await servico.importar(CANTINA, [completo]);
 
     expect(resultados[0].situacao).toBe('importado');
     const pedido = importacoes.criarPedidoImportado.mock.calls[0][3];
@@ -227,21 +227,21 @@ describe('ImportacaoService.importar', () => {
   });
 
   it('nao exige campos que a US nao pede', async () => {
-    const { service, importacoes } = montar();
+    const { servico, importacoes } = montar();
 
-    const { resultados } = await service.importar(CANTINA, [completo]);
+    const { resultados } = await servico.importar(CANTINA, [completo]);
 
     expect(resultados[0].situacao).toBe('importado');
     expect(importacoes.criarPendencia).not.toHaveBeenCalled();
   });
 
   it('nao importa duas vezes o mesmo idExterno', async () => {
-    const { service, importacoes } = montar();
+    const { servico, importacoes } = montar();
     importacoes.procurarPorIdExterno.mockResolvedValue(
       importado({ id_importacao: 1 }),
     );
 
-    const { resultados } = await service.importar(CANTINA, [completo]);
+    const { resultados } = await servico.importar(CANTINA, [completo]);
 
     expect(resultados[0]).toEqual({
       idExterno: 'PED-1',
@@ -251,26 +251,26 @@ describe('ImportacaoService.importar', () => {
   });
 
   it('trata a corrida no indice unico como duplicado', async () => {
-    const { service, importacoes } = montar();
+    const { servico, importacoes } = montar();
     importacoes.criarPedidoImportado.mockRejectedValue({ code: 'P2002' });
 
-    const { resultados } = await service.importar(CANTINA, [completo]);
+    const { resultados } = await servico.importar(CANTINA, [completo]);
 
     expect(resultados[0].situacao).toBe('duplicado');
   });
 
   it('propaga erro do banco que nao e de pedido duplicado', async () => {
-    const { service, importacoes } = montar();
+    const { servico, importacoes } = montar();
     const falha = new Error('banco fora do ar');
     importacoes.criarPedidoImportado.mockRejectedValue(falha);
 
-    await expect(service.importar(CANTINA, [completo])).rejects.toBe(falha);
+    await expect(servico.importar(CANTINA, [completo])).rejects.toBe(falha);
   });
 
   it('recusa item sem idExterno valido ou que nao e objeto', async () => {
-    const { service, importacoes } = montar();
+    const { servico, importacoes } = montar();
 
-    const { resultados, resumo } = await service.importar(CANTINA, [
+    const { resultados, resumo } = await servico.importar(CANTINA, [
       { ...completo, idExterno: 'tem espaco' },
       'pedido em texto',
     ]);
@@ -281,9 +281,9 @@ describe('ImportacaoService.importar', () => {
   });
 
   it('processa cada item do lote de forma independente', async () => {
-    const { service } = montar();
+    const { servico } = montar();
 
-    const { resumo } = await service.importar(CANTINA, [
+    const { resumo } = await servico.importar(CANTINA, [
       completo,
       { ...completo, idExterno: 'PED-2', cep: 'abc' },
       { idExterno: 'PED-3' },
@@ -307,10 +307,10 @@ describe('ImportacaoService.completar', () => {
   });
 
   it('cria o pedido quando o complemento preenche o que faltava', async () => {
-    const { service, importacoes } = montar();
+    const { servico, importacoes } = montar();
     importacoes.procurarPendencia.mockResolvedValue(pendencia);
 
-    const resultado = await service.completar(CANTINA, 7, {
+    const resultado = await servico.completar(CANTINA, 7, {
       telefoneRecebedor: '61920000009',
       cep: '70000001',
     });
@@ -329,11 +329,11 @@ describe('ImportacaoService.completar', () => {
   });
 
   it('calcula a rota com o endereco completado', async () => {
-    const { service, importacoes, rotaDeCarro } = montar();
+    const { servico, importacoes, rotaDeCarro } = montar();
     importacoes.procurarPendencia.mockResolvedValue(pendencia);
     rotaDeCarro.calcular.mockResolvedValue(ROTA_DE_4_KM);
 
-    await service.completar(CANTINA, 7, {
+    await servico.completar(CANTINA, 7, {
       telefoneRecebedor: '61920000009',
       cep: '70000001',
     });
@@ -348,11 +348,11 @@ describe('ImportacaoService.completar', () => {
   });
 
   it('salva o progresso e responde 422 quando ainda falta dado', async () => {
-    const { service, importacoes } = montar();
+    const { servico, importacoes } = montar();
     importacoes.procurarPendencia.mockResolvedValue(pendencia);
 
     await expect(
-      service.completar(CANTINA, 7, { cep: '70000001' }),
+      servico.completar(CANTINA, 7, { cep: '70000001' }),
     ).rejects.toThrow(UnprocessableEntityException);
     expect(importacoes.atualizarPendencia).toHaveBeenCalledWith(
       7,
@@ -363,22 +363,22 @@ describe('ImportacaoService.completar', () => {
   });
 
   it('procura a pendencia so dentro da empresa logada', async () => {
-    const { service, importacoes } = montar();
+    const { servico, importacoes } = montar();
 
-    await expect(service.completar(PADARIA, 7, {})).rejects.toThrow(
+    await expect(servico.completar(PADARIA, 7, {})).rejects.toThrow(
       NotFoundException,
     );
     expect(importacoes.procurarPendencia).toHaveBeenCalledWith(7, PADARIA);
   });
 
   it('propaga erro do banco ao converter a pendencia', async () => {
-    const { service, importacoes } = montar();
+    const { servico, importacoes } = montar();
     const falha = new Error('banco fora do ar');
     importacoes.procurarPendencia.mockResolvedValue(pendencia);
     importacoes.converterPendencia.mockRejectedValue(falha);
 
     await expect(
-      service.completar(CANTINA, 7, {
+      servico.completar(CANTINA, 7, {
         telefoneRecebedor: '61920000009',
         cep: '70000001',
       }),
@@ -386,14 +386,14 @@ describe('ImportacaoService.completar', () => {
   });
 
   it('responde 404 se outra requisicao converteu a pendencia antes', async () => {
-    const { service, importacoes } = montar();
+    const { servico, importacoes } = montar();
     importacoes.procurarPendencia.mockResolvedValue(pendencia);
     importacoes.converterPendencia.mockRejectedValue(
       new PendenciaJaConvertida(),
     );
 
     await expect(
-      service.completar(CANTINA, 7, {
+      servico.completar(CANTINA, 7, {
         telefoneRecebedor: '61920000009',
         cep: '70000001',
       }),
@@ -403,7 +403,7 @@ describe('ImportacaoService.completar', () => {
 
 describe('ImportacaoService.listarPendencias', () => {
   it('lista as pendencias da empresa com os campos faltantes', async () => {
-    const { service, importacoes } = montar();
+    const { servico, importacoes } = montar();
     importacoes.listarPendencias.mockResolvedValue([
       importado({
         id_importacao: 7,
@@ -414,7 +414,7 @@ describe('ImportacaoService.listarPendencias', () => {
       }),
     ]);
 
-    const pendencias = await service.listarPendencias(CANTINA);
+    const pendencias = await servico.listarPendencias(CANTINA);
 
     expect(importacoes.listarPendencias).toHaveBeenCalledWith(CANTINA);
     expect(pendencias).toEqual([

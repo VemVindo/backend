@@ -32,11 +32,11 @@ export interface DadosNovoPedido {
 export class PendenciaJaConvertida extends Error {}
 
 function criarPedido(
-  tx: Prisma.TransactionClient,
+  transacao: Prisma.TransactionClient,
   idEmpresa: number,
   pedido: DadosNovoPedido,
 ): Promise<Pedido> {
-  return tx.pedido.create({ data: { ...pedido, idEmpresa } });
+  return transacao.pedido.create({ data: { ...pedido, idEmpresa } });
 }
 
 @Injectable()
@@ -84,9 +84,9 @@ export class ImportacaoRepository {
     dados: DadosPedidoExterno,
     pedido: DadosNovoPedido,
   ): Promise<Pedido> {
-    return this.prisma.$transaction(async (tx) => {
-      const criado = await criarPedido(tx, idEmpresa, pedido);
-      await tx.pedidoImportado.create({
+    return this.prisma.$transaction(async (transacao) => {
+      const criado = await criarPedido(transacao, idEmpresa, pedido);
+      await transacao.pedidoImportado.create({
         data: {
           idEmpresa,
           id_externo: idExterno,
@@ -137,9 +137,9 @@ export class ImportacaoRepository {
     dados: DadosPedidoExterno,
     pedido: DadosNovoPedido,
   ): Promise<Pedido> {
-    return this.prisma.$transaction(async (tx) => {
-      const criado = await criarPedido(tx, idEmpresa, pedido);
-      const { count } = await tx.pedidoImportado.updateMany({
+    return this.prisma.$transaction(async (transacao) => {
+      const criado = await criarPedido(transacao, idEmpresa, pedido);
+      const { count } = await transacao.pedidoImportado.updateMany({
         where: {
           id_importacao: idImportacao,
           idEmpresa,

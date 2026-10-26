@@ -12,20 +12,20 @@ const EMPRESA: UsuarioAutenticado = {
 };
 
 describe('RemuneracaoController', () => {
-  const service = {
+  const servico = {
     consultar: jest.fn().mockResolvedValue({}),
     salvar: jest.fn().mockResolvedValue({}),
   };
-  const controller = new RemuneracaoController(
-    service as unknown as RemuneracaoService,
+  const controlador = new RemuneracaoController(
+    servico as unknown as RemuneracaoService,
   );
 
   it('usa a empresa do token, nunca um id vindo do corpo', async () => {
-    await controller.consultar(EMPRESA);
-    await controller.salvar(EMPRESA, { taxaFixa: 800, coeficienteKm: 150 });
+    await controlador.consultar(EMPRESA);
+    await controlador.salvar(EMPRESA, { taxaFixa: 800, coeficienteKm: 150 });
 
-    expect(service.consultar).toHaveBeenCalledWith(3);
-    expect(service.salvar).toHaveBeenCalledWith(3, {
+    expect(servico.consultar).toHaveBeenCalledWith(3);
+    expect(servico.salvar).toHaveBeenCalledWith(3, {
       taxaFixa: 800,
       coeficienteKm: 150,
     });

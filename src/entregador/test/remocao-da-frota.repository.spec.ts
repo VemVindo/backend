@@ -23,7 +23,7 @@ function montar({
   pedidos = [] as number[],
   candidatos = [] as { cpf: string; nome: string }[],
 } = {}) {
-  const tx = {
+  const transacao = {
     contrato: {
       updateMany: jest.fn().mockResolvedValue({ count: contratoAtivo ? 1 : 0 }),
     },
@@ -46,27 +46,27 @@ function montar({
     },
   };
   const prisma = {
-    $transaction: jest.fn((callback: (cliente: typeof tx) => unknown) =>
-      callback(tx),
+    $transaction: jest.fn((callback: (cliente: typeof transacao) => unknown) =>
+      callback(transacao),
     ),
   };
   const ganhos = {
     capturarParametros: jest.fn().mockResolvedValue(PARAMETROS),
   };
-  const repository = new RemocaoDaFrotaRepository(
+  const repositorio = new RemocaoDaFrotaRepository(
     prisma as unknown as PrismaService,
     ganhos as unknown as GanhoEntregaService,
   );
-  return { repository, tx, ganhos };
+  return { repositorio, transacao, ganhos };
 }
 
 describe('RemocaoDaFrotaRepository.remover', () => {
   it('encerra so o contrato ativo desta empresa', async () => {
-    const { repository, tx } = montar();
+    const { repositorio, transacao } = montar();
 
-    await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
+    await repositorio.remover(ID_EMPRESA, CPF_REMOVIDO);
 
-    expect(tx.contrato.updateMany).toHaveBeenCalledWith({
+    expect(transacao.contrato.updateMany).toHaveBeenCalledWith({
       where: {
         idEmpresa: ID_EMPRESA,
         cpf_entregador: CPF_REMOVIDO,
@@ -80,21 +80,21 @@ describe('RemocaoDaFrotaRepository.remover', () => {
   });
 
   it('devolve null e nao mexe em pedidos sem vinculo ativo', async () => {
-    const { repository, tx } = montar({ contratoAtivo: false });
+    const { repositorio, transacao } = montar({ contratoAtivo: false });
 
     await expect(
-      repository.remover(ID_EMPRESA, CPF_REMOVIDO),
+      repositorio.remover(ID_EMPRESA, CPF_REMOVIDO),
     ).resolves.toBeNull();
-    expect(tx.pedido.findMany).not.toHaveBeenCalled();
+    expect(transacao.pedido.findMany).not.toHaveBeenCalled();
   });
 
   it('procura so as entregas em andamento desta empresa', async () => {
-    const { repository, tx } = montar();
+    const { repositorio, transacao } = montar();
 
-    await expect(repository.remover(ID_EMPRESA, CPF_REMOVIDO)).resolves.toEqual(
-      { reatribuidos: [], pendentes: [] },
-    );
-    expect(tx.pedido.findMany).toHaveBeenCalledWith(
+    await expect(
+      repositorio.remover(ID_EMPRESA, CPF_REMOVIDO),
+    ).resolves.toEqual({ reatribuidos: [], pendentes: [] });
+    expect(transacao.pedido.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           idEmpresa: ID_EMPRESA,
@@ -103,16 +103,19 @@ describe('RemocaoDaFrotaRepository.remover', () => {
         },
       }),
     );
-    expect(tx.entregador.findMany).not.toHaveBeenCalled();
-    expect(tx.entregador.update).not.toHaveBeenCalled();
+    expect(transacao.entregador.findMany).not.toHaveBeenCalled();
+    expect(transacao.entregador.update).not.toHaveBeenCalled();
   });
 
   it('busca candidatos livres da frota, sem o removido', async () => {
-    const { repository, tx } = montar({ pedidos: [1], candidatos: [ANA] });
+    const { repositorio, transacao } = montar({
+      pedidos: [1],
+      candidatos: [ANA],
+    });
 
-    await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
+    await repositorio.remover(ID_EMPRESA, CPF_REMOVIDO);
 
-    expect(tx.entregador.findMany).toHaveBeenCalledWith(
+    expect(transacao.entregador.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           cpf: { not: CPF_REMOVIDO },
@@ -126,19 +129,22 @@ describe('RemocaoDaFrotaRepository.remover', () => {
   });
 
   it('passa o pedido para outro entregador livre e registra no historico', async () => {
-    const { repository, tx } = montar({ pedidos: [1], candidatos: [ANA] });
+    const { repositorio, transacao } = montar({
+      pedidos: [1],
+      candidatos: [ANA],
+    });
 
-    const resultado = await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
+    const resultado = await repositorio.remover(ID_EMPRESA, CPF_REMOVIDO);
 
     expect(resultado).toEqual({
       reatribuidos: [{ idPedido: 1, entregador: ANA }],
       pendentes: [],
     });
-    expect(tx.entregador.updateMany).toHaveBeenCalledWith({
+    expect(transacao.entregador.updateMany).toHaveBeenCalledWith({
       where: { cpf: ANA.cpf, disponivel: true },
       data: { disponivel: false },
     });
-    expect(tx.pedido.updateMany).toHaveBeenCalledWith({
+    expect(transacao.pedido.updateMany).toHaveBeenCalledWith({
       where: {
         id_pedido: 1,
         cpf_entregador: CPF_REMOVIDO,
@@ -147,7 +153,7 @@ describe('RemocaoDaFrotaRepository.remover', () => {
       },
       data: { ...PARAMETROS, cpf_entregador: ANA.cpf },
     });
-    expect(tx.historicoPedidoEntregadores.create).toHaveBeenCalledWith({
+    expect(transacao.historicoPedidoEntregadores.create).toHaveBeenCalledWith({
       data: {
         id_pedido: 1,
         cpf_entregador_antigo: CPF_REMOVIDO,
@@ -158,15 +164,15 @@ describe('RemocaoDaFrotaRepository.remover', () => {
   });
 
   it('pula o candidato que outra operacao ocupou', async () => {
-    const { repository, tx } = montar({
+    const { repositorio, transacao } = montar({
       pedidos: [1],
       candidatos: [ANA, BRUNO],
     });
-    tx.entregador.updateMany
+    transacao.entregador.updateMany
       .mockResolvedValueOnce({ count: 0 })
       .mockResolvedValueOnce({ count: 1 });
 
-    const resultado = await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
+    const resultado = await repositorio.remover(ID_EMPRESA, CPF_REMOVIDO);
 
     expect(resultado?.reatribuidos).toEqual([
       { idPedido: 1, entregador: BRUNO },
@@ -174,15 +180,18 @@ describe('RemocaoDaFrotaRepository.remover', () => {
   });
 
   it('da um pedido por entregador e devolve o resto para PENDENTE', async () => {
-    const { repository, tx } = montar({ pedidos: [1, 2], candidatos: [ANA] });
+    const { repositorio, transacao } = montar({
+      pedidos: [1, 2],
+      candidatos: [ANA],
+    });
 
-    const resultado = await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
+    const resultado = await repositorio.remover(ID_EMPRESA, CPF_REMOVIDO);
 
     expect(resultado).toEqual({
       reatribuidos: [{ idPedido: 1, entregador: ANA }],
       pendentes: [{ idPedido: 2 }],
     });
-    expect(tx.pedido.updateMany).toHaveBeenLastCalledWith({
+    expect(transacao.pedido.updateMany).toHaveBeenLastCalledWith({
       where: {
         id_pedido: 2,
         cpf_entregador: CPF_REMOVIDO,
@@ -199,16 +208,18 @@ describe('RemocaoDaFrotaRepository.remover', () => {
         data_inicio_entrega: null,
       },
     });
-    expect(tx.historicoPedidoEntregadores.create).toHaveBeenCalledTimes(1);
+    expect(transacao.historicoPedidoEntregadores.create).toHaveBeenCalledTimes(
+      1,
+    );
   });
 
   it('congela os parametros vigentes uma vez para a remocao', async () => {
-    const { repository, ganhos } = montar({
+    const { repositorio, ganhos } = montar({
       pedidos: [1, 2],
       candidatos: [ANA, BRUNO],
     });
 
-    await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
+    await repositorio.remover(ID_EMPRESA, CPF_REMOVIDO);
 
     expect(ganhos.capturarParametros).toHaveBeenCalledTimes(1);
     expect(ganhos.capturarParametros).toHaveBeenCalledWith(
@@ -219,15 +230,15 @@ describe('RemocaoDaFrotaRepository.remover', () => {
   });
 
   it('nao busca parametros quando nenhum pedido e reatribuido', async () => {
-    const { repository, ganhos } = montar({ pedidos: [1] });
+    const { repositorio, ganhos } = montar({ pedidos: [1] });
 
-    await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
+    await repositorio.remover(ID_EMPRESA, CPF_REMOVIDO);
 
     expect(ganhos.capturarParametros).not.toHaveBeenCalled();
   });
 
   it('falha sem parametros de remuneracao e nao grava a troca', async () => {
-    const { repository, tx, ganhos } = montar({
+    const { repositorio, transacao, ganhos } = montar({
       pedidos: [1],
       candidatos: [ANA],
     });
@@ -236,44 +247,47 @@ describe('RemocaoDaFrotaRepository.remover', () => {
     );
 
     await expect(
-      repository.remover(ID_EMPRESA, CPF_REMOVIDO),
+      repositorio.remover(ID_EMPRESA, CPF_REMOVIDO),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
-    expect(tx.historicoPedidoEntregadores.create).not.toHaveBeenCalled();
+    expect(transacao.historicoPedidoEntregadores.create).not.toHaveBeenCalled();
   });
 
   it('libera o removido quando ele fica sem entregas', async () => {
-    const { repository, tx } = montar({ pedidos: [1] });
+    const { repositorio, transacao } = montar({ pedidos: [1] });
 
-    await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
+    await repositorio.remover(ID_EMPRESA, CPF_REMOVIDO);
 
-    expect(tx.pedido.count).toHaveBeenCalledWith({
+    expect(transacao.pedido.count).toHaveBeenCalledWith({
       where: {
         cpf_entregador: CPF_REMOVIDO,
         status: StatusPedido.EM_ANDAMENTO,
       },
     });
-    expect(tx.entregador.update).toHaveBeenCalledWith({
+    expect(transacao.entregador.update).toHaveBeenCalledWith({
       where: { cpf: CPF_REMOVIDO },
       data: { disponivel: true },
     });
   });
 
   it('mantem o removido ocupado se ainda tem entrega de outra empresa', async () => {
-    const { repository, tx } = montar({ pedidos: [1] });
-    tx.pedido.count.mockResolvedValue(1);
+    const { repositorio, transacao } = montar({ pedidos: [1] });
+    transacao.pedido.count.mockResolvedValue(1);
 
-    await repository.remover(ID_EMPRESA, CPF_REMOVIDO);
+    await repositorio.remover(ID_EMPRESA, CPF_REMOVIDO);
 
-    expect(tx.entregador.update).not.toHaveBeenCalled();
+    expect(transacao.entregador.update).not.toHaveBeenCalled();
   });
 
   it('lanca PedidoAlteradoError se o pedido mudou depois da leitura', async () => {
-    const { repository, tx } = montar({ pedidos: [1], candidatos: [ANA] });
-    tx.pedido.updateMany.mockResolvedValue({ count: 0 });
+    const { repositorio, transacao } = montar({
+      pedidos: [1],
+      candidatos: [ANA],
+    });
+    transacao.pedido.updateMany.mockResolvedValue({ count: 0 });
 
     await expect(
-      repository.remover(ID_EMPRESA, CPF_REMOVIDO),
+      repositorio.remover(ID_EMPRESA, CPF_REMOVIDO),
     ).rejects.toBeInstanceOf(PedidoAlteradoError);
-    expect(tx.historicoPedidoEntregadores.create).not.toHaveBeenCalled();
+    expect(transacao.historicoPedidoEntregadores.create).not.toHaveBeenCalled();
   });
 });

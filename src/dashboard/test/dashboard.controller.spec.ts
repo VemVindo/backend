@@ -1,47 +1,60 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
+import type { UsuarioAutenticado } from '../../auth/jwt.strategy';
+import { Cargo } from '../../common/enums/cargo.enum';
 import { DashboardController } from '../dashboard.controller';
 import { DashboardService } from '../dashboard.service';
-import { UsuarioAutenticado } from 'src/auth/jwt.strategy';
-import { DashboardReqDto, DashboardResDto } from '../dto/dashboard.dto';
-import { Cargo } from 'src/common/enums/cargo.enum';
+import { FiltroDashboardDto } from '../dto/filtro-dashboard.dto';
+
+jest.mock('../../prisma/prisma.service', () => ({ PrismaService: class {} }));
+
+const EMPRESA: UsuarioAutenticado = {
+  usuarioId: '7',
+  cargo: Cargo.ESTABELECIMENTO,
+  empresaId: '7',
+};
 
 describe('DashboardController', () => {
-  let controller: DashboardController;
-  let service: DashboardService;
+  it('monta o dashboard da empresa do token com o periodo da query', async () => {
+    const dashboardService = {
+      montarDashboard: jest.fn().mockResolvedValue({ idEmpresa: 7 }),
+    };
+    const controlador = new DashboardController(
+      dashboardService as unknown as DashboardService,
+    );
+    const periodo = { dataInicio: new Date('2026-10-01T00:00:00Z') };
 
-  describe('INFORMACOES', () => {
-    beforeEach(async () => {
-      const module: TestingModule = await Test.createTestingModule({
-        controllers: [DashboardController],
-        providers: [
-          {
-            provide: DashboardService,
-            useValue: {
-              montaDashboard: jest.fn(),
-            },
-          },
-        ],
-      }).compile();
+    await expect(controlador.consultar(EMPRESA, periodo)).resolves.toEqual({
+      idEmpresa: 7,
+    });
+    expect(dashboardService.montarDashboard).toHaveBeenCalledWith(7, periodo);
+  });
+});
 
-      controller = module.get<DashboardController>(DashboardController);
-      service = module.get<DashboardService>(DashboardService);
+describe('FiltroDashboardDto', () => {
+  const converter = (query: object) =>
+    plainToInstance(FiltroDashboardDto, query);
+  const camposInvalidos = (query: object) =>
+    validateSync(converter(query)).map((erro) => erro.property);
+
+  it('aceita a consulta sem periodo', () => {
+    expect(camposInvalidos({})).toEqual([]);
+  });
+
+  it('converte as datas da query string', () => {
+    const filtro = converter({
+      dataInicio: '2026-10-01T00:00:00Z',
+      dataFinal: '2026-10-31T23:59:59Z',
     });
 
-    it('CAIXA CINZA: Fluxo Completo', async () => {
-      const dummyUsuario = {
-        empresaId: {} as string,
-        usuarioId: {} as string,
-        cargo: {} as Cargo,
-      } as UsuarioAutenticado;
+    expect(validateSync(filtro)).toEqual([]);
+    expect(filtro.dataInicio).toEqual(new Date('2026-10-01T00:00:00Z'));
+    expect(filtro.dataFinal).toEqual(new Date('2026-10-31T23:59:59Z'));
+  });
 
-      const dummyReq = {} as DashboardReqDto;
-      const dummyRes = {} as Promise<DashboardResDto>;
-
-      jest.spyOn(service, 'montaDashboard').mockImplementation(() => dummyRes);
-
-      const result = await controller.informacoes(dummyUsuario, dummyReq);
-
-      expect(result).toBe(await dummyRes);
-    });
+  it('recusa data invalida e valor que nao e texto', () => {
+    expect(
+      camposInvalidos({ dataInicio: 'ontem', dataFinal: 20261031 }).sort(),
+    ).toEqual(['dataFinal', 'dataInicio']);
   });
 });

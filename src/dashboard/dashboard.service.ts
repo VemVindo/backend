@@ -1,19 +1,60 @@
 import { Injectable } from '@nestjs/common';
-import { DashboardReqDto, DashboardResDto } from './dto/dashboard.dto';
-import { DashboardRepository } from './dashboard.repository';
 import { StatusPedido } from '../generated/prisma/enums';
-import { EntregadorEPedidos } from './type/entregador-pedido.type';
+import {
+  DashboardRepository,
+  DuracaoDaEntrega,
+  EntregadorComPedidos,
+  FiltroDoDashboard,
+} from './dashboard.repository';
+import { FiltroDashboardDto } from './dto/filtro-dashboard.dto';
+import {
+  DesempenhoDoEntregadorNoPeriodo,
+  ResumoDoDashboardDto,
+} from './dto/resumo-do-dashboard.dto';
+
+const MILISSEGUNDOS_POR_MINUTO = 60_000;
+
+function media(valores: number[]): number {
+  if (valores.length === 0) return 0;
+  return valores.reduce((soma, valor) => soma + valor, 0) / valores.length;
+}
+
+// O repositorio so devolve entregas com inicio e fim preenchidos.
+function tempoMedioEmMinutos(duracoes: DuracaoDaEntrega[]): number {
+  const duracoesEmMs = duracoes.map(
+    (duracao) =>
+      duracao.data_finalizacao!.getTime() -
+      duracao.data_inicio_entrega!.getTime(),
+  );
+  return media(duracoesEmMs) / MILISSEGUNDOS_POR_MINUTO;
+}
+
+function desempenhoNoPeriodo({
+  cpf,
+  nome,
+  pedidos,
+}: EntregadorComPedidos): DesempenhoDoEntregadorNoPeriodo {
+  const valoresConcluidos = pedidos
+    .filter((pedido) => pedido.status === StatusPedido.FINALIZADO)
+    .map((pedido) => pedido.valor_entrega);
+  return {
+    cpf,
+    nome,
+    totalPedidosAndamento: pedidos.length - valoresConcluidos.length,
+    totalPedidosConcluidos: valoresConcluidos.length,
+    valorMedioEntrega: Number(media(valoresConcluidos).toFixed(2)),
+  };
+}
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly dashboardRepository: DashboardRepository) {}
+  constructor(private readonly dashboard: DashboardRepository) {}
 
-  async montaDashboard(
+  async montarDashboard(
     idEmpresa: number,
-    dashboardDto: DashboardReqDto,
-  ): Promise<DashboardResDto> {
-    this.dashboardRepository.definirAtributos(idEmpresa, dashboardDto);
-
+    periodo: FiltroDashboardDto,
+  ): Promise<ResumoDoDashboardDto> {
+    const filtro: FiltroDoDashboard = { idEmpresa, ...periodo };
     const [
       totalPedidos,
       totalPedidosPendentes,
@@ -21,140 +62,32 @@ export class DashboardService {
       totalPedidosConcluidos,
       totalPedidosCancelados,
       mediaAvaliacoes,
-      tempoMediaEntrega,
+      duracoes,
       totalDistanciaPercorrida,
-      relatorioPorEntregador,
+      entregadores,
     ] = await Promise.all([
-      this.totalPedidos(),
-      this.totalPedidosPendentes(),
-      this.totalPedidosAndamento(),
-      this.totalPedidosConcluidos(),
-      this.totalPedidosCancelados(),
-      this.mediaAvaliacoes(),
-      this.tempoMedioEntrega(),
-      this.totalDistanciaPercorrida(),
-      this.relatorioPorEntregador(),
+      this.dashboard.contarPedidos(filtro),
+      this.dashboard.contarPedidos(filtro, StatusPedido.PENDENTE),
+      this.dashboard.contarPedidos(filtro, StatusPedido.EM_ANDAMENTO),
+      this.dashboard.contarPedidos(filtro, StatusPedido.FINALIZADO),
+      this.dashboard.contarPedidos(filtro, StatusPedido.CANCELADO),
+      this.dashboard.mediaDasAvaliacoes(filtro),
+      this.dashboard.listarDuracoesDeEntrega(filtro),
+      this.dashboard.somarDistanciaPercorrida(filtro),
+      this.dashboard.listarEntregadoresAtivos(filtro),
     ]);
 
-    const data: DashboardResDto = {
+    return {
       idEmpresa,
       totalPedidos,
       totalPedidosPendentes,
       totalPedidosAndamento,
       totalPedidosConcluidos,
       totalPedidosCancelados,
-      mediaAvaliacoes,
-      tempoMediaEntrega,
+      mediaAvaliacoes: mediaAvaliacoes ?? 0,
+      tempoMedioEntregaMinutos: tempoMedioEmMinutos(duracoes),
       totalDistanciaPercorrida,
-      relatorioPorEntregador,
+      relatorioPorEntregador: entregadores.map(desempenhoNoPeriodo),
     };
-
-    return data;
-  }
-
-  private async totalPedidos(): Promise<number> {
-    const resultado = await this.dashboardRepository.totalPedidos();
-    return resultado.length;
-  }
-
-  private async totalPedidosPendentes(): Promise<number> {
-    const resultado = await this.dashboardRepository.totalPedidosPendentes();
-    return resultado.length;
-  }
-
-  private async totalPedidosAndamento(): Promise<number> {
-    const resultado = await this.dashboardRepository.totalPedidosAndamento();
-    return resultado.length;
-  }
-
-  private async totalPedidosConcluidos(): Promise<number> {
-    const resultado = await this.dashboardRepository.totalPedidosConcluidos();
-    return resultado.length;
-  }
-
-  private async totalPedidosCancelados(): Promise<number> {
-    const resultado = await this.dashboardRepository.totalPedidosCancelados();
-    return resultado.length;
-  }
-
-  private async mediaAvaliacoes(): Promise<number> {
-    const resultado = await this.dashboardRepository.avaliacoes();
-    if (resultado.length === 0) return 0;
-    const tamanho = resultado.length;
-    let notas = 0;
-    resultado.forEach((r) => {
-      notas += r.avaliacao_entrega;
-    });
-    return notas / tamanho;
-  }
-
-  private async tempoMedioEntrega(): Promise<number> {
-    const resultado = await this.dashboardRepository.tempoMedioEntrega();
-
-    if (resultado.length === 0) return 0;
-
-    let somatorioTempoMs = 0;
-
-    resultado.forEach((r) => {
-      const inicio = new Date(r.data_inicio_entrega!).getTime();
-      const fim = new Date(r.data_finalizacao!).getTime();
-
-      const tempoEntregaMs = fim - inicio;
-      somatorioTempoMs += tempoEntregaMs;
-    });
-
-    const mediaMs = somatorioTempoMs / resultado.length;
-    const mediaMinutos = mediaMs / (1000 * 60);
-
-    return mediaMinutos;
-  }
-
-  private async totalDistanciaPercorrida(): Promise<number | null> {
-    const resultado = await this.dashboardRepository.totalDistanciaPercorrida();
-
-    if (resultado.length === 0) return null;
-    let distancia = 0;
-    resultado.forEach((r) => {
-      distancia += r.distancia;
-    });
-
-    return distancia;
-  }
-
-  private async relatorioPorEntregador() {
-    const entregadores: EntregadorEPedidos[] =
-      await this.dashboardRepository.relatorioPorEntregador();
-
-    if (entregadores.length === 0) return null;
-
-    const relatorio = entregadores.map((entregador) => {
-      let pedidosEmAndamento = 0;
-      let pedidosConcluidos = 0;
-      let somatorioValorConcluidos = 0;
-
-      entregador.pedidos.forEach((pedido) => {
-        if (pedido.status === StatusPedido.FINALIZADO) {
-          pedidosConcluidos++;
-          somatorioValorConcluidos += Number(pedido.valor_entrega);
-        } else {
-          pedidosEmAndamento++;
-        }
-      });
-
-      const valorMedio =
-        pedidosConcluidos > 0
-          ? somatorioValorConcluidos / pedidosConcluidos
-          : 0;
-
-      return {
-        nome: entregador.nome,
-        cpf: entregador.cpf,
-        totalPedidosAndamento: pedidosEmAndamento,
-        totalPedidosConcluidos: pedidosConcluidos,
-        mediaEntregas: Number(valorMedio.toFixed(2)),
-      };
-    });
-
-    return relatorio;
   }
 }

@@ -1,6 +1,6 @@
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
-export class EditarEntregadorReqDto {
+export class EditarEntregadorDto {
   @IsString()
   @IsOptional()
   nome?: string | null;

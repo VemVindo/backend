@@ -49,7 +49,7 @@ function acesso(status?: string) {
   } as unknown as AcessoComPedido;
 }
 
-function montar(config: Record<string, string> = {}) {
+function montar(configuracao: Record<string, string> = {}) {
   const repositorio = {
     salvarAcesso: jest.fn(
       (idPedido: number, tokenHash: string, codigo: string) =>
@@ -63,21 +63,21 @@ function montar(config: Record<string, string> = {}) {
     procurarPedidoDaEmpresa: jest.fn().mockResolvedValue(null),
   };
   const gateway = { revogarLink: jest.fn() };
-  const service = new RastreioService(
+  const servico = new RastreioService(
     repositorio as unknown as RastreioRepository,
-    { get: (chave: string) => config[chave] } as unknown as ConfigService,
+    { get: (chave: string) => configuracao[chave] } as unknown as ConfigService,
     gateway as unknown as RastreioGateway,
   );
-  return { service, repositorio, gateway };
+  return { servico, repositorio, gateway };
 }
 
 describe('RastreioService.criarAcesso', () => {
   it('devolve o link com o token e grava so o hash', async () => {
-    const { service, repositorio } = montar({
+    const { servico, repositorio } = montar({
       URL_FRONTEND: 'https://app.vemvindo.com/',
     });
 
-    const { link, codigoRecebedor } = await service.criarAcesso(42);
+    const { link, codigoRecebedor } = await servico.criarAcesso(42);
 
     const token = link.split('/').pop()!;
     expect(link).toBe(`https://app.vemvindo.com/rastreio/${token}`);
@@ -89,9 +89,9 @@ describe('RastreioService.criarAcesso', () => {
   });
 
   it('sem URL_FRONTEND usa o CORS_ORIGIN', async () => {
-    const { service } = montar({ CORS_ORIGIN: 'http://localhost:3001' });
+    const { servico } = montar({ CORS_ORIGIN: 'http://localhost:3001' });
 
-    const { link } = await service.criarAcesso(42);
+    const { link } = await servico.criarAcesso(42);
 
     expect(link).toMatch(/^http:\/\/localhost:3001\/rastreio\/[\w-]{43}$/);
   });
@@ -99,10 +99,10 @@ describe('RastreioService.criarAcesso', () => {
 
 describe('RastreioService.gerarNovoLink', () => {
   it('gera link novo para pedido da propria empresa', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
     repositorio.procurarPedidoDaEmpresa.mockResolvedValue(pedido());
 
-    await service.gerarNovoLink(CANTINA, 42);
+    await servico.gerarNovoLink(CANTINA, 42);
 
     expect(repositorio.procurarPedidoDaEmpresa).toHaveBeenCalledWith(
       42,
@@ -112,10 +112,10 @@ describe('RastreioService.gerarNovoLink', () => {
   });
 
   it('derruba quem estava conectado com o link anterior', async () => {
-    const { service, repositorio, gateway } = montar();
+    const { servico, repositorio, gateway } = montar();
     repositorio.procurarPedidoDaEmpresa.mockResolvedValue(pedido());
 
-    await service.gerarNovoLink(CANTINA, 42);
+    await servico.gerarNovoLink(CANTINA, 42);
 
     expect(gateway.revogarLink).toHaveBeenCalledWith(42);
     expect(repositorio.salvarAcesso.mock.invocationCallOrder[0]).toBeLessThan(
@@ -124,28 +124,28 @@ describe('RastreioService.gerarNovoLink', () => {
   });
 
   it('nao derruba ninguem quando o link nao e gerado', async () => {
-    const { service, gateway } = montar();
+    const { servico, gateway } = montar();
 
-    await expect(service.gerarNovoLink(PADARIA, 42)).rejects.toThrow(
+    await expect(servico.gerarNovoLink(PADARIA, 42)).rejects.toThrow(
       NotFoundException,
     );
     expect(gateway.revogarLink).not.toHaveBeenCalled();
   });
 
   it('recusa pedido de outra empresa como se nao existisse', async () => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
 
-    await expect(service.gerarNovoLink(PADARIA, 42)).rejects.toThrow(
+    await expect(servico.gerarNovoLink(PADARIA, 42)).rejects.toThrow(
       NotFoundException,
     );
     expect(repositorio.salvarAcesso).not.toHaveBeenCalled();
   });
 
   it.each(['FINALIZADO', 'CANCELADO'])('recusa pedido %s', async (status) => {
-    const { service, repositorio } = montar();
+    const { servico, repositorio } = montar();
     repositorio.procurarPedidoDaEmpresa.mockResolvedValue(pedido(status));
 
-    await expect(service.gerarNovoLink(CANTINA, 42)).rejects.toThrow(
+    await expect(servico.gerarNovoLink(CANTINA, 42)).rejects.toThrow(
       ConflictException,
     );
     expect(repositorio.salvarAcesso).not.toHaveBeenCalled();
@@ -154,9 +154,9 @@ describe('RastreioService.gerarNovoLink', () => {
 
 describe('RastreioService.montarPaginaDoRecebedor', () => {
   it('mostra estabelecimento, dados gerais e o codigo do recebedor', () => {
-    const { service } = montar();
+    const { servico } = montar();
 
-    const pagina = service.montarPaginaDoRecebedor(acesso());
+    const pagina = servico.montarPaginaDoRecebedor(acesso());
 
     expect(pagina.estabelecimento).toBe('Cantina Dona Marta');
     expect(pagina.pedido).toEqual(
@@ -172,29 +172,29 @@ describe('RastreioService.montarPaginaDoRecebedor', () => {
   });
 
   it('traz a linha do tempo com o horario de cada etapa', () => {
-    const { service } = montar();
+    const { servico } = montar();
 
-    expect(service.montarPaginaDoRecebedor(acesso()).linhaDoTempo).toEqual([
+    expect(servico.montarPaginaDoRecebedor(acesso()).linhaDoTempo).toEqual([
       { etapa: 'CRIADO', em: new Date('2026-10-08T12:00:00Z') },
       { etapa: 'EM_ANDAMENTO', em: new Date('2026-10-08T12:10:00Z') },
     ]);
   });
 
   it('sem entregador atribuido, devolve o nome nulo', () => {
-    const { service } = montar();
+    const { servico } = montar();
     const semEntregador = acesso();
     semEntregador.pedido.entregador = null;
 
     expect(
-      service.montarPaginaDoRecebedor(semEntregador).entregador,
+      servico.montarPaginaDoRecebedor(semEntregador).entregador,
     ).toBeNull();
   });
 
   it('oferece o WhatsApp do estabelecimento, nunca o do entregador', () => {
-    const { service } = montar();
+    const { servico } = montar();
 
     const link =
-      service.montarPaginaDoRecebedor(acesso()).whatsappEstabelecimento;
+      servico.montarPaginaDoRecebedor(acesso()).whatsappEstabelecimento;
 
     expect(link).toMatch(/^https:\/\/wa\.me\/556133334444\?text=/);
     expect(decodeURIComponent(link ?? '')).toContain(
@@ -205,18 +205,18 @@ describe('RastreioService.montarPaginaDoRecebedor', () => {
   it.each(['FINALIZADO', 'CANCELADO'])(
     'sem WhatsApp com o pedido %s',
     (status) => {
-      const { service } = montar();
+      const { servico } = montar();
 
       expect(
-        service.montarPaginaDoRecebedor(acesso(status)).whatsappEstabelecimento,
+        servico.montarPaginaDoRecebedor(acesso(status)).whatsappEstabelecimento,
       ).toBeNull();
     },
   );
 
   it('nao expoe telefone, CPF do entregador nem valores internos', () => {
-    const { service } = montar();
+    const { servico } = montar();
 
-    const texto = JSON.stringify(service.montarPaginaDoRecebedor(acesso()));
+    const texto = JSON.stringify(servico.montarPaginaDoRecebedor(acesso()));
 
     expect(texto).not.toContain('61920000001');
     expect(texto).not.toContain('98765432100');

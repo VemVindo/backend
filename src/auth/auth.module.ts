@@ -20,11 +20,11 @@ import { SenhaTemporariaGuard } from './senha-temporaria.guard';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        secret: config.getOrThrow<string>('JWT_SECRET'),
+      useFactory: (configuracao: ConfigService) => ({
+        secret: configuracao.getOrThrow<string>('JWT_SECRET'),
         signOptions: {
           algorithm: 'HS256',
-          expiresIn: (config.get<string>('JWT_EXPIRES_IN') ??
+          expiresIn: (configuracao.get<string>('JWT_EXPIRES_IN') ??
             '1d') as JwtSignOptions['expiresIn'],
         },
       }),

@@ -1,14 +1,14 @@
 import { Controller, Get } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Public } from '../auth/decorators/public.decorator';
+import { RotaPublica } from '../auth/decorators/rota-publica.decorator';
 
 @Controller('health')
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
-  @Public()
+  @RotaPublica()
   @Get('db')
-  async checkDatabase() {
+  async verificarBanco() {
     await this.prisma.$queryRaw`SELECT 1`;
     return { database: 'up' };
   }

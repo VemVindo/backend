@@ -5,26 +5,26 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PERMITIR_SENHA_TEMPORARIA_KEY } from './decorators/permitir-senha-temporaria.decorator';
+import { CHAVE_PERMITIR_SENHA_TEMPORARIA } from './decorators/permitir-senha-temporaria.decorator';
 import { UsuarioAutenticado } from './jwt.strategy';
 
 @Injectable()
 export class SenhaTemporariaGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  canActivate(contexto: ExecutionContext): boolean {
     const permitido = this.reflector.getAllAndOverride<boolean>(
-      PERMITIR_SENHA_TEMPORARIA_KEY,
-      [context.getHandler(), context.getClass()],
+      CHAVE_PERMITIR_SENHA_TEMPORARIA,
+      [contexto.getHandler(), contexto.getClass()],
     );
     if (permitido) {
       return true;
     }
 
-    const { user } = context
+    const { user: usuario } = contexto
       .switchToHttp()
       .getRequest<{ user?: UsuarioAutenticado }>();
-    if (user?.senhaTemporaria) {
+    if (usuario?.senhaTemporaria) {
       throw new ForbiddenException(
         'Troque a senha temporaria antes de continuar',
       );

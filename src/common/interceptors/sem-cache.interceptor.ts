@@ -9,11 +9,14 @@ import { Observable } from 'rxjs';
 
 @Injectable()
 export class SemCacheInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    context
+  intercept(
+    contexto: ExecutionContext,
+    proximo: CallHandler,
+  ): Observable<unknown> {
+    contexto
       .switchToHttp()
       .getResponse<Response>()
       .setHeader('Cache-Control', 'no-store');
-    return next.handle();
+    return proximo.handle();
   }
 }

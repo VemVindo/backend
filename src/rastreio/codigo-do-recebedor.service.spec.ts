@@ -33,35 +33,49 @@ function montar(encontrado: AcessoRecebedor | null = acesso()) {
     procurarAcessoDoPedido: jest.fn().mockResolvedValue(encontrado),
     registrarTentativaErrada: jest.fn().mockResolvedValue(undefined),
   };
-  const service = new CodigoDoRecebedorService(
+  const servico = new CodigoDoRecebedorService(
     rastreio as unknown as RastreioRepository,
   );
-  return { service, rastreio };
+  return { servico, rastreio };
 }
 
 describe('CodigoDoRecebedorService.conferir', () => {
   it('aceita o codigo certo sem registrar tentativa', async () => {
-    const { service, rastreio } = montar();
+    const { servico, rastreio } = montar();
 
-    await expect(service.conferir(ID_PEDIDO, CODIGO, AGORA)).resolves.toEqual({
+    await expect(servico.conferir(ID_PEDIDO, CODIGO, AGORA)).resolves.toEqual({
       situacao: 'correto',
     });
     expect(rastreio.procurarAcessoDoPedido).toHaveBeenCalledWith(ID_PEDIDO);
     expect(rastreio.registrarTentativaErrada).not.toHaveBeenCalled();
   });
 
-  it('avisa quando o pedido ainda nao tem link nem codigo', async () => {
-    const { service } = montar(null);
+  it('usa o relogio do sistema quando a hora nao e informada', async () => {
+    jest.useFakeTimers({ now: AGORA });
+    const { servico, rastreio } = montar();
 
-    await expect(service.conferir(ID_PEDIDO, CODIGO, AGORA)).resolves.toEqual({
+    await servico.conferir(ID_PEDIDO, '000000');
+
+    expect(rastreio.registrarTentativaErrada).toHaveBeenCalledWith(
+      ID_PEDIDO,
+      1,
+      AGORA,
+    );
+    jest.useRealTimers();
+  });
+
+  it('avisa quando o pedido ainda nao tem link nem codigo', async () => {
+    const { servico } = montar(null);
+
+    await expect(servico.conferir(ID_PEDIDO, CODIGO, AGORA)).resolves.toEqual({
       situacao: 'sem_codigo',
     });
   });
 
   it('registra a tentativa errada e devolve quantas restam', async () => {
-    const { service, rastreio } = montar();
+    const { servico, rastreio } = montar();
 
-    await expect(service.conferir(ID_PEDIDO, '000000', AGORA)).resolves.toEqual(
+    await expect(servico.conferir(ID_PEDIDO, '000000', AGORA)).resolves.toEqual(
       {
         situacao: 'incorreto',
         tentativasRestantes: LIMITE_TENTATIVAS_CODIGO - 1,
@@ -75,14 +89,14 @@ describe('CodigoDoRecebedorService.conferir', () => {
   });
 
   it('soma a tentativa as erradas recentes', async () => {
-    const { service, rastreio } = montar(
+    const { servico, rastreio } = montar(
       acesso({
         tentativas_codigo: 3,
         ultima_tentativa_codigo: minutosAntes(2),
       }),
     );
 
-    await expect(service.conferir(ID_PEDIDO, '000000', AGORA)).resolves.toEqual(
+    await expect(servico.conferir(ID_PEDIDO, '000000', AGORA)).resolves.toEqual(
       {
         situacao: 'incorreto',
         tentativasRestantes: 1,
@@ -97,14 +111,14 @@ describe('CodigoDoRecebedorService.conferir', () => {
 
   it('bloqueia depois do limite, mesmo com o codigo certo', async () => {
     const ultima = minutosAntes(5);
-    const { service, rastreio } = montar(
+    const { servico, rastreio } = montar(
       acesso({
         tentativas_codigo: LIMITE_TENTATIVAS_CODIGO,
         ultima_tentativa_codigo: ultima,
       }),
     );
 
-    await expect(service.conferir(ID_PEDIDO, CODIGO, AGORA)).resolves.toEqual({
+    await expect(servico.conferir(ID_PEDIDO, CODIGO, AGORA)).resolves.toEqual({
       situacao: 'bloqueado',
       liberaEm: new Date(ultima.getTime() + BLOQUEIO_CODIGO_MS),
     });
@@ -112,14 +126,14 @@ describe('CodigoDoRecebedorService.conferir', () => {
   });
 
   it('zera a contagem quando o bloqueio ja passou', async () => {
-    const { service, rastreio } = montar(
+    const { servico, rastreio } = montar(
       acesso({
         tentativas_codigo: LIMITE_TENTATIVAS_CODIGO,
         ultima_tentativa_codigo: minutosAntes(15),
       }),
     );
 
-    await expect(service.conferir(ID_PEDIDO, '000000', AGORA)).resolves.toEqual(
+    await expect(servico.conferir(ID_PEDIDO, '000000', AGORA)).resolves.toEqual(
       {
         situacao: 'incorreto',
         tentativasRestantes: LIMITE_TENTATIVAS_CODIGO - 1,
@@ -133,9 +147,9 @@ describe('CodigoDoRecebedorService.conferir', () => {
   });
 
   it('recusa codigo de tamanho diferente sem quebrar a comparacao', async () => {
-    const { service } = montar();
+    const { servico } = montar();
 
-    await expect(service.conferir(ID_PEDIDO, '48291', AGORA)).resolves.toEqual({
+    await expect(servico.conferir(ID_PEDIDO, '48291', AGORA)).resolves.toEqual({
       situacao: 'incorreto',
       tentativasRestantes: LIMITE_TENTATIVAS_CODIGO - 1,
     });

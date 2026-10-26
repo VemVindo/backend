@@ -18,8 +18,6 @@ import {
   AnalisePedidoExterno,
   DadosPedidoExterno,
   analisarPedidoExterno,
-  ehObjetoSimples,
-  idExternoValido,
 } from './analise-pedido-externo';
 import { PedidoExternoDto } from './dto/pedido-externo.dto';
 import {
@@ -27,34 +25,15 @@ import {
   ImportacaoRepository,
   PendenciaJaConvertida,
 } from './importacao.repository';
+import {
+  ItemDoLote,
+  lerItemDoLote,
+  ResultadoImportacao,
+  resumir,
+} from './resultado-da-importacao';
 
 const DISTANCIA_SEM_ROTA = 0;
 const VALOR_SEM_PARAMETROS_DE_REMUNERACAO = 0;
-const MOTIVO_ITEM_NAO_E_OBJETO = 'Pedido deve ser um objeto';
-const MOTIVO_ID_EXTERNO_INVALIDO =
-  'idExterno obrigatorio: ate 100 letras, numeros, _ . : ou -';
-
-type ResultadoInvalido = {
-  idExterno: null;
-  situacao: 'invalido';
-  motivo: string;
-};
-
-export type ResultadoImportacao =
-  | { idExterno: string; situacao: 'importado'; idPedido: number }
-  | {
-      idExterno: string;
-      situacao: 'incompleto';
-      idPendencia: number;
-      camposFaltantes: string[];
-    }
-  | { idExterno: string; situacao: 'duplicado' }
-  | ResultadoInvalido;
-
-interface ItemDoLote {
-  idExterno: string;
-  campos: Record<string, unknown>;
-}
 
 interface PedidoPreparado {
   analise: AnalisePedidoExterno;
@@ -284,39 +263,12 @@ export class ImportacaoService {
   }
 }
 
-function lerItemDoLote(item: unknown): ItemDoLote | ResultadoInvalido {
-  if (!ehObjetoSimples(item)) {
-    return invalido(MOTIVO_ITEM_NAO_E_OBJETO);
-  }
-  const { idExterno, ...campos } = item;
-  if (!idExternoValido(idExterno)) {
-    return invalido(MOTIVO_ID_EXTERNO_INVALIDO);
-  }
-  return { idExterno, campos };
-}
-
-function invalido(motivo: string): ResultadoInvalido {
-  return { idExterno: null, situacao: 'invalido', motivo };
-}
-
 function pendenciaNaoEncontrada() {
   return new NotFoundException('Pendencia de importacao nao encontrada');
 }
 
 function juntarObservacoes(descricao: string, observacoes?: string): string {
   return observacoes ? `${descricao}\nObservacoes: ${observacoes}` : descricao;
-}
-
-function resumir(resultados: ResultadoImportacao[]) {
-  const contar = (situacao: ResultadoImportacao['situacao']) =>
-    resultados.filter((resultado) => resultado.situacao === situacao).length;
-  return {
-    recebidos: resultados.length,
-    importados: contar('importado'),
-    incompletos: contar('incompleto'),
-    duplicados: contar('duplicado'),
-    invalidos: contar('invalido'),
-  };
 }
 
 function paraPendencia(pendencia: PedidoImportado) {

@@ -9,7 +9,7 @@ import {
   validateSync,
 } from 'class-validator';
 
-export class EnvironmentVariables {
+export class VariaveisDeAmbiente {
   @IsString()
   @IsNotEmpty()
   DATABASE_URL: string;
@@ -55,28 +55,28 @@ export class EnvironmentVariables {
   GOOGLE_MAPS_SERVER_KEY?: string;
 }
 
-export function validateEnv(
-  config: Record<string, unknown>,
-): EnvironmentVariables {
-  const validated = plainToInstance(EnvironmentVariables, config, {
+export function validarAmbiente(
+  ambiente: Record<string, unknown>,
+): VariaveisDeAmbiente {
+  const variaveis = plainToInstance(VariaveisDeAmbiente, ambiente, {
     enableImplicitConversion: false,
   });
-  const errors = validateSync(validated, { skipMissingProperties: false });
-  if (errors.length > 0) {
-    throw new Error(`Configuração de ambiente inválida:\n${errors.toString()}`);
+  const erros = validateSync(variaveis, { skipMissingProperties: false });
+  if (erros.length > 0) {
+    throw new Error(`Configuração de ambiente inválida:\n${erros.toString()}`);
   }
-  exigirFrontHttpsEmProducao(validated, config.NODE_ENV);
-  return validated;
+  exigirFrontHttpsEmProducao(variaveis, ambiente.NODE_ENV);
+  return variaveis;
 }
 
 function exigirFrontHttpsEmProducao(
-  env: EnvironmentVariables,
-  nodeEnv: unknown,
+  variaveis: VariaveisDeAmbiente,
+  ambienteDeExecucao: unknown,
 ): void {
-  if (nodeEnv !== 'production') {
+  if (ambienteDeExecucao !== 'production') {
     return;
   }
-  const enderecoDoFront = env.URL_FRONTEND ?? env.CORS_ORIGIN;
+  const enderecoDoFront = variaveis.URL_FRONTEND ?? variaveis.CORS_ORIGIN;
   if (!enderecoDoFront?.startsWith('https://')) {
     throw new Error(
       'Configuração de ambiente inválida:\nEm produção, URL_FRONTEND (ou CORS_ORIGIN) precisa começar com https://',

@@ -32,37 +32,37 @@ interface CorpoRoutes {
 }
 
 function responder(status: number, corpo: unknown) {
-  const fetchMock = jest.fn<Promise<Response>, [string, RequestInit]>();
-  fetchMock.mockResolvedValue(
+  const fetchSimulado = jest.fn<Promise<Response>, [string, RequestInit]>();
+  fetchSimulado.mockResolvedValue(
     new Response(JSON.stringify(corpo), {
       status,
       headers: { 'Content-Type': 'application/json' },
     }),
   );
-  global.fetch = fetchMock;
-  return fetchMock;
+  global.fetch = fetchSimulado;
+  return fetchSimulado;
 }
 
 describe('GoogleMapsClient', () => {
-  const fetchOriginal = global.fetch;
+  const fetchVerdadeiro = global.fetch;
 
   afterEach(() => {
-    global.fetch = fetchOriginal;
+    global.fetch = fetchVerdadeiro;
   });
 
   it('sem chave fica desabilitado e nao chama o Google', async () => {
-    const fetchMock = responder(200, {});
+    const fetchSimulado = responder(200, {});
     const client = criar('');
 
     expect(client.habilitado).toBe(false);
     expect(await client.geocodificar(ENDERECO)).toBeNull();
     expect(await client.calcularRota(ORIGEM, DESTINO, 'DRIVE')).toBeNull();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchSimulado).not.toHaveBeenCalled();
   });
 
   describe('geocodificar', () => {
     it('monta a busca do endereco no Brasil e devolve a coordenada', async () => {
-      const fetchMock = responder(200, {
+      const fetchSimulado = responder(200, {
         status: 'OK',
         results: [{ geometry: { location: { lat: -15.76, lng: -47.88 } } }],
       });
@@ -70,7 +70,7 @@ describe('GoogleMapsClient', () => {
       const coordenada = await criar('chave-teste').geocodificar(ENDERECO);
 
       expect(coordenada).toEqual({ lat: -15.76, lng: -47.88 });
-      const url = new URL(fetchMock.mock.calls[0][0]);
+      const url = new URL(fetchSimulado.mock.calls[0][0]);
       expect(`${url.origin}${url.pathname}`).toBe(URL_GEOCODING);
       expect(url.searchParams.get('address')).toBe(
         'SQN 210 Bloco K, 304 - Asa Norte, Brasilia - DF, 70000000',
@@ -93,11 +93,27 @@ describe('GoogleMapsClient', () => {
       global.fetch = jest.fn().mockRejectedValue(new Error('timeout'));
       expect(await criar('chave').geocodificar(ENDERECO)).toBeNull();
     });
+
+    it('devolve null quando a falha nao e um Error', async () => {
+      global.fetch = jest.fn().mockRejectedValue('abortado');
+      expect(await criar('chave').geocodificar(ENDERECO)).toBeNull();
+    });
+
+    it('devolve null quando a resposta OK vem sem coordenada', async () => {
+      responder(200, { status: 'OK', results: [] });
+      expect(await criar('chave').geocodificar(ENDERECO)).toBeNull();
+
+      responder(200, {
+        status: 'OK',
+        results: [{ geometry: { location: { lat: '-15', lng: -47 } } }],
+      });
+      expect(await criar('chave').geocodificar(ENDERECO)).toBeNull();
+    });
   });
 
   describe('calcularRota', () => {
     it('pede so os campos usados e converte a duracao', async () => {
-      const fetchMock = responder(200, {
+      const fetchSimulado = responder(200, {
         routes: [
           {
             distanceMeters: 4200,
@@ -118,7 +134,7 @@ describe('GoogleMapsClient', () => {
         duracaoS: 780,
         polyline: 'abc123',
       });
-      const [url, init] = fetchMock.mock.calls[0];
+      const [url, init] = fetchSimulado.mock.calls[0];
       expect(url).toBe(URL_ROUTES);
       expect(init.headers).toMatchObject({
         'X-Goog-Api-Key': 'chave-teste',
@@ -134,7 +150,7 @@ describe('GoogleMapsClient', () => {
     });
 
     it('bicicleta nao manda preferencia de transito', async () => {
-      const fetchMock = responder(200, {
+      const fetchSimulado = responder(200, {
         routes: [{ distanceMeters: 10, duration: '5s' }],
       });
 
@@ -146,13 +162,24 @@ describe('GoogleMapsClient', () => {
 
       expect(rota?.polyline).toBeNull();
       const corpo = JSON.parse(
-        fetchMock.mock.calls[0][1].body as string,
+        fetchSimulado.mock.calls[0][1].body as string,
       ) as CorpoRoutes;
       expect(corpo.routingPreference).toBeUndefined();
     });
 
     it('devolve null quando nao ha rota', async () => {
       responder(200, {});
+      expect(
+        await criar('chave').calcularRota(ORIGEM, DESTINO, 'DRIVE'),
+      ).toBeNull();
+    });
+
+    it.each([
+      ['sem distancia', { duration: '5s' }],
+      ['sem duracao', { distanceMeters: 10 }],
+      ['com duracao ilegivel', { distanceMeters: 10, duration: 'rapido' }],
+    ])('devolve null para rota %s', async (_caso, rota) => {
+      responder(200, { routes: [rota] });
       expect(
         await criar('chave').calcularRota(ORIGEM, DESTINO, 'DRIVE'),
       ).toBeNull();

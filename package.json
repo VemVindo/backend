@@ -98,7 +98,19 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
+      "^.+\\.(t|j)s$": [
+        "ts-jest",
+        {
+          "tsconfig": {
+            "isolatedModules": false
+          },
+          "diagnostics": {
+            "ignoreCodes": [
+              "TS151002"
+            ]
+          }
+        }
+      ]
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s",
@@ -116,7 +128,10 @@
     ],
     "coverageThreshold": {
       "global": {
-        "lines": 60
+        "statements": 100,
+        "branches": 100,
+        "functions": 100,
+        "lines": 100
       }
     }
   },

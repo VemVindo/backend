@@ -35,26 +35,26 @@ export class VinculoController {
   @HttpCode(HttpStatus.NO_CONTENT)
   aceitar(
     @UsuarioAtual() usuario: UsuarioAutenticado,
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseIntPipe) idContrato: number,
   ) {
-    return this.vinculoService.aceitar(id, usuario.usuarioId);
+    return this.vinculoService.aceitar(idContrato, usuario.usuarioId);
   }
 
   @Post('vinculos/:id/recusar')
   @HttpCode(HttpStatus.NO_CONTENT)
   recusar(
     @UsuarioAtual() usuario: UsuarioAutenticado,
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseIntPipe) idContrato: number,
   ) {
-    return this.vinculoService.recusar(id, usuario.usuarioId);
+    return this.vinculoService.recusar(idContrato, usuario.usuarioId);
   }
 
   @Post('vinculos/:id/encerrar')
   @HttpCode(HttpStatus.NO_CONTENT)
   encerrar(
     @UsuarioAtual() usuario: UsuarioAutenticado,
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id', ParseIntPipe) idContrato: number,
   ) {
-    return this.vinculoService.encerrar(id, usuario.usuarioId);
+    return this.vinculoService.encerrar(idContrato, usuario.usuarioId);
   }
 }
