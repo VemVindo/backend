@@ -1,7 +1,7 @@
 # ============================================
 # Stage 1: build (instala tudo e compila o TypeScript)
 # ============================================
-FROM node:24.22.0-slim AS builder
+FROM node:24.22.1-slim AS builder
 
 WORKDIR /usr/src/app
 
@@ -17,7 +17,7 @@ RUN DIRECT_URL=postgresql://build:build@localhost:5432/build npx prisma generate
 # ============================================
 # Stage 2: dependencias de producao (sem devDependencies)
 # ============================================
-FROM node:24.22.0-slim AS prod-deps
+FROM node:24.22.1-slim AS prod-deps
 
 WORKDIR /usr/src/app
 
@@ -27,7 +27,7 @@ RUN npm ci --omit=dev
 # ============================================
 # Stage 3: runner (imagem final minima)
 # ============================================
-FROM node:24.22.0-slim AS runner
+FROM node:24.22.1-slim AS runner
 
 # Aplica as correcoes de seguranca do Debian publicadas depois da imagem base
 # do Node. Sem isso, o Trivy do CI barra a imagem (ex.: perl-base).
