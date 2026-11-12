@@ -71,9 +71,11 @@ function resultado(
   tipo = 'ROOFTOP',
 ): object {
   return {
-    formatted_address: `${bairro}, Brasilia - DF, ${cep}`,
+    formatted_address: `${ENDERECO.logradouro}, ${ENDERECO.numero}, ${bairro}, Brasilia - DF, ${cep}`,
     geometry: { location: { lat, lng: -47.9 }, location_type: tipo },
     address_components: [
+      { long_name: ENDERECO.logradouro, types: ['route'] },
+      { long_name: String(ENDERECO.numero), types: ['street_number'] },
       { long_name: bairro, types: ['sublocality', 'political'] },
       {
         long_name: 'DF',
@@ -124,7 +126,8 @@ describe('GoogleMapsClient', () => {
       expect(localizado).toEqual({
         coordenada: { lat: -15.76, lng: -47.9 },
         precisao: 'exato',
-        enderecoEncontrado: 'Asa Norte, Brasilia - DF, 70000-000',
+        enderecoEncontrado:
+          'SQN 210 Bloco K, 304, Asa Norte, Brasilia - DF, 70000-000',
       });
       expect(fetchSimulado).toHaveBeenCalledTimes(2);
       const url = new URL(fetchSimulado.mock.calls[0][0]);

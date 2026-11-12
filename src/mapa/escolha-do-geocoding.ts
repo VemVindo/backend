@@ -1,4 +1,6 @@
 import { Coordenada, distanciaEmMetros } from './geo';
+import { conferirLogradouro, conferirNumero } from './conferencia-do-endereco';
+import type { Conferencia } from './conferencia-do-endereco';
 
 export type PrecisaoDoLocal = 'exato' | 'aproximado';
 
@@ -12,6 +14,8 @@ export interface EnderecoConferido {
   bairro: string;
   uf: string;
   cep: string;
+  logradouro?: string;
+  numero?: number;
 }
 
 interface ComponenteDoEndereco {
@@ -128,6 +132,8 @@ interface Candidato {
   cep: CepAceito;
   bairro: boolean;
   porta: boolean;
+  logradouro: Conferencia;
+  numero: Conferencia;
 }
 
 function outroEstado(
@@ -175,10 +181,25 @@ function avaliar(
   }
   const cep = conferirCep(resultado, endereco.cep);
   const bairro = confereBairro(resultado, endereco.bairro);
-  if (cep === 'diferente' || (cep === 'ausente' && !bairro)) {
+  const logradouro = conferirLogradouro(resultado, endereco.logradouro);
+  const numero = conferirNumero(resultado, endereco.numero);
+  if (
+    cep === 'diferente' ||
+    (cep === 'ausente' && !bairro) ||
+    logradouro === 'diferente' ||
+    numero === 'diferente'
+  ) {
     return null;
   }
-  return { resultado, coordenada, cep, bairro, porta: apontaAPorta(resultado) };
+  return {
+    resultado,
+    coordenada,
+    cep,
+    bairro,
+    porta: apontaAPorta(resultado),
+    logradouro,
+    numero,
+  };
 }
 
 function avaliarTodos(
@@ -207,7 +228,17 @@ function pontos(candidato: Candidato): number {
   return (
     PONTOS_DO_CEP[candidato.cep] +
     (candidato.porta ? 2 : 0) +
-    (candidato.bairro ? 1 : 0)
+    (candidato.bairro ? 1 : 0) +
+    (candidato.logradouro === 'confere' ? 1 : 0) +
+    (candidato.numero === 'confere' ? 1 : 0)
+  );
+}
+
+function enderecoConfere(candidato: Candidato): boolean {
+  return (
+    candidato.porta &&
+    candidato.logradouro === 'confere' &&
+    candidato.numero === 'confere'
   );
 }
 
@@ -221,11 +252,9 @@ function maisConfere(candidatos: Candidato[]): Candidato | null {
   return melhor;
 }
 
-/** O CEP manda. Quando o Google conhece o CEP completo, o centro dele e a ancora:
- * o texto so troca a ancora por uma porta a ate RAIO_DO_CEP_M dela.
- * Sem a ancora, so vale o que tem o CEP completo ou aponta para uma porta;
- * a quadra ou a area de um resultado parcial fica de fora. Entre esses, fica com o que mais confere,
- * e so o CEP completo marca a porta como exata. No empate, vale a ordem do Google.
+/** O CEP completo ancora a busca: so troca pelo ponto do texto com rua e numero conferidos
+ * dentro de RAIO_DO_CEP_M. Sem a ancora, so vale o CEP completo ou uma porta sem conflito
+ * de rua/numero; resultado parcial de outra quadra fica de fora.
  */
 export function escolherResultado(
   porCep: ResultadoDoGeocoding[],
@@ -238,7 +267,7 @@ export function escolherResultado(
   if (centroDoCep) {
     const porta = doTexto.find(
       (candidato) =>
-        candidato.porta &&
+        enderecoConfere(candidato) &&
         distanciaEmMetros(candidato.coordenada, centroDoCep.coordenada) <=
           RAIO_DO_CEP_M,
     );
@@ -256,6 +285,6 @@ export function escolherResultado(
   }
   return localizado(
     melhor,
-    melhor.porta && melhor.cep === 'igual' ? 'exato' : 'aproximado',
+    melhor.cep === 'igual' && enderecoConfere(melhor) ? 'exato' : 'aproximado',
   );
 }

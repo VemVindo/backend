@@ -19,6 +19,8 @@ function resultado(
     uf?: string;
     tipo?: string;
     parcial?: boolean;
+    logradouro?: string;
+    numero?: string;
   } = {},
 ): ResultadoDoGeocoding {
   const {
@@ -28,13 +30,18 @@ function resultado(
     uf = 'DF',
     tipo = 'ROOFTOP',
     parcial,
+    logradouro = '',
+    numero,
   } = dados;
   return {
-    formatted_address: `${bairro}, Brasília - ${uf}, ${cep}`,
+    formatted_address: [logradouro, numero, bairro, `Brasília - ${uf}`, cep]
+      .filter(Boolean)
+      .join(', '),
     partial_match: parcial,
     geometry: { location: { lat, lng: -47.97 }, location_type: tipo },
     address_components: [
-      { long_name: 'Rua do Guará', types: ['route'] },
+      { long_name: logradouro, types: ['route'] },
+      { long_name: numero ?? '', types: ['street_number'] },
       { long_name: bairro, types: ['sublocality_level_1', 'sublocality'] },
       { long_name: 'Brasília', types: ['administrative_area_level_2'] },
       {
@@ -213,6 +220,46 @@ describe('escolherResultado', () => {
         GUARA,
       ),
     ).toBeNull();
+  });
+
+  it('prefere a quadra e o número informados a outro ponto do mesmo CEP e bairro', () => {
+    const endereco = {
+      ...GUARA,
+      logradouro: 'SQN 210 Bloco K',
+      numero: 304,
+    };
+    const outraQuadra = resultado({
+      lat: LONGE,
+      logradouro: 'SQN 211 Bloco K',
+      numero: '304',
+    });
+    const enderecoCorreto = resultado({
+      lat: PERTO,
+      logradouro: 'SQN 210 Bloco K',
+      numero: '304',
+    });
+
+    expect(
+      escolherResultado([], [outraQuadra, enderecoCorreto], endereco),
+    ).toMatchObject({
+      coordenada: { lat: PERTO },
+      precisao: 'exato',
+    });
+    expect(escolherResultado([], [outraQuadra], endereco)).toBeNull();
+  });
+
+  it('descarta o número diferente mesmo quando a quadra e o CEP conferem', () => {
+    const endereco = {
+      ...GUARA,
+      logradouro: 'SQN 210 Bloco K',
+      numero: 304,
+    };
+    const outroNumero = resultado({
+      logradouro: 'SQN 210 Bloco K',
+      numero: '305',
+    });
+
+    expect(escolherResultado([], [outroNumero], endereco)).toBeNull();
   });
 
   it('ignora resultado sem coordenada ou sem componentes', () => {
