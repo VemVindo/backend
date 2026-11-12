@@ -20,9 +20,21 @@ const ENTREGADOR: EntregadorComPedidos = {
   cpf: '52998224725',
   nome: 'Entregador Teste',
   pedidos: [
-    { status: StatusPedido.FINALIZADO, valor_entrega: 1000 },
-    { status: StatusPedido.FINALIZADO, valor_entrega: 1501 },
-    { status: StatusPedido.EM_ANDAMENTO, valor_entrega: 900 },
+    {
+      status: StatusPedido.FINALIZADO,
+      valor_entrega: 1000,
+      ganho_consolidado_centavos: 800,
+    },
+    {
+      status: StatusPedido.FINALIZADO,
+      valor_entrega: 1501,
+      ganho_consolidado_centavos: 1250,
+    },
+    {
+      status: StatusPedido.EM_ANDAMENTO,
+      valor_entrega: 900,
+      ganho_consolidado_centavos: null,
+    },
   ],
 };
 
@@ -76,6 +88,7 @@ describe('DashboardService', () => {
           totalPedidosAndamento: 1,
           totalPedidosConcluidos: 2,
           valorMedioEntrega: 1250.5,
+          totalPago: 2050,
         },
       ],
     });
@@ -85,6 +98,26 @@ describe('DashboardService', () => {
     expect(repositorio.listarEntregadoresAtivos).toHaveBeenCalledWith(filtro);
   });
 
+  it('considera zero no total pago quando o ganho consolidado esta nulo', async () => {
+    const { servico, repositorio } = montar();
+    repositorio.listarEntregadoresAtivos.mockResolvedValue([
+      {
+        ...ENTREGADOR,
+        pedidos: [
+          {
+            status: StatusPedido.FINALIZADO,
+            valor_entrega: 1000,
+            ganho_consolidado_centavos: null,
+          },
+        ],
+      },
+    ]);
+
+    const resumo = await servico.montarDashboard(7, {});
+
+    expect(resumo.relatorioPorEntregador[0].totalPago).toBe(0);
+  });
+
   it('zera as medias quando nao ha avaliacao nem entrega concluida', async () => {
     const { servico, repositorio } = montar();
     repositorio.mediaDasAvaliacoes.mockResolvedValue(null);
@@ -92,7 +125,13 @@ describe('DashboardService', () => {
     repositorio.listarEntregadoresAtivos.mockResolvedValue([
       {
         ...ENTREGADOR,
-        pedidos: [{ status: StatusPedido.EM_ANDAMENTO, valor_entrega: 900 }],
+        pedidos: [
+          {
+            status: StatusPedido.EM_ANDAMENTO,
+            valor_entrega: 900,
+            ganho_consolidado_centavos: null,
+          },
+        ],
       },
     ]);
 
@@ -104,6 +143,7 @@ describe('DashboardService', () => {
       totalPedidosAndamento: 1,
       totalPedidosConcluidos: 0,
       valorMedioEntrega: 0,
+      totalPago: 0,
     });
   });
 
