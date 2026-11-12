@@ -61,9 +61,7 @@ export class GoogleMapsClient {
     return (await this.localizar(endereco))?.coordenada ?? null;
   }
 
-  /** Busca pelo texto e, se nao achar a porta, tambem so pelo CEP.
-   * Fica com o resultado que confere com o CEP ou o bairro digitados.
-   */
+  /** Busca pelo CEP e pelo texto ao mesmo tempo; o CEP completo decide (ver escolherResultado). */
   async localizar(
     endereco: EnderecoDoPedido,
   ): Promise<EnderecoLocalizado | null> {
@@ -71,18 +69,16 @@ export class GoogleMapsClient {
     if (!chave) {
       return null;
     }
-    const porTexto = await this.buscar(chave, {
-      address: textoDoEndereco(endereco),
-      components: `country:BR|administrative_area:${endereco.uf}`,
-    });
-    const peloTexto = escolherResultado(porTexto, endereco);
-    if (peloTexto?.precisao === 'exato') {
-      return peloTexto;
-    }
-    const porCep = await this.buscar(chave, {
-      components: `country:BR|postal_code:${cepComHifen(endereco.cep)}`,
-    });
-    const localizado = escolherResultado([...porTexto, ...porCep], endereco);
+    const [porCep, porTexto] = await Promise.all([
+      this.buscar(chave, {
+        components: `country:BR|postal_code:${cepComHifen(endereco.cep)}`,
+      }),
+      this.buscar(chave, {
+        address: textoDoEndereco(endereco),
+        components: `country:BR|administrative_area:${endereco.uf}`,
+      }),
+    ]);
+    const localizado = escolherResultado(porCep, porTexto, endereco);
     if (!localizado) {
       this.logger.warn('Geocoding sem resultado que confira com o endereco');
     }
