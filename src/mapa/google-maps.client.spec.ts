@@ -112,7 +112,9 @@ describe('GoogleMapsClient', () => {
       const fetchSimulado = responderEmSequencia(
         {
           status: 'OK',
-          results: [resultado(-15.75, 'Asa Norte', '70000-000', 'APPROXIMATE')],
+          results: [
+            resultado(-15.759, 'Asa Norte', '70000-000', 'APPROXIMATE'),
+          ],
         },
         ACHADO,
       );

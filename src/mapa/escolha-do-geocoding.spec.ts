@@ -61,16 +61,26 @@ describe('escolherResultado', () => {
       expect(escolherResultado([centroDoCep], [centroDeArea], GUARA)).toEqual({
         coordenada: { lat: CENTRO, lng: -47.97 },
         precisao: 'aproximado',
+        enderecoEncontrado: 'Área do CEP: Guará, Brasília - DF, 71000-001',
+      });
+    });
+
+    it('troca pelo ponto exato com o mesmo CEP perto do centro', () => {
+      const porta = resultado({ lat: PERTO });
+
+      expect(escolherResultado([centroDoCep], [porta], GUARA)).toEqual({
+        coordenada: { lat: PERTO, lng: -47.97 },
+        precisao: 'exato',
         enderecoEncontrado: 'Guará, Brasília - DF, 71000-001',
       });
     });
 
-    it('troca pelo ponto exato com o mesmo CEP, mesmo longe do centro', () => {
-      const porta = resultado({ lat: LONGE });
+    it(`fica com o CEP quando a porta cai a mais de ${RAIO_DO_CEP_M} m, mesmo com o mesmo CEP`, () => {
+      const longe = resultado({ lat: LONGE });
 
-      expect(escolherResultado([centroDoCep], [porta], GUARA)).toMatchObject({
-        coordenada: { lat: LONGE },
-        precisao: 'exato',
+      expect(escolherResultado([centroDoCep], [longe], GUARA)).toMatchObject({
+        coordenada: { lat: CENTRO },
+        precisao: 'aproximado',
       });
     });
 
@@ -153,12 +163,16 @@ describe('escolherResultado', () => {
 
       expect(escolherResultado([], [sudoeste], GUARA)).toBeNull();
       expect(
-        escolherResultado(
-          [],
-          [sudoeste, resultado({ cep: '71000', tipo: 'APPROXIMATE' })],
-          GUARA,
-        ),
+        escolherResultado([], [sudoeste, resultado({ cep: '71000' })], GUARA),
       ).toMatchObject({ coordenada: { lat: CENTRO }, precisao: 'aproximado' });
+    });
+
+    it('descarta a quadra ou a area que nao confere o CEP completo', () => {
+      const quadra = resultado({ cep: '71000', parcial: true });
+      const area = resultado({ cep: '71000', tipo: 'GEOMETRIC_CENTER' });
+      const semCep = resultado({ cep: '', tipo: 'APPROXIMATE' });
+
+      expect(escolherResultado([], [quadra, area, semCep], GUARA)).toBeNull();
     });
 
     it('descarta outro CEP mesmo com o bairro certo', () => {

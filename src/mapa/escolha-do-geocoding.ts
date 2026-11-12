@@ -108,7 +108,7 @@ function coordenadaValida(resultado: ResultadoDoGeocoding): Coordenada | null {
     : null;
 }
 
-// Um ponto exato sem o CEP completo so vale se cair perto do centro do CEP digitado.
+// A porta so substitui o centro do CEP se cair a ate essa distancia dele.
 export const RAIO_DO_CEP_M = 300;
 
 // O CEP completo aponta para um trecho de rua ou um conjunto; os 5 primeiros digitos, para uma regiao inteira.
@@ -193,11 +193,13 @@ function avaliarTodos(
 function localizado(
   candidato: Candidato,
   precisao: PrecisaoDoLocal,
+  prefixo = '',
 ): EnderecoLocalizado {
+  const texto = candidato.resultado.formatted_address;
   return {
     coordenada: candidato.coordenada,
     precisao,
-    enderecoEncontrado: candidato.resultado.formatted_address ?? null,
+    enderecoEncontrado: texto ? `${prefixo}${texto}` : null,
   };
 }
 
@@ -220,9 +222,10 @@ function maisConfere(candidatos: Candidato[]): Candidato | null {
 }
 
 /** O CEP manda. Quando o Google conhece o CEP completo, o centro dele e a ancora:
- * o texto so troca a ancora por uma porta com o mesmo CEP ou a ate RAIO_DO_CEP_M dela.
- * Sem a ancora, fica com o que mais confere, e so o CEP completo marca a porta como exata.
- * No empate, vale a ordem do Google.
+ * o texto so troca a ancora por uma porta a ate RAIO_DO_CEP_M dela.
+ * Sem a ancora, so vale o que tem o CEP completo ou aponta para uma porta;
+ * a quadra ou a area de um resultado parcial fica de fora. Entre esses, fica com o que mais confere,
+ * e so o CEP completo marca a porta como exata. No empate, vale a ordem do Google.
  */
 export function escolherResultado(
   porCep: ResultadoDoGeocoding[],
@@ -236,15 +239,18 @@ export function escolherResultado(
     const porta = doTexto.find(
       (candidato) =>
         candidato.porta &&
-        (candidato.cep === 'igual' ||
-          distanciaEmMetros(candidato.coordenada, centroDoCep.coordenada) <=
-            RAIO_DO_CEP_M),
+        distanciaEmMetros(candidato.coordenada, centroDoCep.coordenada) <=
+          RAIO_DO_CEP_M,
     );
     return porta
       ? localizado(porta, 'exato')
-      : localizado(centroDoCep, 'aproximado');
+      : localizado(centroDoCep, 'aproximado', 'Área do CEP: ');
   }
-  const melhor = maisConfere([...doTexto, ...doCep]);
+  const melhor = maisConfere(
+    [...doTexto, ...doCep].filter(
+      (candidato) => candidato.cep === 'igual' || candidato.porta,
+    ),
+  );
   if (!melhor) {
     return null;
   }
