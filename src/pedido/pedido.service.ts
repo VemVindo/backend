@@ -145,6 +145,7 @@ export class PedidoService {
     exigirCodigoCorreto(
       await this.codigoDoRecebedor.conferir(idPedido, codigo),
     );
+    await this.completarDistancia(pedido);
     return this.aplicarStatus(cpfEntregador, pedido, StatusPedido.FINALIZADO);
   }
 
@@ -287,6 +288,25 @@ export class PedidoService {
       throw new NotFoundException('Pedido não encontrado');
     }
     return pedido;
+  }
+
+  private async completarDistancia(pedido: Pedido): Promise<void> {
+    if (pedido.distancia_conhecida === true) {
+      return;
+    }
+    const distanciaMetros = await this.calculoDaEntrega.distanciaParaFinalizar(
+      pedido.id_pedido,
+    );
+    if (distanciaMetros === null) {
+      return;
+    }
+    await this.comControleDeConcorrencia(() =>
+      this.pedidoRepository.corrigirDistancia(
+        pedido.id_pedido,
+        pedido.idEmpresa,
+        distanciaMetros,
+      ),
+    );
   }
 
   private async aplicarStatus(

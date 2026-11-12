@@ -32,6 +32,7 @@ function montar() {
     calcular: jest
       .fn()
       .mockResolvedValue({ distanciaM: 2000, destino: DESTINO }),
+    distanciaParaFinalizar: jest.fn().mockResolvedValue(3100),
   };
   const calculoDaEntrega = new CalculoDaEntregaService(
     remuneracaoService as unknown as RemuneracaoService,
@@ -58,6 +59,68 @@ describe('CalculoDaEntregaService', () => {
       ID_EMPRESA,
       pedido,
       'BICYCLE',
+      null,
+    );
+  });
+
+  it('usa o ponto marcado no mapa como destino', async () => {
+    const { calculoDaEntrega, rotaDeCarro } = montar();
+    const marcado = { ...pedido, destino_lat: -15.65, destino_lng: -47.79 };
+    rotaDeCarro.calcular.mockResolvedValue({
+      distanciaM: 2000,
+      destino: { lat: -15.65, lng: -47.79 },
+    });
+
+    await expect(
+      calculoDaEntrega.calcular(ID_EMPRESA, marcado),
+    ).resolves.toMatchObject({ destinoLat: -15.65, destinoLng: -47.79 });
+    expect(rotaDeCarro.calcular).toHaveBeenCalledWith(
+      ID_EMPRESA,
+      marcado,
+      'BICYCLE',
+      { lat: -15.65, lng: -47.79 },
+    );
+  });
+
+  it('guarda o ponto marcado mesmo quando a rota falha', async () => {
+    const { calculoDaEntrega, rotaDeCarro } = montar();
+    rotaDeCarro.calcular.mockResolvedValue(null);
+
+    await expect(
+      calculoDaEntrega.calcular(ID_EMPRESA, {
+        ...pedido,
+        destino_lat: -15.65,
+        destino_lng: -47.79,
+      }),
+    ).resolves.toMatchObject({
+      distanciaConhecida: false,
+      destinoLat: -15.65,
+      destinoLng: -47.79,
+    });
+  });
+
+  it('repassa o recalculo da distancia na finalizacao', async () => {
+    const { calculoDaEntrega, rotaDeCarro } = montar();
+
+    await expect(calculoDaEntrega.distanciaParaFinalizar(9)).resolves.toBe(
+      3100,
+    );
+    expect(rotaDeCarro.distanciaParaFinalizar).toHaveBeenCalledWith(9);
+  });
+
+  it('ignora o ponto marcado pela metade', async () => {
+    const { calculoDaEntrega, rotaDeCarro } = montar();
+
+    await calculoDaEntrega.calcular(ID_EMPRESA, {
+      ...pedido,
+      destino_lat: -15.65,
+    });
+
+    expect(rotaDeCarro.calcular).toHaveBeenCalledWith(
+      ID_EMPRESA,
+      expect.anything(),
+      'BICYCLE',
+      null,
     );
   });
 

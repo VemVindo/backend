@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import {
+  EnderecoLocalizado,
+  escolherResultado,
+  ResultadoDoGeocoding,
+} from './escolha-do-geocoding';
 import { Coordenada, ModoDeViagem, Trajeto } from './geo';
 
 export const URL_GEOCODING =
@@ -27,7 +32,7 @@ export interface RotaCalculada extends Trajeto {
 
 interface RespostaGeocoding {
   status?: string;
-  results?: { geometry?: { location?: { lat?: number; lng?: number } } }[];
+  results?: ResultadoDoGeocoding[];
 }
 
 interface RespostaRoutes {
@@ -53,29 +58,59 @@ export class GoogleMapsClient {
   }
 
   async geocodificar(endereco: EnderecoDoPedido): Promise<Coordenada | null> {
-    if (!this.chave) {
+    return (await this.localizar(endereco))?.coordenada ?? null;
+  }
+
+  /** Busca pelo texto e, se nao achar a porta, tambem so pelo CEP.
+   * Fica com o resultado que confere com o CEP ou o bairro digitados.
+   */
+  async localizar(
+    endereco: EnderecoDoPedido,
+  ): Promise<EnderecoLocalizado | null> {
+    const chave = this.chave;
+    if (!chave) {
       return null;
     }
-    const parametros = new URLSearchParams({
+    const porTexto = await this.buscar(chave, {
       address: textoDoEndereco(endereco),
-      components: 'country:BR',
+      components: `country:BR|administrative_area:${endereco.uf}`,
+    });
+    const peloTexto = escolherResultado(porTexto, endereco);
+    if (peloTexto?.precisao === 'exato') {
+      return peloTexto;
+    }
+    const porCep = await this.buscar(chave, {
+      components: `country:BR|postal_code:${cepComHifen(endereco.cep)}`,
+    });
+    const localizado = escolherResultado([...porTexto, ...porCep], endereco);
+    if (!localizado) {
+      this.logger.warn('Geocoding sem resultado que confira com o endereco');
+    }
+    return localizado;
+  }
+
+  private async buscar(
+    chave: string,
+    filtros: Record<string, string>,
+  ): Promise<ResultadoDoGeocoding[]> {
+    const parametros = new URLSearchParams({
+      ...filtros,
       region: 'br',
       language: 'pt-BR',
-      key: this.chave,
+      key: chave,
     });
     const corpo = await this.chamar<RespostaGeocoding>(
       'Geocoding',
       `${URL_GEOCODING}?${parametros.toString()}`,
       { method: 'GET' },
     );
-    if (!corpo) {
-      return null;
+    if (corpo?.status !== 'OK') {
+      if (corpo) {
+        this.logger.warn(`Geocoding sem resultado: ${corpo.status}`);
+      }
+      return [];
     }
-    const coordenada = coordenadaDoGeocoding(corpo);
-    if (!coordenada) {
-      this.logger.warn(`Geocoding sem resultado: ${corpo.status}`);
-    }
-    return coordenada;
+    return corpo.results ?? [];
   }
 
   async calcularRota(
@@ -131,17 +166,12 @@ export class GoogleMapsClient {
 
 function textoDoEndereco(endereco: EnderecoDoPedido): string {
   const { logradouro, numero, bairro, cidade, uf, cep } = endereco;
-  return `${logradouro}, ${numero} - ${bairro}, ${cidade} - ${uf}, ${cep}`;
+  return `${logradouro}, ${numero} - ${bairro}, ${cidade} - ${uf}, ${cepComHifen(cep)}`;
 }
 
-function coordenadaDoGeocoding(corpo: RespostaGeocoding): Coordenada | null {
-  if (corpo.status !== 'OK') {
-    return null;
-  }
-  const local = corpo.results?.[0]?.geometry?.location;
-  return typeof local?.lat === 'number' && typeof local.lng === 'number'
-    ? { lat: local.lat, lng: local.lng }
-    : null;
+function cepComHifen(cep: string): string {
+  const digitos = cep.replace(/\D/g, '');
+  return `${digitos.slice(0, 5)}-${digitos.slice(5)}`;
 }
 
 function pontoDaRota({ lat, lng }: Coordenada) {

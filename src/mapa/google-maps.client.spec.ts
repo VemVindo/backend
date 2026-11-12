@@ -31,17 +31,64 @@ interface CorpoRoutes {
   routingPreference?: string;
 }
 
+function resposta(status: number, corpo: unknown) {
+  return new Response(JSON.stringify(corpo), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
 function responder(status: number, corpo: unknown) {
   const fetchSimulado = jest.fn<Promise<Response>, [string, RequestInit]>();
-  fetchSimulado.mockResolvedValue(
-    new Response(JSON.stringify(corpo), {
-      status,
-      headers: { 'Content-Type': 'application/json' },
-    }),
+  fetchSimulado.mockImplementation(() =>
+    Promise.resolve(resposta(status, corpo)),
   );
   global.fetch = fetchSimulado;
   return fetchSimulado;
 }
+
+// Primeiro a busca pelo texto, depois a busca so pelo CEP.
+function responderEmSequencia(...corpos: unknown[]) {
+  const fetchSimulado = jest.fn<Promise<Response>, [string, RequestInit]>();
+  corpos.forEach((corpo) =>
+    fetchSimulado.mockResolvedValueOnce(resposta(200, corpo)),
+  );
+  global.fetch = fetchSimulado;
+  return fetchSimulado;
+}
+
+function parametros(
+  fetchSimulado: jest.Mock<Promise<Response>, [string, RequestInit]>,
+  chamada: number,
+) {
+  return new URL(fetchSimulado.mock.calls[chamada][0]).searchParams;
+}
+
+function resultado(
+  lat: number,
+  bairro: string,
+  cep: string,
+  tipo = 'ROOFTOP',
+): object {
+  return {
+    formatted_address: `${bairro}, Brasilia - DF, ${cep}`,
+    geometry: { location: { lat, lng: -47.9 }, location_type: tipo },
+    address_components: [
+      { long_name: bairro, types: ['sublocality', 'political'] },
+      {
+        long_name: 'DF',
+        short_name: 'DF',
+        types: ['administrative_area_level_1'],
+      },
+      { long_name: cep, types: ['postal_code'] },
+    ],
+  };
+}
+
+const ACHADO = {
+  status: 'OK',
+  results: [resultado(-15.76, 'Asa Norte', '70000-000')],
+};
 
 describe('GoogleMapsClient', () => {
   const fetchVerdadeiro = global.fetch;
@@ -61,22 +108,83 @@ describe('GoogleMapsClient', () => {
   });
 
   describe('geocodificar', () => {
-    it('monta a busca do endereco no Brasil e devolve a coordenada', async () => {
-      const fetchSimulado = responder(200, {
-        status: 'OK',
-        results: [{ geometry: { location: { lat: -15.76, lng: -47.88 } } }],
+    it('busca o texto no estado do pedido e para no endereco exato', async () => {
+      const fetchSimulado = responder(200, ACHADO);
+
+      const localizado = await criar('chave-teste').localizar(ENDERECO);
+
+      expect(localizado).toEqual({
+        coordenada: { lat: -15.76, lng: -47.9 },
+        precisao: 'exato',
+        enderecoEncontrado: 'Asa Norte, Brasilia - DF, 70000-000',
       });
-
-      const coordenada = await criar('chave-teste').geocodificar(ENDERECO);
-
-      expect(coordenada).toEqual({ lat: -15.76, lng: -47.88 });
+      expect(fetchSimulado).toHaveBeenCalledTimes(1);
       const url = new URL(fetchSimulado.mock.calls[0][0]);
       expect(`${url.origin}${url.pathname}`).toBe(URL_GEOCODING);
       expect(url.searchParams.get('address')).toBe(
-        'SQN 210 Bloco K, 304 - Asa Norte, Brasilia - DF, 70000000',
+        'SQN 210 Bloco K, 304 - Asa Norte, Brasilia - DF, 70000-000',
       );
-      expect(url.searchParams.get('components')).toBe('country:BR');
+      expect(url.searchParams.get('components')).toBe(
+        'country:BR|administrative_area:DF',
+      );
       expect(url.searchParams.get('key')).toBe('chave-teste');
+      expect(await criar('chave-teste').geocodificar(ENDERECO)).toEqual({
+        lat: -15.76,
+        lng: -47.9,
+      });
+    });
+
+    it('descarta o parecido de outro bairro e usa a area do CEP', async () => {
+      const fetchSimulado = responderEmSequencia(
+        { status: 'OK', results: [resultado(-15.79, 'Sudoeste', '70670-000')] },
+        {
+          status: 'OK',
+          results: [resultado(-15.75, 'Asa Norte', '70000-000', 'APPROXIMATE')],
+        },
+      );
+
+      const localizado = await criar('chave').localizar(ENDERECO);
+
+      expect(localizado).toMatchObject({
+        coordenada: { lat: -15.75, lng: -47.9 },
+        precisao: 'aproximado',
+      });
+      expect(parametros(fetchSimulado, 1).get('components')).toBe(
+        'country:BR|postal_code:70000-000',
+      );
+      expect(parametros(fetchSimulado, 1).get('address')).toBeNull();
+    });
+
+    it('sem porta, fica com o resultado que mais confere', async () => {
+      responderEmSequencia(
+        {
+          status: 'OK',
+          results: [
+            resultado(-15.77, 'Asa Norte', '70999-000', 'GEOMETRIC_CENTER'),
+          ],
+        },
+        {
+          status: 'OK',
+          results: [resultado(-15.75, 'Asa Norte', '70000-000', 'APPROXIMATE')],
+        },
+      );
+
+      await expect(criar('chave').localizar(ENDERECO)).resolves.toMatchObject({
+        coordenada: { lat: -15.75, lng: -47.9 },
+      });
+    });
+
+    it('trata a resposta OK sem lista de resultados como vazia', async () => {
+      responder(200, { status: 'OK' });
+      expect(await criar('chave').localizar(ENDERECO)).toBeNull();
+    });
+
+    it('devolve null quando nada confere com o endereco', async () => {
+      responder(200, {
+        status: 'OK',
+        results: [resultado(-15.79, 'Sudoeste', '70670-000')],
+      });
+      expect(await criar('chave').localizar(ENDERECO)).toBeNull();
     });
 
     it('devolve null quando o endereco nao e encontrado', async () => {

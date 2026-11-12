@@ -1,4 +1,5 @@
 import { ConflictException, Injectable } from '@nestjs/common';
+import { coordenada } from '../mapa/dto/visao-da-entrega.dto';
 import { RotaDeCarroService } from '../mapa/rota-de-carro.service';
 import { CalculoValorEntregaService } from '../remuneracao/calculo-valor-entrega.service';
 import { RemuneracaoService } from '../remuneracao/remuneracao.service';
@@ -32,23 +33,33 @@ export class CalculoDaEntregaService {
     pedido: CriarPedidoDto,
   ): Promise<EntregaCalculada> {
     const { taxaFixa, coeficienteKm } = await this.exigirParametros(idEmpresa);
+    const destinoInformado = coordenada(
+      pedido.destino_lat ?? null,
+      pedido.destino_lng ?? null,
+    );
     const rota = await this.rotaDeCarro.calcular(
       idEmpresa,
       pedido,
       pedido.tipo_veiculo,
+      destinoInformado,
     );
     const distancia = rota?.distanciaM ?? DISTANCIA_SEM_ROTA;
+    const destino = rota?.destino ?? destinoInformado;
     return {
       distancia,
       distanciaConhecida: rota !== null,
-      destinoLat: rota?.destino.lat ?? null,
-      destinoLng: rota?.destino.lng ?? null,
+      destinoLat: destino?.lat ?? null,
+      destinoLng: destino?.lng ?? null,
       valorEntrega: this.calculoValorEntregaService.calcularValorEntrega({
         distanciaMetros: distancia,
         taxaFixaCentavos: taxaFixa,
         coeficienteCentavosKm: coeficienteKm,
       }),
     };
+  }
+
+  distanciaParaFinalizar(idPedido: number): Promise<number | null> {
+    return this.rotaDeCarro.distanciaParaFinalizar(idPedido);
   }
 
   private async exigirParametros(

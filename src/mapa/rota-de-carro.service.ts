@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { coordenada } from './dto/visao-da-entrega.dto';
-import { Coordenada, ModoDeViagem } from './geo';
+import { coordenada, destinoDoPedido } from './dto/visao-da-entrega.dto';
+import { EnderecoLocalizado } from './escolha-do-geocoding';
+import { Coordenada, estimarTrajeto, ModoDeViagem, modoDeViagem } from './geo';
 import { EnderecoDoPedido, GoogleMapsClient } from './google-maps.client';
-import { LocalizacaoRepository } from './localizacao.repository';
+import { LocalizacaoRepository, PedidoComMapa } from './localizacao.repository';
 
 export interface RotaAteORecebedor {
   distanciaM: number;
@@ -20,6 +21,7 @@ export class RotaDeCarroService {
     idEmpresa: number,
     enderecoDoRecebedor: EnderecoDoPedido,
     modo: ModoDeViagem = 'DRIVE',
+    destinoInformado: Coordenada | null = null,
   ): Promise<RotaAteORecebedor | null> {
     if (!this.maps.habilitado) {
       return null;
@@ -28,12 +30,55 @@ export class RotaDeCarroService {
     if (!origem) {
       return null;
     }
-    const destino = await this.maps.geocodificar(enderecoDoRecebedor);
+    const destino =
+      destinoInformado ?? (await this.maps.geocodificar(enderecoDoRecebedor));
     if (!destino) {
       return null;
     }
     const rota = await this.maps.calcularRota(origem, destino, modo);
     return rota && { distanciaM: rota.distanciaM, destino };
+  }
+
+  localizarEndereco(
+    endereco: EnderecoDoPedido,
+  ): Promise<EnderecoLocalizado | null> {
+    return this.maps.localizar(endereco);
+  }
+
+  async distanciaParaFinalizar(idPedido: number): Promise<number | null> {
+    const pedido = await this.localizacoes.procurarPorId(idPedido);
+    if (!pedido) {
+      return null;
+    }
+    const origem = await this.origemDaEmpresa(pedido.empresa.id_empresa);
+    const destino = await this.destinoParaFinalizar(pedido);
+    if (!origem || !destino) {
+      return null;
+    }
+    const tipoVeiculo = pedido.entregador?.tipo_veiculo ?? '';
+    const rota = await this.maps.calcularRota(
+      origem,
+      destino,
+      modoDeViagem(tipoVeiculo),
+    );
+    return (
+      rota?.distanciaM ??
+      estimarTrajeto(origem, destino, tipoVeiculo).distanciaM
+    );
+  }
+
+  private async destinoParaFinalizar(
+    pedido: PedidoComMapa,
+  ): Promise<Coordenada | null> {
+    const salvo = destinoDoPedido(pedido);
+    if (salvo) {
+      return salvo;
+    }
+    const { localizacao } = pedido;
+    if (localizacao) {
+      return { lat: localizacao.lat, lng: localizacao.lng };
+    }
+    return this.maps.geocodificar(pedido);
   }
 
   private async origemDaEmpresa(idEmpresa: number): Promise<Coordenada | null> {

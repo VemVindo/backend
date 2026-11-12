@@ -3,6 +3,8 @@ import {
   IsEnum,
   IsIn,
   IsInt,
+  IsLatitude,
+  IsLongitude,
   IsNumber,
   IsOptional,
   IsPositive,
@@ -65,6 +67,16 @@ export class CriarPedidoDto {
 
   @IsIn(MODOS_DE_VIAGEM)
   tipo_veiculo!: ModoDeViagem;
+
+  @IsOptional()
+  @IsNumber()
+  @IsLatitude()
+  destino_lat?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @IsLongitude()
+  destino_lng?: number;
 }
 
 export class PedidoCriadoDto {
