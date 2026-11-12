@@ -98,6 +98,26 @@ describe('DashboardService', () => {
     expect(repositorio.listarEntregadoresAtivos).toHaveBeenCalledWith(filtro);
   });
 
+  it('considera zero no total pago quando o ganho consolidado esta nulo', async () => {
+    const { servico, repositorio } = montar();
+    repositorio.listarEntregadoresAtivos.mockResolvedValue([
+      {
+        ...ENTREGADOR,
+        pedidos: [
+          {
+            status: StatusPedido.FINALIZADO,
+            valor_entrega: 1000,
+            ganho_consolidado_centavos: null,
+          },
+        ],
+      },
+    ]);
+
+    const resumo = await servico.montarDashboard(7, {});
+
+    expect(resumo.relatorioPorEntregador[0].totalPago).toBe(0);
+  });
+
   it('zera as medias quando nao ha avaliacao nem entrega concluida', async () => {
     const { servico, repositorio } = montar();
     repositorio.mediaDasAvaliacoes.mockResolvedValue(null);
