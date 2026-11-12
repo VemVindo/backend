@@ -4,6 +4,7 @@ export interface DesempenhoDoEntregadorNoPeriodo {
   totalPedidosAndamento: number;
   totalPedidosConcluidos: number;
   valorMedioEntrega: number;
+  totalPago: number;
 }
 
 export interface ResumoDoDashboardDto {

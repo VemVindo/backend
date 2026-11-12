@@ -155,7 +155,7 @@ describe('DashboardRepository', () => {
     await expect(repo.somarDistanciaPercorrida(SEM_PERIODO)).resolves.toBe(0);
   });
 
-  it('lista os entregadores com contrato ativo e so os campos do relatorio', async () => {
+  it('lista entregadores ativos e filtra entregas concluidas pela finalizacao no periodo', async () => {
     const { repo, prisma } = montar();
 
     await repo.listarEntregadoresAtivos(OUTUBRO);
@@ -183,7 +183,11 @@ describe('DashboardRepository', () => {
               },
             ],
           },
-          select: { status: true, valor_entrega: true },
+          select: {
+            status: true,
+            valor_entrega: true,
+            ganho_consolidado_centavos: true,
+          },
         },
       },
     });

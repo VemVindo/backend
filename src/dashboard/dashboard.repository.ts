@@ -17,11 +17,13 @@ export interface DuracaoDaEntrega {
 export interface EntregadorComPedidos {
   cpf: string;
   nome: string;
-  pedidos: { status: StatusPedido; valor_entrega: number }[];
+  pedidos: {
+    status: StatusPedido;
+    valor_entrega: number;
+    ganho_consolidado_centavos: number | null;
+  }[];
 }
 
-// Cada status entra no periodo pela data da etapa que ele representa. O pedido
-// cancelado nao guarda a data do cancelamento, entao entra pela criacao.
 const DATA_DA_ETAPA: Record<StatusPedido, string> = {
   [StatusPedido.PENDENTE]: 'data_criacao',
   [StatusPedido.EM_ANDAMENTO]: 'data_inicio_entrega',
@@ -121,7 +123,11 @@ export class DashboardRepository {
               },
             ],
           },
-          select: { status: true, valor_entrega: true },
+          select: {
+            status: true,
+            valor_entrega: true,
+            ganho_consolidado_centavos: true,
+          },
         },
       },
     });

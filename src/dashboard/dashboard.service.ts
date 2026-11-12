@@ -19,7 +19,6 @@ function media(valores: number[]): number {
   return valores.reduce((soma, valor) => soma + valor, 0) / valores.length;
 }
 
-// O repositorio so devolve entregas com inicio e fim preenchidos.
 function tempoMedioEmMinutos(duracoes: DuracaoDaEntrega[]): number {
   const duracoesEmMs = duracoes.map(
     (duracao) =>
@@ -43,6 +42,12 @@ function desempenhoNoPeriodo({
     totalPedidosAndamento: pedidos.length - valoresConcluidos.length,
     totalPedidosConcluidos: valoresConcluidos.length,
     valorMedioEntrega: Number(media(valoresConcluidos).toFixed(2)),
+    totalPago: pedidos
+      .filter((pedido) => pedido.status === StatusPedido.FINALIZADO)
+      .reduce(
+        (soma, pedido) => soma + (pedido.ganho_consolidado_centavos ?? 0),
+        0,
+      ),
   };
 }
 
