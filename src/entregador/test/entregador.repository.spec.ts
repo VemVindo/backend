@@ -161,42 +161,41 @@ describe('EntregadorRepository consultas e senha', () => {
     });
   });
 
-  it('na edicao ignora os campos nulos ou ausentes', async () => {
+  it('no perfil grava os campos informados e pula os ausentes', async () => {
     const { repositorio, entregador } = montar();
 
-    await repositorio.atualizar(CPF_ENTREGADOR, {
-      nome: null,
-      telefone: undefined,
-      veiculo: null,
+    await repositorio.atualizarPerfil(CPF_ENTREGADOR, {
+      nome: undefined,
+      telefone: '61990000000',
+      tipo_veiculo: 'CARRO',
       placa: 'ABC1D23',
     });
 
-    expect(dadosGravados(entregador.update)).toEqual({ placa: 'ABC1D23' });
-  });
-
-  it('na edicao grava o veiculo como tipo_veiculo', async () => {
-    const { repositorio, entregador } = montar();
-
-    await repositorio.atualizar(CPF_ENTREGADOR, {
-      nome: 'Ana',
-      telefone: '61990000000',
-      veiculo: 'CARRO',
-    });
-
-    expect(dadosGravados(entregador.update)).toEqual({
-      nome: 'Ana',
-      telefone: '61990000000',
-      tipo_veiculo: 'CARRO',
+    expect(entregador.update).toHaveBeenCalledWith({
+      where: { cpf: CPF_ENTREGADOR },
+      data: {
+        nome: undefined,
+        telefone: '61990000000',
+        tipo_veiculo: 'CARRO',
+        placa: 'ABC1D23',
+      },
     });
   });
 
-  it('na edicao devolve o entregador gravado', async () => {
+  it('no perfil apaga a placa quando ela vem nula', async () => {
     const { repositorio, entregador } = montar();
-    const gravado = { cpf: CPF_ENTREGADOR, nome: 'Ana' };
+    const gravado = { cpf: CPF_ENTREGADOR, placa: null };
     entregador.update.mockResolvedValue(gravado);
 
     await expect(
-      repositorio.atualizar(CPF_ENTREGADOR, { nome: 'Ana' }),
+      repositorio.atualizarPerfil(CPF_ENTREGADOR, {
+        tipo_veiculo: 'BICICLETA',
+        placa: null,
+      }),
     ).resolves.toBe(gravado);
+    expect(dadosGravados(entregador.update)).toEqual({
+      tipo_veiculo: 'BICICLETA',
+      placa: null,
+    });
   });
 });
