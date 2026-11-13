@@ -1,4 +1,4 @@
-import { Coordenada } from './geo';
+import { Coordenada, estimarTrajeto } from './geo';
 import { GoogleMapsClient, RotaCalculada } from './google-maps.client';
 import {
   EmpresaDoMapa,
@@ -134,12 +134,28 @@ describe('RotaDeCarroService.calcular', () => {
   it('nao chama o Google sem chave configurada', async () => {
     const { servico, maps, localizacoes } = montar();
     maps.habilitado = false;
+    maps.geocodificar.mockResolvedValue(null);
 
     await expect(
       servico.calcular(CANTINA, ENDERECO_DO_RECEBEDOR),
     ).resolves.toBeNull();
-    expect(localizacoes.procurarEmpresa).not.toHaveBeenCalled();
+    expect(localizacoes.procurarEmpresa).toHaveBeenCalledWith(CANTINA);
     expect(maps.geocodificar).not.toHaveBeenCalled();
+    expect(maps.calcularRota).not.toHaveBeenCalled();
+  });
+
+  it('estima a distancia com os pontos salvos mesmo sem chave do Google', async () => {
+    const { servico, maps } = montar();
+    maps.habilitado = false;
+
+    await expect(
+      servico.calcular(CANTINA, ENDERECO_DO_RECEBEDOR, 'BICYCLE', ENTREGA),
+    ).resolves.toEqual({
+      distanciaM: estimarTrajeto(SAIDA, ENTREGA, 'BICYCLE').distanciaM,
+      destino: ENTREGA,
+    });
+    expect(maps.geocodificar).not.toHaveBeenCalled();
+    expect(maps.calcularRota).not.toHaveBeenCalled();
   });
 
   it('desiste quando o endereco da empresa nao e encontrado', async () => {
@@ -166,13 +182,16 @@ describe('RotaDeCarroService.calcular', () => {
     expect(maps.calcularRota).not.toHaveBeenCalled();
   });
 
-  it('desiste quando o Google nao devolve rota', async () => {
+  it('estima a distancia quando o Google nao devolve rota', async () => {
     const { servico, maps } = montar();
     maps.calcularRota.mockResolvedValue(null);
 
     await expect(
       servico.calcular(CANTINA, ENDERECO_DO_RECEBEDOR),
-    ).resolves.toBeNull();
+    ).resolves.toEqual({
+      distanciaM: estimarTrajeto(SAIDA, ENTREGA, 'DRIVE').distanciaM,
+      destino: ENTREGA,
+    });
   });
 
   it('desiste quando a empresa nao existe', async () => {

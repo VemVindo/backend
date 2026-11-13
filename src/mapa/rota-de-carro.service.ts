@@ -23,20 +23,26 @@ export class RotaDeCarroService {
     modo: ModoDeViagem = 'DRIVE',
     destinoInformado: Coordenada | null = null,
   ): Promise<RotaAteORecebedor | null> {
-    if (!this.maps.habilitado) {
-      return null;
-    }
     const origem = await this.origemDaEmpresa(idEmpresa);
     if (!origem) {
       return null;
     }
     const destino =
-      destinoInformado ?? (await this.maps.geocodificar(enderecoDoRecebedor));
+      destinoInformado ??
+      (this.maps.habilitado
+        ? await this.maps.geocodificar(enderecoDoRecebedor)
+        : null);
     if (!destino) {
       return null;
     }
-    const rota = await this.maps.calcularRota(origem, destino, modo);
-    return rota && { distanciaM: rota.distanciaM, destino };
+    const rota = this.maps.habilitado
+      ? await this.maps.calcularRota(origem, destino, modo)
+      : null;
+    return {
+      distanciaM:
+        rota?.distanciaM ?? estimarTrajeto(origem, destino, modo).distanciaM,
+      destino,
+    };
   }
 
   localizarEndereco(

@@ -1,11 +1,13 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from '@nestjs/common';
 import { coordenada } from '../mapa/dto/visao-da-entrega.dto';
 import { RotaDeCarroService } from '../mapa/rota-de-carro.service';
 import { CalculoValorEntregaService } from '../remuneracao/calculo-valor-entrega.service';
 import { RemuneracaoService } from '../remuneracao/remuneracao.service';
 import { CriarPedidoDto } from './dto/criar-pedido.dto';
-
-const DISTANCIA_SEM_ROTA = 0;
 
 export interface EntregaCalculada {
   distancia: number;
@@ -33,6 +35,11 @@ export class CalculoDaEntregaService {
     pedido: CriarPedidoDto,
   ): Promise<EntregaCalculada> {
     const { taxaFixa, coeficienteKm } = await this.exigirParametros(idEmpresa);
+    if ((pedido.destino_lat != null) !== (pedido.destino_lng != null)) {
+      throw new BadRequestException(
+        'Informe latitude e longitude do pino no mapa para localizar a entrega',
+      );
+    }
     const destinoInformado = coordenada(
       pedido.destino_lat ?? null,
       pedido.destino_lng ?? null,
@@ -43,15 +50,24 @@ export class CalculoDaEntregaService {
       pedido.tipo_veiculo,
       destinoInformado,
     );
-    const distancia = rota?.distanciaM ?? DISTANCIA_SEM_ROTA;
     const destino = rota?.destino ?? destinoInformado;
+    if (!destino) {
+      throw new BadRequestException(
+        'Não foi possível localizar o endereço da entrega. Marque o pino no local correto do mapa para continuar.',
+      );
+    }
+    if (!rota || rota.distanciaM <= 0) {
+      throw new ConflictException(
+        'Não foi possível calcular uma distância válida para a entrega. Confira a localização do estabelecimento e do pino no mapa.',
+      );
+    }
     return {
-      distancia,
-      distanciaConhecida: rota !== null,
-      destinoLat: destino?.lat ?? null,
-      destinoLng: destino?.lng ?? null,
+      distancia: rota.distanciaM,
+      distanciaConhecida: true,
+      destinoLat: destino.lat,
+      destinoLng: destino.lng,
       valorEntrega: this.calculoValorEntregaService.calcularValorEntrega({
-        distanciaMetros: distancia,
+        distanciaMetros: rota.distanciaM,
         taxaFixaCentavos: taxaFixa,
         coeficienteCentavosKm: coeficienteKm,
       }),

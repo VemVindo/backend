@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { RotaDeCarroService } from '../../mapa/rota-de-carro.service';
 import { CalculoValorEntregaService } from '../../remuneracao/calculo-valor-entrega.service';
 import { RemuneracaoService } from '../../remuneracao/remuneracao.service';
@@ -82,7 +82,7 @@ describe('CalculoDaEntregaService', () => {
     );
   });
 
-  it('guarda o ponto marcado mesmo quando a rota falha', async () => {
+  it('nao cria a entrega quando nao consegue calcular a rota, mesmo com pino', async () => {
     const { calculoDaEntrega, rotaDeCarro } = montar();
     rotaDeCarro.calcular.mockResolvedValue(null);
 
@@ -92,11 +92,7 @@ describe('CalculoDaEntregaService', () => {
         destino_lat: -15.65,
         destino_lng: -47.79,
       }),
-    ).resolves.toMatchObject({
-      distanciaConhecida: false,
-      destinoLat: -15.65,
-      destinoLng: -47.79,
-    });
+    ).rejects.toThrow(ConflictException);
   });
 
   it('repassa o recalculo da distancia na finalizacao', async () => {
@@ -108,35 +104,55 @@ describe('CalculoDaEntregaService', () => {
     expect(rotaDeCarro.distanciaParaFinalizar).toHaveBeenCalledWith(9);
   });
 
-  it('ignora o ponto marcado pela metade', async () => {
+  it('rejeita o ponto marcado pela metade', async () => {
     const { calculoDaEntrega, rotaDeCarro } = montar();
 
-    await calculoDaEntrega.calcular(ID_EMPRESA, {
-      ...pedido,
-      destino_lat: -15.65,
-    });
+    await expect(
+      calculoDaEntrega.calcular(ID_EMPRESA, {
+        ...pedido,
+        destino_lat: -15.65,
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(rotaDeCarro.calcular).not.toHaveBeenCalled();
+  });
 
+  it('exige o pino quando nao consegue localizar o endereco', async () => {
+    const { calculoDaEntrega, rotaDeCarro } = montar();
+    rotaDeCarro.calcular.mockResolvedValue(null);
+
+    await expect(calculoDaEntrega.calcular(ID_EMPRESA, pedido)).rejects.toThrow(
+      'Não foi possível localizar o endereço da entrega. Marque o pino no local correto do mapa para continuar.',
+    );
     expect(rotaDeCarro.calcular).toHaveBeenCalledWith(
       ID_EMPRESA,
-      expect.anything(),
+      pedido,
       'BICYCLE',
       null,
     );
   });
 
-  it('sem rota, grava distancia desconhecida e cobra so a taxa fixa', async () => {
+  it('exige as duas coordenadas quando o pino e enviado', async () => {
     const { calculoDaEntrega, rotaDeCarro } = montar();
-    rotaDeCarro.calcular.mockResolvedValue(null);
 
     await expect(
-      calculoDaEntrega.calcular(ID_EMPRESA, pedido),
-    ).resolves.toEqual({
-      distancia: 0,
-      distanciaConhecida: false,
-      destinoLat: null,
-      destinoLng: null,
-      valorEntrega: 500,
+      calculoDaEntrega.calcular(ID_EMPRESA, {
+        ...pedido,
+        destino_lat: -15.65,
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(rotaDeCarro.calcular).not.toHaveBeenCalled();
+  });
+
+  it('rejeita distancia zero em vez de cobrar apenas a taxa fixa', async () => {
+    const { calculoDaEntrega, rotaDeCarro } = montar();
+    rotaDeCarro.calcular.mockResolvedValue({
+      distanciaM: 0,
+      destino: DESTINO,
     });
+
+    await expect(calculoDaEntrega.calcular(ID_EMPRESA, pedido)).rejects.toThrow(
+      ConflictException,
+    );
   });
 
   it.each([
