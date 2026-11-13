@@ -117,19 +117,25 @@ export const RAIO_DO_CEP_M = 300;
 
 // O CEP completo aponta para um trecho de rua ou um conjunto; os 5 primeiros digitos, para uma regiao inteira.
 type CepDoResultado = 'igual' | 'mesma-regiao' | 'ausente' | 'diferente';
-type CepAceito = Exclude<CepDoResultado, 'diferente'>;
 
 // O CEP completo vale mais que porta e bairro juntos.
-const PONTOS_DO_CEP: Record<CepAceito, number> = {
+const PONTOS_DO_CEP: Record<CepDoResultado, number> = {
   igual: 6,
   'mesma-regiao': 2,
   ausente: 0,
+  diferente: -1,
+};
+
+const PONTOS_DA_CONFERENCIA: Record<Conferencia, number> = {
+  confere: 1,
+  ausente: 0,
+  diferente: -1,
 };
 
 interface Candidato {
   resultado: ResultadoDoGeocoding;
   coordenada: Coordenada;
-  cep: CepAceito;
+  cep: CepDoResultado;
   bairro: boolean;
   porta: boolean;
   logradouro: Conferencia;
@@ -170,7 +176,7 @@ function apontaAPorta(resultado: ResultadoDoGeocoding): boolean {
   );
 }
 
-/** Descarta o que cai em outro estado ou com outro CEP. Sem CEP, so vale se o bairro conferir. */
+/** Confere cada parte; so descarta o que nao tem coordenada ou cai em outro estado. */
 function avaliar(
   resultado: ResultadoDoGeocoding,
   endereco: EnderecoConferido,
@@ -179,27 +185,34 @@ function avaliar(
   if (!coordenada || outroEstado(resultado, endereco)) {
     return null;
   }
-  const cep = conferirCep(resultado, endereco.cep);
-  const bairro = confereBairro(resultado, endereco.bairro);
-  const logradouro = conferirLogradouro(resultado, endereco.logradouro);
-  const numero = conferirNumero(resultado, endereco.numero);
-  if (
-    cep === 'diferente' ||
-    (cep === 'ausente' && !bairro) ||
-    logradouro === 'diferente' ||
-    numero === 'diferente'
-  ) {
-    return null;
-  }
   return {
     resultado,
     coordenada,
-    cep,
-    bairro,
+    cep: conferirCep(resultado, endereco.cep),
+    bairro: confereBairro(resultado, endereco.bairro),
     porta: apontaAPorta(resultado),
-    logradouro,
-    numero,
+    logradouro: conferirLogradouro(resultado, endereco.logradouro),
+    numero: conferirNumero(resultado, endereco.numero),
   };
+}
+
+/** Sem outro CEP, rua ou numero. Sem CEP, so vale se o bairro conferir. */
+function semConflito(candidato: Candidato): boolean {
+  return (
+    candidato.cep !== 'diferente' &&
+    (candidato.cep !== 'ausente' || candidato.bairro) &&
+    candidato.logradouro !== 'diferente' &&
+    candidato.numero !== 'diferente'
+  );
+}
+
+/** O bairro ou a regiao do CEP confere: o ponto cai perto, mesmo sem a porta. */
+function mesmaRegiao(candidato: Candidato): boolean {
+  return (
+    candidato.bairro ||
+    candidato.cep === 'igual' ||
+    candidato.cep === 'mesma-regiao'
+  );
 }
 
 function avaliarTodos(
@@ -229,8 +242,8 @@ function pontos(candidato: Candidato): number {
     PONTOS_DO_CEP[candidato.cep] +
     (candidato.porta ? 2 : 0) +
     (candidato.bairro ? 1 : 0) +
-    (candidato.logradouro === 'confere' ? 1 : 0) +
-    (candidato.numero === 'confere' ? 1 : 0)
+    PONTOS_DA_CONFERENCIA[candidato.logradouro] +
+    PONTOS_DA_CONFERENCIA[candidato.numero]
   );
 }
 
@@ -261,8 +274,8 @@ export function escolherResultado(
   porTexto: ResultadoDoGeocoding[],
   endereco: EnderecoConferido,
 ): EnderecoLocalizado | null {
-  const doCep = avaliarTodos(porCep, endereco);
-  const doTexto = avaliarTodos(porTexto, endereco);
+  const doCep = avaliarTodos(porCep, endereco).filter(semConflito);
+  const doTexto = avaliarTodos(porTexto, endereco).filter(semConflito);
   const centroDoCep = doCep.find((candidato) => candidato.cep === 'igual');
   if (centroDoCep) {
     const porta = doTexto.find(
@@ -287,4 +300,27 @@ export function escolherResultado(
     melhor,
     melhor.cep === 'igual' && enderecoConfere(melhor) ? 'exato' : 'aproximado',
   );
+}
+
+/** Para o endereco da empresa: quando nada confere com rigor, aceita o ponto aproximado
+ * do bairro ou da regiao do CEP, no mesmo estado. Enderecos do DF como "Area Especial",
+ * quadra e conjunto quase nunca tem o CEP completo no Google. O centro da cidade, sem
+ * bairro nem CEP que confiram, continua de fora: no DF ele pode ficar a dezenas de km.
+ */
+export function escolherOrigem(
+  porCep: ResultadoDoGeocoding[],
+  porTexto: ResultadoDoGeocoding[],
+  endereco: EnderecoConferido,
+): EnderecoLocalizado | null {
+  const rigoroso = escolherResultado(porCep, porTexto, endereco);
+  if (rigoroso) {
+    return rigoroso;
+  }
+  const melhor = maisConfere(
+    [
+      ...avaliarTodos(porTexto, endereco),
+      ...avaliarTodos(porCep, endereco),
+    ].filter(mesmaRegiao),
+  );
+  return melhor ? localizado(melhor, 'aproximado', 'Área aproximada: ') : null;
 }

@@ -96,7 +96,10 @@ export class RotaDeCarroService {
     if (salva) {
       return salva;
     }
-    const origem = await this.maps.geocodificar({ ...empresa, uf: empresa.UF });
+    const origem = await this.maps.geocodificarOrigem({
+      ...empresa,
+      uf: empresa.UF,
+    });
     if (origem) {
       await this.localizacoes.salvarOrigem(idEmpresa, origem);
     }
