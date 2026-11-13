@@ -64,13 +64,17 @@ export class GoogleMapsClient {
     return (await this.localizar(endereco))?.coordenada ?? null;
   }
 
-  /** Origem da empresa: aceita o ponto aproximado do bairro (ver escolherOrigem). */
   async geocodificarOrigem(
     endereco: EnderecoDoPedido,
   ): Promise<Coordenada | null> {
-    return (
-      (await this.localizarCom(endereco, escolherOrigem))?.coordenada ?? null
-    );
+    return (await this.localizarOrigem(endereco))?.coordenada ?? null;
+  }
+
+  /** Origem da empresa: aceita o ponto aproximado do bairro (ver escolherOrigem). */
+  localizarOrigem(
+    endereco: EnderecoDoPedido,
+  ): Promise<EnderecoLocalizado | null> {
+    return this.localizarCom(endereco, escolherOrigem);
   }
 
   /** Busca pelo CEP e pelo texto ao mesmo tempo; o CEP completo decide (ver escolherResultado). */

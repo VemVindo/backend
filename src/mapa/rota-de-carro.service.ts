@@ -51,6 +51,12 @@ export class RotaDeCarroService {
     return this.maps.localizar(endereco);
   }
 
+  localizarOrigem(
+    endereco: EnderecoDoPedido,
+  ): Promise<EnderecoLocalizado | null> {
+    return this.maps.localizarOrigem(endereco);
+  }
+
   async distanciaParaFinalizar(idPedido: number): Promise<number | null> {
     const pedido = await this.localizacoes.procurarPorId(idPedido);
     if (!pedido) {
