@@ -108,6 +108,8 @@ describe('Fluxo da entrega (e2e)', () => {
         uf: 'DF',
         descricao: 'Pedido do teste e2e',
         tipo_veiculo: 'DRIVE',
+        destino_lat: -15.8135,
+        destino_lng: -47.9046,
       })
       .expect(201);
 

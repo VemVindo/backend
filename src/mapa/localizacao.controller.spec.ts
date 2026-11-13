@@ -6,6 +6,7 @@ import type { AcessoComPedido } from '../rastreio/rastreio.repository';
 import { RegistrarPosicaoDto } from './dto/registrar-posicao.dto';
 import { LocalizacaoController } from './localizacao.controller';
 import { LocalizacaoService } from './localizacao.service';
+import { RotaDeCarroService } from './rota-de-carro.service';
 
 jest.mock('../prisma/prisma.service', () => ({ PrismaService: class {} }));
 
@@ -21,10 +22,18 @@ function montar() {
     consultarParaEmpresa: jest.fn().mockResolvedValue({}),
     consultarParaRecebedor: jest.fn().mockResolvedValue({}),
   };
+  const rotaDeCarro = {
+    localizarEndereco: jest.fn().mockResolvedValue({
+      coordenada: { lat: -15.65, lng: -47.79 },
+      precisao: 'aproximado',
+      enderecoEncontrado: 'Guará, Brasília - DF',
+    }),
+  };
   const controlador = new LocalizacaoController(
     servico as unknown as LocalizacaoService,
+    rotaDeCarro as unknown as RotaDeCarroService,
   );
-  return { controlador, servico };
+  return { controlador, servico, rotaDeCarro };
 }
 
 function errosDa(corpo: object): string[] {
@@ -34,6 +43,32 @@ function errosDa(corpo: object): string[] {
 }
 
 describe('LocalizacaoController', () => {
+  it('localiza o endereco digitado no cadastro do pedido', async () => {
+    const { controlador, rotaDeCarro } = montar();
+    const endereco = {
+      cep: '73000000',
+      logradouro: 'Quadra 10 Conjunto B',
+      numero: 7,
+      bairro: 'Sobradinho',
+      cidade: 'Brasilia',
+      uf: 'DF',
+    };
+
+    await expect(controlador.localizarEndereco(endereco)).resolves.toEqual({
+      coordenada: { lat: -15.65, lng: -47.79 },
+      precisao: 'aproximado',
+      enderecoEncontrado: 'Guará, Brasília - DF',
+    });
+    expect(rotaDeCarro.localizarEndereco).toHaveBeenCalledWith(endereco);
+
+    rotaDeCarro.localizarEndereco.mockResolvedValue(null);
+    await expect(controlador.localizarEndereco(endereco)).resolves.toEqual({
+      coordenada: null,
+      precisao: null,
+      enderecoEncontrado: null,
+    });
+  });
+
   it('registra a posicao com o CPF do entregador logado', async () => {
     const { controlador, servico } = montar();
     const posicao = { lat: -15.79, lng: -47.88, precisao: 8 };

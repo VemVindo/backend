@@ -7,7 +7,6 @@ import type {
   Pedido,
   PedidoImportado,
 } from '../../generated/prisma/client';
-import { StatusPedido } from '../../generated/prisma/enums';
 import {
   RotaAteORecebedor,
   RotaDeCarroService,
@@ -79,7 +78,7 @@ function montar() {
         Promise<RotaAteORecebedor | null>,
         Parameters<RotaDeCarroService['calcular']>
       >()
-      .mockResolvedValue(null),
+      .mockResolvedValue(ROTA_DE_4_KM),
   };
   const servico = new ImportacaoService(
     importacoes as unknown as ImportacaoRepository,
@@ -90,30 +89,30 @@ function montar() {
 }
 
 describe('ImportacaoService.importar', () => {
-  it('cria o pedido pendente com a taxa fixa da empresa como valor', async () => {
-    const { servico, importacoes } = montar();
+  it('cria pendencia quando nao localiza o endereco para calcular a distancia', async () => {
+    const { servico, importacoes, rotaDeCarro } = montar();
+    rotaDeCarro.calcular.mockResolvedValue(null);
 
     const { resultados, resumo } = await servico.importar(CANTINA, [completo]);
 
     expect(resultados).toEqual([
-      { idExterno: 'PED-1', situacao: 'importado', idPedido: 42 },
+      {
+        idExterno: 'PED-1',
+        situacao: 'incompleto',
+        idPendencia: 7,
+        camposFaltantes: ['localizacao'],
+      },
     ]);
     expect(resumo).toEqual(
-      expect.objectContaining({ recebidos: 1, importados: 1 }),
+      expect.objectContaining({ recebidos: 1, incompletos: 1 }),
     );
-    const [idEmpresa, idExterno, , pedido] =
-      importacoes.criarPedidoImportado.mock.calls[0];
-    expect(idEmpresa).toBe(CANTINA);
-    expect(idExterno).toBe('PED-1');
-    expect(pedido).toEqual(
-      expect.objectContaining({
-        status: StatusPedido.PENDENTE,
-        distancia: 0,
-        distancia_conhecida: false,
-        valor_entrega: 800,
-        complemento: null,
-      }),
+    expect(importacoes.criarPendencia).toHaveBeenCalledWith(
+      CANTINA,
+      'PED-1',
+      expect.any(Object),
+      ['localizacao'],
     );
+    expect(importacoes.criarPedidoImportado).not.toHaveBeenCalled();
   });
 
   it('cobra pelo km da rota de carro ate o recebedor e guarda o destino', async () => {
@@ -129,6 +128,8 @@ describe('ImportacaoService.importar', () => {
         numero: 304,
         cep: '70000000',
       }),
+      'DRIVE',
+      null,
     );
     expect(importacoes.criarPedidoImportado.mock.calls[0][3]).toEqual(
       expect.objectContaining({
@@ -141,21 +142,17 @@ describe('ImportacaoService.importar', () => {
     );
   });
 
-  it('preserva previsao, mas marca distancia como desconhecida quando nao ha rota', async () => {
-    const { servico, importacoes } = montar();
+  it('nao cria pedido com distancia zero quando nao ha rota', async () => {
+    const { servico, importacoes, rotaDeCarro } = montar();
+    rotaDeCarro.calcular.mockResolvedValue(null);
 
     const { resultados } = await servico.importar(CANTINA, [completo]);
 
-    expect(resultados[0].situacao).toBe('importado');
-    expect(importacoes.criarPedidoImportado.mock.calls[0][3]).toEqual(
-      expect.objectContaining({
-        distancia: 0,
-        distancia_conhecida: false,
-        valor_entrega: 800,
-        destino_lat: null,
-        destino_lng: null,
-      }),
-    );
+    expect(resultados[0]).toMatchObject({
+      situacao: 'incompleto',
+      camposFaltantes: ['localizacao'],
+    });
+    expect(importacoes.criarPedidoImportado).not.toHaveBeenCalled();
   });
 
   it('nao gasta chamada ao Google com pedido incompleto', async () => {
@@ -166,14 +163,64 @@ describe('ImportacaoService.importar', () => {
     expect(rotaDeCarro.calcular).not.toHaveBeenCalled();
   });
 
-  it('distingue rota conhecida com zero metros do fallback sem rota', async () => {
+  it('exige o pino quando a rota calculada tem distancia zero', async () => {
     const { servico, importacoes, rotaDeCarro } = montar();
     rotaDeCarro.calcular.mockResolvedValue({ ...ROTA_DE_4_KM, distanciaM: 0 });
-    await servico.importar(CANTINA, [completo]);
-    expect(importacoes.criarPedidoImportado.mock.calls[0][3]).toMatchObject({
-      distancia: 0,
-      distancia_conhecida: true,
+    const { resultados } = await servico.importar(CANTINA, [completo]);
+
+    expect(resultados[0]).toMatchObject({
+      situacao: 'incompleto',
+      camposFaltantes: ['localizacao'],
     });
+    expect(importacoes.criarPedidoImportado).not.toHaveBeenCalled();
+  });
+
+  it('recusa pino quando ainda nao e possivel calcular uma distancia', async () => {
+    const { servico, importacoes, rotaDeCarro } = montar();
+    rotaDeCarro.calcular.mockResolvedValue(null);
+
+    await expect(
+      servico.importar(CANTINA, [
+        { ...completo, destinoLat: -15.75, destinoLng: -47.88 },
+      ]),
+    ).rejects.toThrow(UnprocessableEntityException);
+    expect(importacoes.criarPedidoImportado).not.toHaveBeenCalled();
+  });
+
+  it('usa coordenadas enviadas para calcular a rota de um pedido importado', async () => {
+    const { servico, importacoes, rotaDeCarro } = montar();
+
+    await servico.importar(CANTINA, [
+      { ...completo, destinoLat: -15.75, destinoLng: -47.88 },
+    ]);
+
+    expect(rotaDeCarro.calcular).toHaveBeenCalledWith(
+      CANTINA,
+      expect.objectContaining({ logradouro: 'SQN 210 Bloco K' }),
+      'DRIVE',
+      { lat: -15.75, lng: -47.88 },
+    );
+    expect(importacoes.criarPedidoImportado.mock.calls[0][3]).toMatchObject({
+      distancia: 4200,
+      distancia_conhecida: true,
+      destino_lat: -15.75,
+      destino_lng: -47.88,
+    });
+  });
+
+  it('mantem pendente um pedido importado com apenas parte do pino', async () => {
+    const { servico, importacoes, rotaDeCarro } = montar();
+
+    const { resultados } = await servico.importar(CANTINA, [
+      { ...completo, destinoLat: -15.75 },
+    ]);
+
+    expect(resultados[0]).toMatchObject({
+      situacao: 'incompleto',
+      camposFaltantes: ['localizacao'],
+    });
+    expect(rotaDeCarro.calcular).not.toHaveBeenCalled();
+    expect(importacoes.criarPedidoImportado).not.toHaveBeenCalled();
   });
 
   it('usa sempre a empresa da credencial, mesmo com idEmpresa no corpo', async () => {
@@ -341,10 +388,42 @@ describe('ImportacaoService.completar', () => {
     expect(rotaDeCarro.calcular).toHaveBeenCalledWith(
       CANTINA,
       expect.objectContaining({ cep: '70000001' }),
+      'DRIVE',
+      null,
     );
     expect(importacoes.converterPendencia.mock.calls[0][3]).toEqual(
       expect.objectContaining({ distancia: 4200, valor_entrega: 1430 }),
     );
+  });
+
+  it('permite completar pendencia de localizacao com pino manual', async () => {
+    const { servico, importacoes, rotaDeCarro } = montar();
+    importacoes.procurarPendencia.mockResolvedValue(
+      importado({
+        id_importacao: 7,
+        idEmpresa: CANTINA,
+        dados: camposDoPedido,
+      }),
+    );
+    rotaDeCarro.calcular.mockResolvedValue(ROTA_DE_4_KM);
+
+    await servico.completar(CANTINA, 7, {
+      destinoLat: -15.75,
+      destinoLng: -47.88,
+    });
+
+    expect(rotaDeCarro.calcular).toHaveBeenCalledWith(
+      CANTINA,
+      expect.objectContaining({ logradouro: 'SQN 210 Bloco K' }),
+      'DRIVE',
+      { lat: -15.75, lng: -47.88 },
+    );
+    expect(importacoes.converterPendencia.mock.calls[0][3]).toMatchObject({
+      distancia: 4200,
+      distancia_conhecida: true,
+      destino_lat: -15.75,
+      destino_lng: -47.88,
+    });
   });
 
   it('salva o progresso e responde 422 quando ainda falta dado', async () => {

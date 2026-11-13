@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { RotaDeCarroService } from '../../mapa/rota-de-carro.service';
 import { CalculoValorEntregaService } from '../../remuneracao/calculo-valor-entrega.service';
 import { RemuneracaoService } from '../../remuneracao/remuneracao.service';
@@ -32,6 +32,7 @@ function montar() {
     calcular: jest
       .fn()
       .mockResolvedValue({ distanciaM: 2000, destino: DESTINO }),
+    distanciaParaFinalizar: jest.fn().mockResolvedValue(3100),
   };
   const calculoDaEntrega = new CalculoDaEntregaService(
     remuneracaoService as unknown as RemuneracaoService,
@@ -58,22 +59,100 @@ describe('CalculoDaEntregaService', () => {
       ID_EMPRESA,
       pedido,
       'BICYCLE',
+      null,
     );
   });
 
-  it('sem rota, grava distancia desconhecida e cobra so a taxa fixa', async () => {
+  it('usa o ponto marcado no mapa como destino', async () => {
+    const { calculoDaEntrega, rotaDeCarro } = montar();
+    const marcado = { ...pedido, destino_lat: -15.65, destino_lng: -47.79 };
+    rotaDeCarro.calcular.mockResolvedValue({
+      distanciaM: 2000,
+      destino: { lat: -15.65, lng: -47.79 },
+    });
+
+    await expect(
+      calculoDaEntrega.calcular(ID_EMPRESA, marcado),
+    ).resolves.toMatchObject({ destinoLat: -15.65, destinoLng: -47.79 });
+    expect(rotaDeCarro.calcular).toHaveBeenCalledWith(
+      ID_EMPRESA,
+      marcado,
+      'BICYCLE',
+      { lat: -15.65, lng: -47.79 },
+    );
+  });
+
+  it('nao cria a entrega quando nao consegue calcular a rota, mesmo com pino', async () => {
     const { calculoDaEntrega, rotaDeCarro } = montar();
     rotaDeCarro.calcular.mockResolvedValue(null);
 
     await expect(
-      calculoDaEntrega.calcular(ID_EMPRESA, pedido),
-    ).resolves.toEqual({
-      distancia: 0,
-      distanciaConhecida: false,
-      destinoLat: null,
-      destinoLng: null,
-      valorEntrega: 500,
+      calculoDaEntrega.calcular(ID_EMPRESA, {
+        ...pedido,
+        destino_lat: -15.65,
+        destino_lng: -47.79,
+      }),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('repassa o recalculo da distancia na finalizacao', async () => {
+    const { calculoDaEntrega, rotaDeCarro } = montar();
+
+    await expect(calculoDaEntrega.distanciaParaFinalizar(9)).resolves.toBe(
+      3100,
+    );
+    expect(rotaDeCarro.distanciaParaFinalizar).toHaveBeenCalledWith(9);
+  });
+
+  it('rejeita o ponto marcado pela metade', async () => {
+    const { calculoDaEntrega, rotaDeCarro } = montar();
+
+    await expect(
+      calculoDaEntrega.calcular(ID_EMPRESA, {
+        ...pedido,
+        destino_lat: -15.65,
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(rotaDeCarro.calcular).not.toHaveBeenCalled();
+  });
+
+  it('exige o pino quando nao consegue localizar o endereco', async () => {
+    const { calculoDaEntrega, rotaDeCarro } = montar();
+    rotaDeCarro.calcular.mockResolvedValue(null);
+
+    await expect(calculoDaEntrega.calcular(ID_EMPRESA, pedido)).rejects.toThrow(
+      'Não foi possível localizar o endereço da entrega. Marque o pino no local correto do mapa para continuar.',
+    );
+    expect(rotaDeCarro.calcular).toHaveBeenCalledWith(
+      ID_EMPRESA,
+      pedido,
+      'BICYCLE',
+      null,
+    );
+  });
+
+  it('exige as duas coordenadas quando o pino e enviado', async () => {
+    const { calculoDaEntrega, rotaDeCarro } = montar();
+
+    await expect(
+      calculoDaEntrega.calcular(ID_EMPRESA, {
+        ...pedido,
+        destino_lat: -15.65,
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(rotaDeCarro.calcular).not.toHaveBeenCalled();
+  });
+
+  it('rejeita distancia zero em vez de cobrar apenas a taxa fixa', async () => {
+    const { calculoDaEntrega, rotaDeCarro } = montar();
+    rotaDeCarro.calcular.mockResolvedValue({
+      distanciaM: 0,
+      destino: DESTINO,
     });
+
+    await expect(calculoDaEntrega.calcular(ID_EMPRESA, pedido)).rejects.toThrow(
+      ConflictException,
+    );
   });
 
   it.each([

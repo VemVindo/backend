@@ -49,6 +49,8 @@ function pedidoExterno(idExterno: string, nomeRecebedor: string) {
     cidade: 'Brasilia',
     uf: 'DF',
     descricao: 'Pedido importado no teste',
+    destinoLat: -15.8135,
+    destinoLng: -47.9046,
   };
 }
 

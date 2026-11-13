@@ -150,6 +150,9 @@ function montar() {
 
   const calculoDaEntrega = {
     calcular: jest.fn().mockResolvedValue(ENTREGA),
+    distanciaParaFinalizar: jest
+      .fn<Promise<number | null>, [number]>()
+      .mockResolvedValue(null),
   };
 
   const servico = new PedidoService(
@@ -380,6 +383,65 @@ describe('PedidoService.finalizar', () => {
       servico.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO),
     ).rejects.toThrow(ConflictException);
     expect(pedidos.atualizarStatus).not.toHaveBeenCalled();
+  });
+
+  it('completa a distancia desconhecida antes de consolidar o ganho', async () => {
+    const { servico, pedidos, calculoDaEntrega } = montar();
+    pedidos.procurarAtribuidoAoEntregador.mockResolvedValue({
+      ...pedidoEmAndamento,
+      idEmpresa: ID_EMPRESA,
+      distancia_conhecida: false,
+    });
+    calculoDaEntrega.distanciaParaFinalizar.mockResolvedValue(3100);
+
+    await servico.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO);
+
+    expect(calculoDaEntrega.distanciaParaFinalizar).toHaveBeenCalledWith(
+      ID_PEDIDO,
+    );
+    expect(pedidos.corrigirDistancia).toHaveBeenCalledWith(
+      ID_PEDIDO,
+      ID_EMPRESA,
+      3100,
+    );
+    expect(pedidos.corrigirDistancia.mock.invocationCallOrder[0]).toBeLessThan(
+      pedidos.atualizarStatus.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('nao recalcula quando a distancia ja e conhecida', async () => {
+    const { servico, pedidos, calculoDaEntrega } = montar();
+    pedidos.procurarAtribuidoAoEntregador.mockResolvedValue({
+      ...pedidoEmAndamento,
+      distancia_conhecida: true,
+    });
+
+    await servico.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO);
+
+    expect(calculoDaEntrega.distanciaParaFinalizar).not.toHaveBeenCalled();
+    expect(pedidos.corrigirDistancia).not.toHaveBeenCalled();
+  });
+
+  it('nao recalcula a distancia com o codigo errado', async () => {
+    const { servico, codigoDoRecebedor, calculoDaEntrega } = montar();
+    codigoDoRecebedor.conferir.mockResolvedValue({
+      situacao: 'incorreto',
+      tentativasRestantes: 2,
+    });
+
+    await expect(
+      servico.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO),
+    ).rejects.toThrow(UnprocessableEntityException);
+    expect(calculoDaEntrega.distanciaParaFinalizar).not.toHaveBeenCalled();
+  });
+
+  it('segue para a finalizacao quando nem a estimativa e possivel', async () => {
+    const { servico, pedidos } = montar();
+
+    await servico.finalizar(CPF_ENTREGADOR, ID_PEDIDO, CODIGO);
+
+    expect(pedidos.corrigirDistancia).not.toHaveBeenCalled();
+    expect(pedidos.atualizarStatus).toHaveBeenCalled();
   });
 });
 

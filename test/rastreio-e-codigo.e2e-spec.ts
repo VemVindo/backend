@@ -211,6 +211,8 @@ describe('R-US01 link sem login e EN-US06 codigo do recebedor (e2e)', () => {
               uf: 'DF',
               descricao: 'Pedido do teste de limite',
               tipo_veiculo: 'DRIVE',
+              destino_lat: -15.8135,
+              destino_lng: -47.9046,
               cpf_entregador: BRUNO,
             })
             .expect(201)

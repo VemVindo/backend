@@ -56,12 +56,28 @@ describe('analisarPedidoExterno', () => {
       idEmpresa: 2,
       status: 'FINALIZADO',
       valor_entrega: 1,
+      destinoLat: -15.75,
+      destinoLng: -47.88,
     });
 
     expect(dados).not.toHaveProperty('idEmpresa');
     expect(dados).not.toHaveProperty('status');
     expect(dados).not.toHaveProperty('valor_entrega');
     expect(dados.nomeRecebedor).toBe('Carla Menezes');
+    expect(dados).toMatchObject({
+      destinoLat: -15.75,
+      destinoLng: -47.88,
+    });
+  });
+
+  it('descarta coordenadas invalidas do pino', () => {
+    expect(
+      analisarPedidoExterno({
+        ...completo,
+        destinoLat: 91,
+        destinoLng: -47.88,
+      }).camposFaltantes,
+    ).toContain('destinoLat');
   });
 });
 

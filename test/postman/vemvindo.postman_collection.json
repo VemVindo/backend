@@ -1217,6 +1217,92 @@
           ]
         },
         {
+          "name": "Localizar endereco no mapa",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/localizar-endereco",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "localizar-endereco"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cep\": \"70000000\",\n  \"logradouro\": \"Rua de Teste\",\n  \"numero\": 2,\n  \"bairro\": \"Centro\",\n  \"cidade\": \"Brasilia\",\n  \"uf\": \"DF\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "// Sem chave do Google no CI a coordenada vem nula; com chave, vem lat e lng.",
+                  "pm.test('devolve a coordenada ou nulo', () => pm.expect(pm.response.json()).to.have.property('coordenada'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Localizar endereco sem numero",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/localizar-endereco",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "pedidos",
+                "localizar-endereco"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cep\": \"70000000\",\n  \"logradouro\": \"Rua de Teste\",\n  \"bairro\": \"Centro\",\n  \"cidade\": \"Brasilia\",\n  \"uf\": \"DF\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Cadastrar pedido",
           "request": {
             "method": "POST",

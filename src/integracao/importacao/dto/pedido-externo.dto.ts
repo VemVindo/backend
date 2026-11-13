@@ -1,7 +1,10 @@
 import {
   IsIn,
   IsInt,
+  IsLatitude,
+  IsLongitude,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsPositive,
   IsString,
@@ -70,6 +73,16 @@ export class PedidoExternoDto {
   @IsString()
   @MaxLength(500)
   observacoes?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @IsLatitude()
+  destinoLat?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @IsLongitude()
+  destinoLng?: number;
 }
 
 export const CAMPOS_DO_PEDIDO_EXTERNO: readonly (keyof PedidoExternoDto)[] = [
@@ -84,4 +97,6 @@ export const CAMPOS_DO_PEDIDO_EXTERNO: readonly (keyof PedidoExternoDto)[] = [
   'uf',
   'descricao',
   'observacoes',
+  'destinoLat',
+  'destinoLng',
 ];

@@ -32,7 +32,6 @@ import {
   resumir,
 } from './resultado-da-importacao';
 
-const DISTANCIA_SEM_ROTA = 0;
 const VALOR_SEM_PARAMETROS_DE_REMUNERACAO = 0;
 
 interface PedidoPreparado {
@@ -209,11 +208,46 @@ export class ImportacaoService {
     if (camposFaltantes.length > 0) {
       return { analise, pedido: null, camposFaltantes };
     }
+    const latitude = analise.pedido.destinoLat;
+    const longitude = analise.pedido.destinoLng;
+    const temLatitude = latitude != null;
+    const temLongitude = longitude != null;
+    if (temLatitude !== temLongitude) {
+      return {
+        analise,
+        pedido: null,
+        camposFaltantes: ['localizacao'],
+      };
+    }
+    const destinoInformado =
+      latitude != null && longitude != null
+        ? {
+            lat: latitude,
+            lng: longitude,
+          }
+        : null;
     const metricas = await this.importacoes.procurarMetricasVigentes(
       idEmpresa,
       new Date(),
     );
-    const rota = await this.rotaDeCarro.calcular(idEmpresa, analise.pedido);
+    const rota = await this.rotaDeCarro.calcular(
+      idEmpresa,
+      analise.pedido,
+      'DRIVE',
+      destinoInformado,
+    );
+    if (!rota || rota.distanciaM <= 0) {
+      if (destinoInformado) {
+        throw new UnprocessableEntityException(
+          'Não foi possível calcular uma distância válida. Confira a localização do estabelecimento e do pino no mapa.',
+        );
+      }
+      return {
+        analise,
+        pedido: null,
+        camposFaltantes: ['localizacao'],
+      };
+    }
     return {
       analise,
       pedido: this.montarPedido(analise.pedido, metricas, rota),
@@ -224,9 +258,9 @@ export class ImportacaoService {
   private montarPedido(
     pedido: PedidoExternoDto,
     metricas: MetricasPagamento | null,
-    rota: RotaAteORecebedor | null,
+    rota: RotaAteORecebedor,
   ): DadosNovoPedido {
-    const distancia = rota?.distanciaM ?? DISTANCIA_SEM_ROTA;
+    const distancia = rota.distanciaM;
     return {
       nome_recebedor: pedido.nomeRecebedor,
       telefone_recebedor: pedido.telefoneRecebedor,
@@ -241,9 +275,9 @@ export class ImportacaoService {
       status: StatusFactory.criar(undefined),
       data_criacao: new Date(),
       distancia,
-      distancia_conhecida: rota !== null,
-      destino_lat: rota?.destino.lat ?? null,
-      destino_lng: rota?.destino.lng ?? null,
+      distancia_conhecida: true,
+      destino_lat: rota.destino.lat,
+      destino_lng: rota.destino.lng,
       valor_entrega: this.valorDaEntrega(metricas, distancia),
     };
   }
