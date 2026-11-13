@@ -70,6 +70,11 @@ function montar() {
       precisao: 'exato',
       enderecoEncontrado: 'SQN 210, Brasília - DF',
     }),
+    localizarOrigem: jest.fn().mockResolvedValue({
+      coordenada: SAIDA,
+      precisao: 'aproximado',
+      enderecoEncontrado: null,
+    }),
     calcularRota: jest
       .fn<
         Promise<RotaCalculada | null>,
@@ -234,6 +239,19 @@ describe('RotaDeCarroService com o ponto marcado no mapa', () => {
       enderecoEncontrado: 'SQN 210, Brasília - DF',
     });
     expect(maps.localizar).toHaveBeenCalledWith(ENDERECO_DO_RECEBEDOR);
+  });
+
+  it('localiza a origem da empresa com a regra que aceita o bairro', async () => {
+    const { servico, maps } = montar();
+
+    await expect(
+      servico.localizarOrigem(ENDERECO_DO_RECEBEDOR),
+    ).resolves.toEqual({
+      coordenada: SAIDA,
+      precisao: 'aproximado',
+      enderecoEncontrado: null,
+    });
+    expect(maps.localizarOrigem).toHaveBeenCalledWith(ENDERECO_DO_RECEBEDOR);
   });
 });
 

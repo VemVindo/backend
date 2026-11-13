@@ -250,6 +250,14 @@ describe('GoogleMapsClient', () => {
       });
     });
 
+    it('localizarOrigem devolve o ponto aproximado com a precisao', async () => {
+      responderEmSequencia({ status: 'ZERO_RESULTS' }, AREA);
+      expect(await criar('chave').localizarOrigem(ENDERECO)).toMatchObject({
+        coordenada: { lat: -15.83, lng: -47.9 },
+        precisao: 'aproximado',
+      });
+    });
+
     it('sem chave nao chama o Google', async () => {
       const fetchSimulado = responder(200, AREA);
       expect(await criar('').geocodificarOrigem(ENDERECO)).toBeNull();

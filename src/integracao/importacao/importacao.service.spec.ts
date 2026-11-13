@@ -11,6 +11,10 @@ import {
   RotaAteORecebedor,
   RotaDeCarroService,
 } from '../../mapa/rota-de-carro.service';
+import {
+  MENSAGEM_MESMO_PONTO,
+  MENSAGEM_SEM_ORIGEM,
+} from '../../mapa/mensagens-da-rota';
 import { CalculoValorEntregaService } from '../../remuneracao/calculo-valor-entrega.service';
 import {
   ImportacaoRepository,
@@ -175,7 +179,7 @@ describe('ImportacaoService.importar', () => {
     expect(importacoes.criarPedidoImportado).not.toHaveBeenCalled();
   });
 
-  it('recusa pino quando ainda nao e possivel calcular uma distancia', async () => {
+  it('recusa pino quando a empresa ainda nao tem origem', async () => {
     const { servico, importacoes, rotaDeCarro } = montar();
     rotaDeCarro.calcular.mockResolvedValue(null);
 
@@ -183,7 +187,19 @@ describe('ImportacaoService.importar', () => {
       servico.importar(CANTINA, [
         { ...completo, destinoLat: -15.75, destinoLng: -47.88 },
       ]),
-    ).rejects.toThrow(UnprocessableEntityException);
+    ).rejects.toThrow(new UnprocessableEntityException(MENSAGEM_SEM_ORIGEM));
+    expect(importacoes.criarPedidoImportado).not.toHaveBeenCalled();
+  });
+
+  it('recusa pino no mesmo ponto do estabelecimento', async () => {
+    const { servico, importacoes, rotaDeCarro } = montar();
+    rotaDeCarro.calcular.mockResolvedValue({ ...ROTA_DE_4_KM, distanciaM: 0 });
+
+    await expect(
+      servico.importar(CANTINA, [
+        { ...completo, destinoLat: -15.75, destinoLng: -47.88 },
+      ]),
+    ).rejects.toThrow(new UnprocessableEntityException(MENSAGEM_MESMO_PONTO));
     expect(importacoes.criarPedidoImportado).not.toHaveBeenCalled();
   });
 

@@ -1,13 +1,19 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import type { UsuarioAutenticado } from '../auth/jwt.strategy';
 import { Cargo } from '../common/enums/cargo.enum';
+import type { RotaDeCarroService } from '../mapa/rota-de-carro.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CadastroEmpresaController } from './cadastro-empresa.controller';
 import { AtualizarCadastroDto } from './dto/atualizar-cadastro.dto';
 import { DadosCadastrais, EmpresaRepository } from './empresa.repository';
 import { EmpresaService } from './empresa.service';
+import { MENSAGEM_PINO_INCOMPLETO } from './pino-da-empresa';
 
 jest.mock('../prisma/prisma.service', () => ({ PrismaService: class {} }));
 
@@ -29,6 +35,8 @@ const EMPRESA = {
   bairro: 'Asa Norte',
   cidade: 'Brasilia',
   UF: 'DF',
+  origem_lat: null,
+  origem_lng: null,
   criada_em: CRIADA,
   cadastro_atualizado_em: CRIADA,
 };
@@ -44,7 +52,10 @@ const DADOS: DadosCadastrais = {
   bairro: 'Asa Norte',
   cidade: 'Brasilia',
   uf: 'DF',
+  origem: null,
 };
+
+const PINO = { lat: -15.7801, lng: -47.9292 };
 
 function montar() {
   const repositorio = {
@@ -79,9 +90,23 @@ describe('EmpresaService.consultarCadastro', () => {
         cidade: 'Brasilia',
         uf: 'DF',
       },
+      origem: null,
       criadaEm: CRIADA,
       atualizadaEm: CRIADA,
     });
+  });
+
+  it('mostra a origem salva da empresa', async () => {
+    const { servico, repositorio } = montar();
+    repositorio.procurarPorId.mockResolvedValue({
+      ...EMPRESA,
+      origem_lat: -15.7801,
+      origem_lng: -47.9292,
+    });
+
+    const cadastro = await servico.consultarCadastro(3);
+
+    expect(cadastro.origem).toEqual(PINO);
   });
 
   it('cadastro por CPF mostra o CPF como documento', async () => {
@@ -160,6 +185,29 @@ describe('EmpresaService.atualizarCadastro', () => {
       );
     },
   );
+
+  it('repassa o pino ao repositorio e devolve a origem gravada', async () => {
+    const { servico, repositorio } = montar();
+    repositorio.atualizarCadastro.mockResolvedValue({
+      ...EMPRESA,
+      origem_lat: PINO.lat,
+      origem_lng: PINO.lng,
+    });
+
+    const resposta = await servico.atualizarCadastro(
+      3,
+      { ...DADOS, origem: PINO },
+      AGORA,
+    );
+
+    expect(repositorio.atualizarCadastro).toHaveBeenCalledWith(
+      3,
+      { ...DADOS, origem: PINO },
+      false,
+      AGORA,
+    );
+    expect(resposta.origem).toEqual(PINO);
+  });
 
   it('recusa e-mail de outra empresa sem gravar', async () => {
     const { servico, repositorio } = montar();
@@ -260,20 +308,105 @@ describe('CadastroEmpresaController', () => {
     empresaId: '3',
   };
 
-  it('usa a empresa do token, nunca um id vindo do corpo', async () => {
+  const CORPO = { ...DADOS, complemento: undefined, origem: undefined };
+
+  function montarControlador() {
     const servico = {
       consultarCadastro: jest.fn().mockResolvedValue({}),
       atualizarCadastro: jest.fn().mockResolvedValue({}),
     };
+    const rotaDeCarro = { localizarOrigem: jest.fn() };
     const controlador = new CadastroEmpresaController(
       servico as unknown as EmpresaService,
+      rotaDeCarro as unknown as RotaDeCarroService,
     );
+    return { controlador, servico, rotaDeCarro };
+  }
+
+  it('usa a empresa do token, nunca um id vindo do corpo', async () => {
+    const { controlador, servico } = montarControlador();
 
     await controlador.consultar(usuario);
-    await controlador.atualizar(usuario, { ...DADOS, complemento: undefined });
+    await controlador.atualizar(usuario, { ...CORPO, complemento: undefined });
 
     expect(servico.consultarCadastro).toHaveBeenCalledWith(3);
     expect(servico.atualizarCadastro).toHaveBeenCalledWith(3, DADOS);
+  });
+
+  it('repassa o pino marcado no mapa', async () => {
+    const { controlador, servico } = montarControlador();
+
+    await controlador.atualizar(usuario, {
+      ...CORPO,
+      complemento: undefined,
+      origemLat: PINO.lat,
+      origemLng: PINO.lng,
+    });
+
+    expect(servico.atualizarCadastro).toHaveBeenCalledWith(3, {
+      ...DADOS,
+      origem: PINO,
+    });
+  });
+
+  it.each([
+    ['so a latitude', { origemLat: PINO.lat }],
+    ['so a longitude', { origemLng: PINO.lng }],
+  ])('responde 400 com %s do pino', (_caso, metade) => {
+    const { controlador, servico } = montarControlador();
+
+    expect(() =>
+      controlador.atualizar(usuario, {
+        ...CORPO,
+        complemento: undefined,
+        ...metade,
+      }),
+    ).toThrow(new BadRequestException(MENSAGEM_PINO_INCOMPLETO));
+    expect(servico.atualizarCadastro).not.toHaveBeenCalled();
+  });
+
+  it('sugere o pino inicial pelo endereco do formulario', async () => {
+    const { controlador, rotaDeCarro } = montarControlador();
+    rotaDeCarro.localizarOrigem.mockResolvedValue({
+      coordenada: PINO,
+      precisao: 'aproximado',
+      enderecoEncontrado: 'Asa Norte, Brasilia - DF',
+    });
+    const endereco = {
+      cep: '70000000',
+      logradouro: 'SQN 210 Bloco K',
+      numero: 10,
+      bairro: 'Asa Norte',
+      cidade: 'Brasilia',
+      uf: 'DF',
+    };
+
+    await expect(controlador.localizar(endereco)).resolves.toEqual({
+      coordenada: PINO,
+      precisao: 'aproximado',
+      enderecoEncontrado: 'Asa Norte, Brasilia - DF',
+    });
+    expect(rotaDeCarro.localizarOrigem).toHaveBeenCalledWith(endereco);
+  });
+
+  it('responde tudo nulo quando o endereco nao e encontrado', async () => {
+    const { controlador, rotaDeCarro } = montarControlador();
+    rotaDeCarro.localizarOrigem.mockResolvedValue(null);
+
+    await expect(
+      controlador.localizar({
+        cep: '70000000',
+        logradouro: 'Rua A',
+        numero: 1,
+        bairro: 'Centro',
+        cidade: 'Brasilia',
+        uf: 'DF',
+      }),
+    ).resolves.toEqual({
+      coordenada: null,
+      precisao: null,
+      enderecoEncontrado: null,
+    });
   });
 });
 
@@ -297,6 +430,14 @@ describe('AtualizarCadastroDto', () => {
     expect(
       campos({ email: 'invalido', telefone: '123', cep: '7000', uf: 'XX' }),
     ).toEqual(['email', 'telefone', 'cep', 'uf']);
+  });
+
+  it('aceita o pino e recusa coordenada fora da faixa', () => {
+    expect(campos({ origemLat: PINO.lat, origemLng: PINO.lng })).toEqual([]);
+    expect(campos({ origemLat: 91, origemLng: '-47.9' })).toEqual([
+      'origemLat',
+      'origemLng',
+    ]);
   });
 
   it('nao aceita documento nem razao social', () => {

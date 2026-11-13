@@ -60,7 +60,10 @@ const DADOS_CADASTRAIS: DadosCadastrais = {
   bairro: 'Centro',
   cidade: 'Brasilia',
   uf: 'DF',
+  origem: null,
 };
+
+const PINO = { lat: -15.7801, lng: -47.9292 };
 
 const NOVA_EMPRESA: DadosNovaEmpresa = {
   ...DADOS_CADASTRAIS,
@@ -152,7 +155,22 @@ describe('EmpresaRepository cadastro', () => {
         cpf: null,
         razao_social: 'Padaria Central LTDA',
         senha: 'hash-da-senha',
+        origem_lat: null,
+        origem_lng: null,
       },
+    });
+  });
+
+  it('cria a empresa com o pino marcado no mapa', async () => {
+    const { repositorio, prisma } = montar(null);
+
+    await repositorio.criar({ ...NOVA_EMPRESA, origem: PINO });
+
+    expect(prisma.empresa.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        origem_lat: -15.7801,
+        origem_lng: -47.9292,
+      }) as unknown,
     });
   });
 
@@ -181,6 +199,31 @@ describe('EmpresaRepository cadastro', () => {
         cadastro_atualizado_em: agora,
         origem_lat: null,
         origem_lng: null,
+      },
+    });
+  });
+
+  it.each([
+    ['o endereco mudou', true],
+    ['o endereco nao mudou', false],
+  ])('grava o pino enviado mesmo quando %s', async (_caso, enderecoMudou) => {
+    const { repositorio, prisma } = montar(null);
+    const agora = new Date('2026-10-25T12:00:00Z');
+
+    await repositorio.atualizarCadastro(
+      3,
+      { ...DADOS_CADASTRAIS, origem: PINO },
+      enderecoMudou,
+      agora,
+    );
+
+    expect(prisma.empresa.update).toHaveBeenCalledWith({
+      where: { id_empresa: 3 },
+      data: {
+        ...CAMPOS_CADASTRAIS,
+        cadastro_atualizado_em: agora,
+        origem_lat: -15.7801,
+        origem_lng: -47.9292,
       },
     });
   });

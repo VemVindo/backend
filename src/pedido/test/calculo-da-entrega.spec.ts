@@ -1,4 +1,8 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  MENSAGEM_MESMO_PONTO,
+  MENSAGEM_SEM_ORIGEM,
+} from '../../mapa/mensagens-da-rota';
 import { RotaDeCarroService } from '../../mapa/rota-de-carro.service';
 import { CalculoValorEntregaService } from '../../remuneracao/calculo-valor-entrega.service';
 import { RemuneracaoService } from '../../remuneracao/remuneracao.service';
@@ -82,7 +86,7 @@ describe('CalculoDaEntregaService', () => {
     );
   });
 
-  it('nao cria a entrega quando nao consegue calcular a rota, mesmo com pino', async () => {
+  it('com pino e sem rota pede a localizacao do estabelecimento', async () => {
     const { calculoDaEntrega, rotaDeCarro } = montar();
     rotaDeCarro.calcular.mockResolvedValue(null);
 
@@ -92,7 +96,7 @@ describe('CalculoDaEntregaService', () => {
         destino_lat: -15.65,
         destino_lng: -47.79,
       }),
-    ).rejects.toThrow(ConflictException);
+    ).rejects.toThrow(new ConflictException(MENSAGEM_SEM_ORIGEM));
   });
 
   it('repassa o recalculo da distancia na finalizacao', async () => {
@@ -151,7 +155,7 @@ describe('CalculoDaEntregaService', () => {
     });
 
     await expect(calculoDaEntrega.calcular(ID_EMPRESA, pedido)).rejects.toThrow(
-      ConflictException,
+      new ConflictException(MENSAGEM_MESMO_PONTO),
     );
   });
 
