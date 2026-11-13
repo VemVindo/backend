@@ -13,10 +13,11 @@ export interface DadosNovoEntregador {
   senhaTemporariaExpiraEm: Date;
 }
 
-export interface AlteracoesDoEntregador {
-  nome?: string | null;
-  telefone?: string | null;
-  veiculo?: string | null;
+// undefined deixa o campo como esta; placa null apaga a placa.
+export interface AlteracoesDoPerfil {
+  nome?: string;
+  telefone?: string;
+  tipo_veiculo?: string;
   placa?: string | null;
 }
 
@@ -125,19 +126,10 @@ export class EntregadorRepository {
     });
   }
 
-  async atualizar(
+  atualizarPerfil(
     cpf: string,
-    { nome, telefone, veiculo, placa }: AlteracoesDoEntregador,
-  ): Promise<Entregador | null> {
-    return await this.prisma.entregador.update({
-      where: { cpf },
-      data: {
-        ...(nome !== undefined && nome !== null && { nome }),
-        ...(telefone !== undefined && telefone !== null && { telefone }),
-        ...(veiculo !== undefined &&
-          veiculo !== null && { tipo_veiculo: veiculo }),
-        ...(placa !== undefined && placa !== null && { placa }),
-      },
-    });
+    alteracoes: AlteracoesDoPerfil,
+  ): Promise<Entregador> {
+    return this.prisma.entregador.update({ where: { cpf }, data: alteracoes });
   }
 }

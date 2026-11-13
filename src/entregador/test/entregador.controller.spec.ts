@@ -1,52 +1,10 @@
 import { ServicoDesempenhoEntregador } from '../desempenho-entregador.service';
-import { Test, TestingModule } from '@nestjs/testing';
 import { EntregadorController } from '../entregador.controller';
 import { EntregadorService } from '../entregador.service';
 import { RemocaoDaFrotaService } from '../remocao-da-frota.service';
 import type { UsuarioAutenticado } from '../../auth/jwt.strategy';
-import { EditarEntregadorDto } from '../dto/editar-entregador.dto';
 import { Cargo } from '../../common/enums/cargo.enum';
 import { CadastrarEntregadorDto } from '../dto/cadastrar-entregador.dto';
-
-describe('EntregadorController.editar', () => {
-  const usuario: UsuarioAutenticado = {
-    usuarioId: '7',
-    empresaId: '7',
-    cargo: Cargo.ESTABELECIMENTO,
-  };
-  const dadosDoEntregador: EditarEntregadorDto = {
-    cpf: '52998224725',
-    telefone: '61988887777',
-  };
-  let controlador: EntregadorController;
-  let editar: jest.Mock;
-
-  beforeEach(async () => {
-    editar = jest.fn();
-    const modulo: TestingModule = await Test.createTestingModule({
-      providers: [
-        { provide: ServicoDesempenhoEntregador, useValue: {} },
-        { provide: RemocaoDaFrotaService, useValue: {} },
-        { provide: EntregadorService, useValue: { editar } },
-      ],
-      controllers: [EntregadorController],
-    }).compile();
-
-    controlador = modulo.get<EntregadorController>(EntregadorController);
-  });
-
-  it.each([true, false])(
-    'repassa a empresa do usuario e devolve %s do service',
-    async (atualizou) => {
-      editar.mockResolvedValue(atualizou);
-
-      await expect(
-        controlador.editar(usuario, dadosDoEntregador),
-      ).resolves.toBe(atualizou);
-      expect(editar).toHaveBeenCalledWith(7, dadosDoEntregador);
-    },
-  );
-});
 
 describe('EntregadorController rotas da frota', () => {
   const CPF_ENTREGADOR = '52998224725';

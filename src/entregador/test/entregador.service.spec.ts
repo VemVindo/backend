@@ -9,8 +9,6 @@ import { EntregadorRepository } from '../entregador.repository';
 import { EntregadorService, MENSAGEM_CONVITE } from '../entregador.service';
 import { RemocaoDaFrotaRepository } from '../remocao-da-frota.repository';
 import { RemocaoDaFrotaService } from '../remocao-da-frota.service';
-import { Test, TestingModule } from '@nestjs/testing';
-import { EditarEntregadorDto } from '../dto/editar-entregador.dto';
 
 jest.mock('../../prisma/prisma.service', () => ({ PrismaService: class {} }));
 
@@ -375,83 +373,5 @@ describe('EntregadorService.gerarNovaSenhaTemporaria', () => {
     await expect(
       servico.gerarNovaSenhaTemporaria(ID_EMPRESA, CPF_FICTICIO),
     ).rejects.toThrow(NotFoundException);
-  });
-});
-
-describe('EntregadorService.editar', () => {
-  const dadosDoEntregador: EditarEntregadorDto = {
-    cpf: CPF_FICTICIO,
-    nome: 'Ana Souza',
-    telefone: '61988887777',
-  };
-  let servico: EntregadorService;
-  let procurarAtivoPorEmpresa: jest.Mock;
-  let atualizar: jest.Mock;
-
-  beforeEach(async () => {
-    procurarAtivoPorEmpresa = jest
-      .fn()
-      .mockResolvedValue({ cpf: CPF_FICTICIO });
-    atualizar = jest.fn().mockResolvedValue({ cpf: CPF_FICTICIO });
-    const modulo: TestingModule = await Test.createTestingModule({
-      providers: [
-        EntregadorService,
-        { provide: ContratoRepository, useValue: {} },
-        { provide: SenhaService, useValue: {} },
-        { provide: RemocaoDaFrotaRepository, useValue: {} },
-        { provide: LocalizacaoService, useValue: {} },
-        {
-          provide: EntregadorRepository,
-          useValue: { procurarAtivoPorEmpresa, atualizar },
-        },
-      ],
-    }).compile();
-    servico = modulo.get<EntregadorService>(EntregadorService);
-  });
-
-  it('sem nenhum campo para alterar nao consulta a frota', async () => {
-    await expect(
-      servico.editar(ID_EMPRESA, {
-        cpf: CPF_FICTICIO,
-        nome: null,
-        telefone: null,
-        veiculo: null,
-        placa: null,
-      }),
-    ).resolves.toBe(false);
-    expect(procurarAtivoPorEmpresa).not.toHaveBeenCalled();
-  });
-
-  it('nao edita entregador fora da frota da empresa', async () => {
-    procurarAtivoPorEmpresa.mockResolvedValue(null);
-
-    await expect(servico.editar(ID_EMPRESA, dadosDoEntregador)).resolves.toBe(
-      false,
-    );
-    expect(procurarAtivoPorEmpresa).toHaveBeenCalledWith(
-      ID_EMPRESA,
-      CPF_FICTICIO,
-    );
-    expect(atualizar).not.toHaveBeenCalled();
-  });
-
-  it('grava os campos informados do entregador da frota', async () => {
-    await expect(servico.editar(ID_EMPRESA, dadosDoEntregador)).resolves.toBe(
-      true,
-    );
-    expect(atualizar).toHaveBeenCalledWith(CPF_FICTICIO, {
-      nome: 'Ana Souza',
-      telefone: '61988887777',
-      veiculo: undefined,
-      placa: undefined,
-    });
-  });
-
-  it('devolve false quando a gravacao nao acontece', async () => {
-    atualizar.mockResolvedValue(null);
-
-    await expect(servico.editar(ID_EMPRESA, dadosDoEntregador)).resolves.toBe(
-      false,
-    );
   });
 });

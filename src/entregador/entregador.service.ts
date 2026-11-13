@@ -14,7 +14,6 @@ import { violouUnicidade } from '../prisma/prisma-errors';
 import { CadastrarEntregadorDto } from './dto/cadastrar-entregador.dto';
 import { dadosVisiveisParaEmpresa } from './dados-visiveis-empresa';
 import { EntregadorRepository } from './entregador.repository';
-import { EditarEntregadorDto } from './dto/editar-entregador.dto';
 
 export const MENSAGEM_CONVITE =
   'Se o CPF for de um entregador cadastrado, ele recebera o convite no app. ' +
@@ -140,22 +139,5 @@ export class EntregadorService {
 
   private gerarSenhaTemporaria(): string {
     return randomBytes(9).toString('base64url');
-  }
-
-  async editar(
-    idEmpresa: number,
-    dadosDoEntregador: EditarEntregadorDto,
-  ): Promise<boolean> {
-    const { nome, telefone, veiculo, placa, cpf } = dadosDoEntregador;
-    if (!nome && !telefone && !veiculo && !placa) return false;
-    if (!(await this.entregadores.procurarAtivoPorEmpresa(idEmpresa, cpf)))
-      return false;
-    const atualizado = await this.entregadores.atualizar(cpf, {
-      nome,
-      telefone,
-      veiculo,
-      placa,
-    });
-    return atualizado !== null;
   }
 }
