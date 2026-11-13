@@ -1137,6 +1137,120 @@
           ]
         },
         {
+          "name": "Perfil do entregador",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/entregador/perfil",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregador",
+                "perfil"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('mostra o CPF do proprio entregador', () => pm.expect(pm.response.json().cpf).to.eql(pm.collectionVariables.get('cpfNovo')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editar o proprio cadastro",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/entregador/perfil",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregador",
+                "perfil"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telefone\": \"61988885554\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('devolve o telefone novo', () => pm.expect(pm.response.json().telefone).to.eql('61988885554'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editar o CPF no cadastro",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/entregador/perfil",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "entregador",
+                "perfil"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cpf\": \"52998224725\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Aceitar convite",
           "request": {
             "method": "POST",
@@ -1331,7 +1445,7 @@
           ]
         },
         {
-          "name": "Editar entregador",
+          "name": "Empresa nao edita o entregador",
           "request": {
             "method": "PATCH",
             "header": [
@@ -1365,8 +1479,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
-                  "pm.test('confirma a edicao', () => pm.expect(pm.response.json()).to.be.true);"
+                  "pm.test('responde 404', () => pm.response.to.have.status(404));"
                 ]
               }
             }

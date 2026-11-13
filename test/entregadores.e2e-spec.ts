@@ -130,6 +130,14 @@ describe('E-US04 cadastro e convite de entregador (e2e)', () => {
     ]);
   });
 
+  it('com a senha temporaria, o entregador ainda nao ve nem edita o cadastro', async () => {
+    await novoEntregador.get('/entregador/perfil').expect(403);
+    await novoEntregador
+      .patch('/entregador/perfil')
+      .send({ telefone: '61977776666' })
+      .expect(403);
+  });
+
   it('a troca de senha do primeiro acesso exige a ciencia dos dados compartilhados', async () => {
     await novoEntregador
       .post('/auth/entregador/trocar-senha')
@@ -162,6 +170,62 @@ describe('E-US04 cadastro e convite de entregador (e2e)', () => {
         expect(resposta.status).toBeLessThan(300);
       });
     expect(await cpfsDaFrota()).toContain(cpfNovo);
+  });
+
+  it('EN-US08: o entregador edita o proprio cadastro e a empresa ve a mudanca', async () => {
+    const perfil = await novoEntregador
+      .patch('/entregador/perfil')
+      .send({ telefone: '61977776666' })
+      .expect(200);
+
+    expect(perfil.body).toEqual({
+      nome: 'Entregador do Teste',
+      cpf: cpfNovo,
+      telefone: '61977776666',
+      tipoVeiculo: 'MOTO',
+      placa: 'ABC1D23',
+    });
+    await novoEntregador
+      .get('/entregador/perfil')
+      .expect(200)
+      .expect(perfil.body);
+    const frota = (await cantina.get('/entregadores').expect(200))
+      .body as EntregadorDaFrota[];
+    expect(frota.find((entregador) => entregador.cpf === cpfNovo)).toEqual(
+      expect.objectContaining({ telefone: '61977776666' }),
+    );
+  });
+
+  it('EN-US08: o CPF nao muda e a placa segue a regra do veiculo', async () => {
+    await novoEntregador
+      .patch('/entregador/perfil')
+      .send({ cpf: gerarCpfValido() })
+      .expect(400);
+
+    const bicicleta = await novoEntregador
+      .patch('/entregador/perfil')
+      .send({ tipoVeiculo: 'BICICLETA' })
+      .expect(200);
+    expect(bicicleta.body).toEqual(
+      expect.objectContaining({ tipoVeiculo: 'BICICLETA', placa: null }),
+    );
+
+    await novoEntregador
+      .patch('/entregador/perfil')
+      .send({ tipoVeiculo: 'MOTO' })
+      .expect(400);
+    await novoEntregador
+      .patch('/entregador/perfil')
+      .send({ tipoVeiculo: 'MOTO', placa: 'abc-1d23' })
+      .expect(200);
+  });
+
+  it('EN-US08: nenhuma empresa edita o cadastro do entregador', async () => {
+    await cantina
+      .patch('/entregadores')
+      .send({ cpf: cpfNovo, telefone: '61900000000' })
+      .expect(404);
+    await cantina.get('/entregador/perfil').expect(403);
   });
 
   it('o entregador pode recusar o convite de outra empresa', async () => {

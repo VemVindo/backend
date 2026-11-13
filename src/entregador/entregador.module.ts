@@ -5,6 +5,8 @@ import { ContratoModule } from '../contrato/contrato.module';
 import { MapaModule } from '../mapa/mapa.module';
 import { RemuneracaoModule } from '../remuneracao/remuneracao.module';
 import { EntregadorController } from './entregador.controller';
+import { PerfilEntregadorController } from './perfil-entregador.controller';
+import { PerfilEntregadorService } from './perfil-entregador.service';
 import { EntregadorRepository } from './entregador.repository';
 import { EntregadorService } from './entregador.service';
 import { RemocaoDaFrotaRepository } from './remocao-da-frota.repository';
@@ -12,10 +14,11 @@ import { RemocaoDaFrotaService } from './remocao-da-frota.service';
 
 @Module({
   imports: [ContratoModule, MapaModule, RemuneracaoModule],
-  controllers: [EntregadorController],
+  controllers: [EntregadorController, PerfilEntregadorController],
   providers: [
     EntregadorRepository,
     EntregadorService,
+    PerfilEntregadorService,
     RepositorioDesempenhoEntregador,
     ServicoDesempenhoEntregador,
     RemocaoDaFrotaRepository,
