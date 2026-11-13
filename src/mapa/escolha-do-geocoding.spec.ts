@@ -262,6 +262,45 @@ describe('escolherResultado', () => {
     expect(escolherResultado([], [outroNumero], endereco)).toBeNull();
   });
 
+  it('mantem aproximado quando o ponto exato nao informa rua nem numero', () => {
+    const endereco = {
+      ...GUARA,
+      logradouro: 'SQN 210 Bloco K',
+      numero: 304,
+    };
+    const semRuaNemNumero: ResultadoDoGeocoding = {
+      formatted_address: 'Guará, Brasília - DF, 71000-001',
+      geometry: {
+        location: { lat: CENTRO, lng: -47.97 },
+        location_type: 'ROOFTOP',
+      },
+      address_components: [
+        { long_name: 'Guará', types: ['sublocality'] },
+        {
+          long_name: 'Distrito Federal',
+          short_name: 'DF',
+          types: ['administrative_area_level_1'],
+        },
+        { long_name: '71000-001', types: ['postal_code'] },
+      ],
+    };
+    const outroPontoSemRuaNemNumero: ResultadoDoGeocoding = {
+      ...semRuaNemNumero,
+      geometry: {
+        location: { lat: PERTO, lng: -47.97 },
+        location_type: 'ROOFTOP',
+      },
+    };
+
+    expect(
+      escolherResultado(
+        [],
+        [semRuaNemNumero, outroPontoSemRuaNemNumero],
+        endereco,
+      ),
+    ).toMatchObject({ precisao: 'aproximado' });
+  });
+
   it('ignora resultado sem coordenada ou sem componentes', () => {
     expect(escolherResultado([{ geometry: {} }], [], GUARA)).toBeNull();
     expect(
