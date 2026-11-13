@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   EnderecoLocalizado,
+  escolherOrigem,
   escolherResultado,
   ResultadoDoGeocoding,
 } from './escolha-do-geocoding';
@@ -25,6 +26,8 @@ export interface EnderecoDoPedido {
   uf: string;
   cep: string;
 }
+
+type Escolha = typeof escolherResultado;
 
 export interface RotaCalculada extends Trajeto {
   polyline: string | null;
@@ -61,9 +64,27 @@ export class GoogleMapsClient {
     return (await this.localizar(endereco))?.coordenada ?? null;
   }
 
-  /** Busca pelo CEP e pelo texto ao mesmo tempo; o CEP completo decide (ver escolherResultado). */
-  async localizar(
+  async geocodificarOrigem(
     endereco: EnderecoDoPedido,
+  ): Promise<Coordenada | null> {
+    return (await this.localizarOrigem(endereco))?.coordenada ?? null;
+  }
+
+  /** Origem da empresa: aceita o ponto aproximado do bairro (ver escolherOrigem). */
+  localizarOrigem(
+    endereco: EnderecoDoPedido,
+  ): Promise<EnderecoLocalizado | null> {
+    return this.localizarCom(endereco, escolherOrigem);
+  }
+
+  /** Busca pelo CEP e pelo texto ao mesmo tempo; o CEP completo decide (ver escolherResultado). */
+  localizar(endereco: EnderecoDoPedido): Promise<EnderecoLocalizado | null> {
+    return this.localizarCom(endereco, escolherResultado);
+  }
+
+  private async localizarCom(
+    endereco: EnderecoDoPedido,
+    escolher: Escolha,
   ): Promise<EnderecoLocalizado | null> {
     const chave = this.chave;
     if (!chave) {
@@ -78,7 +99,7 @@ export class GoogleMapsClient {
         components: `country:BR|administrative_area:${endereco.uf}`,
       }),
     ]);
-    const localizado = escolherResultado(porCep, porTexto, endereco);
+    const localizado = escolher(porCep, porTexto, endereco);
     if (!localizado) {
       this.logger.warn('Geocoding sem resultado que confira com o endereco');
     }

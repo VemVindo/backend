@@ -59,10 +59,21 @@ function montar() {
         Parameters<GoogleMapsClient['geocodificar']>
       >()
       .mockResolvedValue(ENTREGA),
+    geocodificarOrigem: jest
+      .fn<
+        Promise<Coordenada | null>,
+        Parameters<GoogleMapsClient['geocodificarOrigem']>
+      >()
+      .mockResolvedValue(SAIDA),
     localizar: jest.fn().mockResolvedValue({
       coordenada: ENTREGA,
       precisao: 'exato',
       enderecoEncontrado: 'SQN 210, Brasília - DF',
+    }),
+    localizarOrigem: jest.fn().mockResolvedValue({
+      coordenada: SAIDA,
+      precisao: 'aproximado',
+      enderecoEncontrado: null,
     }),
     calcularRota: jest
       .fn<
@@ -112,6 +123,7 @@ describe('RotaDeCarroService.calcular', () => {
     await servico.calcular(CANTINA, ENDERECO_DO_RECEBEDOR);
 
     expect(maps.geocodificar).toHaveBeenCalledTimes(1);
+    expect(maps.geocodificarOrigem).not.toHaveBeenCalled();
   });
 
   it('geocodifica e salva a saida da empresa na primeira vez', async () => {
@@ -119,14 +131,13 @@ describe('RotaDeCarroService.calcular', () => {
     localizacoes.procurarEmpresa.mockResolvedValue(
       empresa({ origem_lat: null, origem_lng: null }),
     );
-    maps.geocodificar.mockResolvedValueOnce(SAIDA);
 
     await servico.calcular(CANTINA, ENDERECO_DO_RECEBEDOR);
 
-    expect(maps.geocodificar).toHaveBeenNthCalledWith(
-      1,
+    expect(maps.geocodificarOrigem).toHaveBeenCalledWith(
       expect.objectContaining({ logradouro: 'SCS Quadra 2', uf: 'DF' }),
     );
+    expect(maps.geocodificar).toHaveBeenCalledWith(ENDERECO_DO_RECEBEDOR);
     expect(localizacoes.salvarOrigem).toHaveBeenCalledWith(CANTINA, SAIDA);
     expect(maps.calcularRota).toHaveBeenCalledWith(SAIDA, ENTREGA, 'DRIVE');
   });
@@ -163,7 +174,7 @@ describe('RotaDeCarroService.calcular', () => {
     localizacoes.procurarEmpresa.mockResolvedValue(
       empresa({ origem_lat: null, origem_lng: null }),
     );
-    maps.geocodificar.mockResolvedValueOnce(null);
+    maps.geocodificarOrigem.mockResolvedValueOnce(null);
 
     await expect(
       servico.calcular(CANTINA, ENDERECO_DO_RECEBEDOR),
@@ -228,6 +239,19 @@ describe('RotaDeCarroService com o ponto marcado no mapa', () => {
       enderecoEncontrado: 'SQN 210, Brasília - DF',
     });
     expect(maps.localizar).toHaveBeenCalledWith(ENDERECO_DO_RECEBEDOR);
+  });
+
+  it('localiza a origem da empresa com a regra que aceita o bairro', async () => {
+    const { servico, maps } = montar();
+
+    await expect(
+      servico.localizarOrigem(ENDERECO_DO_RECEBEDOR),
+    ).resolves.toEqual({
+      coordenada: SAIDA,
+      precisao: 'aproximado',
+      enderecoEncontrado: null,
+    });
+    expect(maps.localizarOrigem).toHaveBeenCalledWith(ENDERECO_DO_RECEBEDOR);
   });
 });
 

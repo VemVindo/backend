@@ -2,7 +2,10 @@ import {
   IsEmail,
   IsIn,
   IsInt,
+  IsLatitude,
+  IsLongitude,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsPositive,
   IsString,
@@ -67,4 +70,14 @@ export class AtualizarCadastroDto {
   @Maiusculo()
   @IsIn(UFS, { message: 'uf deve ser a sigla de um estado brasileiro' })
   uf: string;
+
+  @IsOptional()
+  @IsNumber()
+  @IsLatitude()
+  origemLat?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @IsLongitude()
+  origemLng?: number;
 }

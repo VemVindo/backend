@@ -4,6 +4,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { coordenada } from '../mapa/dto/visao-da-entrega.dto';
+import { motivoSemDistancia } from '../mapa/mensagens-da-rota';
 import { RotaDeCarroService } from '../mapa/rota-de-carro.service';
 import { CalculoValorEntregaService } from '../remuneracao/calculo-valor-entrega.service';
 import { RemuneracaoService } from '../remuneracao/remuneracao.service';
@@ -57,9 +58,7 @@ export class CalculoDaEntregaService {
       );
     }
     if (!rota || rota.distanciaM <= 0) {
-      throw new ConflictException(
-        'Não foi possível calcular uma distância válida para a entrega. Confira a localização do estabelecimento e do pino no mapa.',
-      );
+      throw new ConflictException(motivoSemDistancia(rota));
     }
     return {
       distancia: rota.distanciaM,

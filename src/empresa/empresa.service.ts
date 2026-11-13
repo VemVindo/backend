@@ -4,6 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Empresa } from '../generated/prisma/client';
+import { coordenada } from '../mapa/dto/visao-da-entrega.dto';
+import { Coordenada } from '../mapa/geo';
 import { violouUnicidade } from '../prisma/prisma-errors';
 import { DadosCadastrais, EmpresaRepository } from './empresa.repository';
 
@@ -26,6 +28,7 @@ export interface CadastroDaEmpresa {
     cidade: string;
     uf: string;
   };
+  origem: Coordenada | null;
   criadaEm: Date;
   atualizadaEm: Date;
 }
@@ -125,6 +128,7 @@ function paraCadastro(empresa: Empresa): CadastroDaEmpresa {
       cidade: empresa.cidade,
       uf: empresa.UF,
     },
+    origem: coordenada(empresa.origem_lat, empresa.origem_lng),
     criadaEm: empresa.criada_em,
     atualizadaEm: empresa.cadastro_atualizado_em,
   };

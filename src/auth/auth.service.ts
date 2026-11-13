@@ -12,8 +12,10 @@ import {
   DadosNovaEmpresa,
   EmpresaRepository,
 } from '../empresa/empresa.repository';
+import { pinoDaEmpresa } from '../empresa/pino-da-empresa';
 import { EntregadorRepository } from '../entregador/entregador.repository';
 import { Empresa, Entregador } from '../generated/prisma/client';
+import { Coordenada } from '../mapa/geo';
 import { violouUnicidade } from '../prisma/prisma-errors';
 import { UsuarioAutenticado, ConteudoDoToken } from './jwt.strategy';
 import { CadastrarEmpresaDto } from './dto/cadastrar-empresa.dto';
@@ -32,11 +34,14 @@ export class AuthService {
 
   async cadastrarEmpresa(dto: CadastrarEmpresaDto) {
     this.validarDocumento(dto);
+    const origem = pinoDaEmpresa(dto.origemLat, dto.origemLng);
     await this.garantirEmpresaInedita(dto);
     const senhaHash = await this.senha.hash(dto.senha);
     let empresa: Empresa;
     try {
-      empresa = await this.empresas.criar(this.dadosEmpresa(dto, senhaHash));
+      empresa = await this.empresas.criar(
+        this.dadosEmpresa(dto, senhaHash, origem),
+      );
     } catch (erro) {
       if (violouUnicidade(erro)) {
         throw new ConflictException('E-mail ou documento ja cadastrado');
@@ -72,6 +77,7 @@ export class AuthService {
   private dadosEmpresa(
     dto: CadastrarEmpresaDto,
     senhaHash: string,
+    origem: Coordenada | null,
   ): DadosNovaEmpresa {
     return {
       nomeFantasia: dto.nomeFantasia,
@@ -88,6 +94,7 @@ export class AuthService {
       uf: dto.uf,
       razaoSocial: dto.razaoSocial ?? null,
       senhaHash,
+      origem,
     };
   }
 

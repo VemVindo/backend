@@ -256,7 +256,9 @@
                   "pm.test('responde 200', () => pm.response.to.have.status(200));",
                   "const cadastro = pm.response.json();",
                   "pm.test('traz documento e endereco', () => pm.expect(cadastro).to.include.keys('nomeFantasia', 'documento', 'endereco'));",
-                  "pm.collectionVariables.set('cadastroEmpresa', JSON.stringify({ nomeFantasia: cadastro.nomeFantasia, email: cadastro.email, telefone: cadastro.telefone, ...cadastro.endereco }));"
+                  "pm.test('traz a origem da empresa', () => pm.expect(cadastro).to.have.property('origem'));",
+                  "pm.collectionVariables.set('cadastroEmpresa', JSON.stringify({ nomeFantasia: cadastro.nomeFantasia, email: cadastro.email, telefone: cadastro.telefone, ...cadastro.endereco }));",
+                  "pm.collectionVariables.set('origemEmpresa', JSON.stringify(cadastro.origem));"
                 ]
               }
             }
@@ -300,6 +302,160 @@
                 "exec": [
                   "pm.test('responde 200', () => pm.response.to.have.status(200));",
                   "pm.test('mantem o e-mail', () => pm.expect(pm.response.json().email).to.eql(pm.variables.get('emailEmpresa')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Salvar com o pino da empresa",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/empresa/cadastro",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "empresa",
+                "cadastro"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{cadastroComPino}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Reenvia o pino atual (ou o do seed), para nao mudar as distancias dos pedidos seguintes.",
+                  "const cadastro = JSON.parse(pm.collectionVariables.get('cadastroEmpresa'));",
+                  "const pino = JSON.parse(pm.collectionVariables.get('origemEmpresa') || 'null') || { lat: -15.7668, lng: -47.8818 };",
+                  "pm.variables.set('pinoEnviado', JSON.stringify(pino));",
+                  "pm.variables.set('cadastroComPino', JSON.stringify({ ...cadastro, origemLat: pino.lat, origemLng: pino.lng }));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('grava o pino enviado', () => pm.expect(pm.response.json().origem).to.eql(JSON.parse(pm.variables.get('pinoEnviado'))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pino da empresa pela metade",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/empresa/cadastro",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "empresa",
+                "cadastro"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{cadastroComMeioPino}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const cadastro = JSON.parse(pm.collectionVariables.get('cadastroEmpresa'));",
+                  "pm.variables.set('cadastroComMeioPino', JSON.stringify({ ...cadastro, origemLat: -15.7668 }));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 400', () => pm.response.to.have.status(400));",
+                  "pm.test('pede latitude e longitude', () => pm.expect(pm.response.json().message).to.eql('Informe latitude e longitude do pino da empresa'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Localizar a empresa no mapa",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/empresa/cadastro/localizar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "empresa",
+                "cadastro",
+                "localizar"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cep\": \"70000000\",\n  \"logradouro\": \"Rua de Teste\",\n  \"numero\": 2,\n  \"bairro\": \"Centro\",\n  \"cidade\": \"Brasilia\",\n  \"uf\": \"DF\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "// Sem chave do Google no CI a coordenada vem nula; com chave, vem lat e lng.",
+                  "pm.test('devolve coordenada, precisao e endereco', () => pm.expect(pm.response.json()).to.include.keys('coordenada', 'precisao', 'enderecoEncontrado'));"
                 ]
               }
             }
@@ -3492,7 +3648,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nomeFantasia\": \"Empresa Postman\",\n  \"cpf\": \"{{cpfEmpresaNova}}\",\n  \"email\": \"{{emailEmpresaNova}}\",\n  \"telefone\": \"6133334444\",\n  \"cep\": \"70000000\",\n  \"logradouro\": \"Rua de Teste\",\n  \"numero\": 10,\n  \"bairro\": \"Centro\",\n  \"cidade\": \"Brasilia\",\n  \"uf\": \"DF\",\n  \"senha\": \"{{senhaEntregador}}\"\n}",
+              "raw": "{\n  \"nomeFantasia\": \"Empresa Postman\",\n  \"cpf\": \"{{cpfEmpresaNova}}\",\n  \"email\": \"{{emailEmpresaNova}}\",\n  \"telefone\": \"6133334444\",\n  \"cep\": \"70000000\",\n  \"logradouro\": \"Rua de Teste\",\n  \"numero\": 10,\n  \"bairro\": \"Centro\",\n  \"cidade\": \"Brasilia\",\n  \"uf\": \"DF\",\n  \"origemLat\": -15.7942,\n  \"origemLng\": -47.8822,\n  \"senha\": \"{{senhaEntregador}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3537,6 +3693,79 @@
                 "exec": [
                   "pm.test('responde 200', () => pm.response.to.have.status(200));",
                   "pm.test('mesmo e-mail', () => pm.expect(pm.response.json().email).to.eql(pm.collectionVariables.get('emailEmpresaNova')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pino da empresa nova",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/empresa/cadastro",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "empresa",
+                "cadastro"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', () => pm.response.to.have.status(200));",
+                  "pm.test('guarda o pino do cadastro', () => pm.expect(pm.response.json().origem).to.eql({ lat: -15.7942, lng: -47.8822 }));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cadastrar com o pino pela metade",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/cadastrar/empresa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "cadastrar",
+                "empresa"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nomeFantasia\": \"Empresa Postman\",\n  \"cpf\": \"{{cpfEmpresaNova}}\",\n  \"email\": \"{{emailEmpresaNova}}\",\n  \"telefone\": \"6133334444\",\n  \"cep\": \"70000000\",\n  \"logradouro\": \"Rua de Teste\",\n  \"numero\": 10,\n  \"bairro\": \"Centro\",\n  \"cidade\": \"Brasilia\",\n  \"uf\": \"DF\",\n  \"origemLng\": -47.8822,\n  \"senha\": \"{{senhaEntregador}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 400', () => pm.response.to.have.status(400));",
+                  "pm.test('pede latitude e longitude', () => pm.expect(pm.response.json().message).to.eql('Informe latitude e longitude do pino da empresa'));"
                 ]
               }
             }
@@ -3651,6 +3880,10 @@
     },
     {
       "key": "cadastroEmpresa",
+      "value": ""
+    },
+    {
+      "key": "origemEmpresa",
       "value": ""
     },
     {

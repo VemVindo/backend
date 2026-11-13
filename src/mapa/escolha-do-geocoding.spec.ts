@@ -1,4 +1,5 @@
 import {
+  escolherOrigem,
   escolherResultado,
   RAIO_DO_CEP_M,
   ResultadoDoGeocoding,
@@ -327,5 +328,73 @@ describe('escolherResultado', () => {
       precisao: 'aproximado',
       enderecoEncontrado: null,
     });
+  });
+});
+
+describe('escolherOrigem', () => {
+  const AREA_ESPECIAL = { ...GUARA, logradouro: 'Area Especial 3', numero: 10 };
+  const quadra = resultado({ cep: '71000', parcial: true });
+  const centroDaRegiao = resultado({
+    lat: LONGE,
+    cep: '71000',
+    tipo: 'GEOMETRIC_CENTER',
+  });
+
+  it('com o endereco conferido, fica com a mesma escolha do pedido', () => {
+    const porta = resultado({ logradouro: 'Area Especial 3', numero: '10' });
+
+    expect(escolherOrigem([], [porta], AREA_ESPECIAL)).toEqual(
+      escolherResultado([], [porta], AREA_ESPECIAL),
+    );
+  });
+
+  it('aceita a quadra ou a area da regiao do CEP como aproximado', () => {
+    expect(escolherResultado([], [quadra], AREA_ESPECIAL)).toBeNull();
+
+    expect(escolherOrigem([], [quadra], AREA_ESPECIAL)).toEqual({
+      coordenada: { lat: CENTRO, lng: -47.97 },
+      precisao: 'aproximado',
+      enderecoEncontrado: 'Área aproximada: Guará, Brasília - DF, 71000',
+    });
+    expect(
+      escolherOrigem([centroDaRegiao], [], AREA_ESPECIAL)?.coordenada.lat,
+    ).toBe(LONGE);
+  });
+
+  it('aceita o bairro certo mesmo com o CEP generico da cidade', () => {
+    const generico = resultado({ cep: '70000-000', tipo: 'APPROXIMATE' });
+
+    expect(escolherResultado([], [generico], AREA_ESPECIAL)).toBeNull();
+    expect(escolherOrigem([], [generico], AREA_ESPECIAL)?.precisao).toBe(
+      'aproximado',
+    );
+  });
+
+  it('prefere o que mais confere e deixa por ultimo o que tem conflito', () => {
+    const outraRua = resultado({
+      lat: LONGE,
+      cep: '71000',
+      logradouro: 'Rua Outra',
+      tipo: 'GEOMETRIC_CENTER',
+    });
+    const outroCep = resultado({ lat: LONGE, cep: '70000-000' });
+
+    expect(
+      escolherOrigem([], [outraRua, outroCep, quadra], AREA_ESPECIAL)
+        ?.coordenada.lat,
+    ).toBe(CENTRO);
+  });
+
+  it('nao aceita o centro da cidade sem bairro nem CEP que confiram', () => {
+    const cidade = resultado({ bairro: '', cep: '', tipo: 'APPROXIMATE' });
+
+    expect(escolherOrigem([], [cidade], AREA_ESPECIAL)).toBeNull();
+  });
+
+  it('nao aceita outro estado', () => {
+    expect(
+      escolherOrigem([], [resultado({ cep: '71000', uf: 'GO' })], GUARA),
+    ).toBeNull();
+    expect(escolherOrigem([], [], GUARA)).toBeNull();
   });
 });

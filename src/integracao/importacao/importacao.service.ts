@@ -13,6 +13,7 @@ import {
   RotaAteORecebedor,
   RotaDeCarroService,
 } from '../../mapa/rota-de-carro.service';
+import { motivoSemDistancia } from '../../mapa/mensagens-da-rota';
 import { CalculoValorEntregaService } from '../../remuneracao/calculo-valor-entrega.service';
 import {
   AnalisePedidoExterno,
@@ -238,9 +239,7 @@ export class ImportacaoService {
     );
     if (!rota || rota.distanciaM <= 0) {
       if (destinoInformado) {
-        throw new UnprocessableEntityException(
-          'Não foi possível calcular uma distância válida. Confira a localização do estabelecimento e do pino no mapa.',
-        );
+        throw new UnprocessableEntityException(motivoSemDistancia(rota));
       }
       return {
         analise,

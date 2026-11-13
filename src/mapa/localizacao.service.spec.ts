@@ -86,6 +86,7 @@ function montar({ habilitado = true, encontrado = pedido() } = {}) {
   const maps = {
     habilitado,
     geocodificar: jest.fn().mockResolvedValue(DESTINO),
+    geocodificarOrigem: jest.fn().mockResolvedValue(ORIGEM),
     calcularRota: jest.fn().mockResolvedValue({
       distanciaM: 4200,
       duracaoS: 780,
@@ -398,7 +399,7 @@ describe('LocalizacaoService ponto de saida da empresa', () => {
     );
 
     expect(visao.origem).toEqual(ORIGEM);
-    expect(maps.geocodificar).not.toHaveBeenCalled();
+    expect(maps.geocodificarOrigem).not.toHaveBeenCalled();
   });
 
   it('geocodifica o endereco da empresa uma vez e grava', async () => {
@@ -407,7 +408,6 @@ describe('LocalizacaoService ponto de saida da empresa', () => {
         empresa: { ...EMPRESA, origem_lat: null, origem_lng: null },
       }),
     });
-    maps.geocodificar.mockResolvedValue(ORIGEM);
 
     const visao = await servico.registrarPosicao(
       CPF,
@@ -416,8 +416,11 @@ describe('LocalizacaoService ponto de saida da empresa', () => {
       AGORA,
     );
 
-    expect(maps.geocodificar).toHaveBeenCalledWith(
+    expect(maps.geocodificarOrigem).toHaveBeenCalledWith(
       expect.objectContaining({ logradouro: 'SCLS 308 Bloco A', uf: 'DF' }),
+    );
+    expect(maps.geocodificar).not.toHaveBeenCalledWith(
+      expect.objectContaining({ logradouro: 'SCLS 308 Bloco A' }),
     );
     expect(repositorio.salvarOrigem).toHaveBeenCalledWith(3, ORIGEM);
     expect(visao.origem).toEqual(ORIGEM);

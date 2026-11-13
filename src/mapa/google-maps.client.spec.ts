@@ -233,6 +233,51 @@ describe('GoogleMapsClient', () => {
     });
   });
 
+  describe('geocodificarOrigem', () => {
+    const AREA = {
+      status: 'OK',
+      results: [resultado(-15.83, 'Asa Norte', '70000', 'GEOMETRIC_CENTER')],
+    };
+
+    it('aceita o centro da regiao do CEP que o pedido descarta', async () => {
+      responderEmSequencia({ status: 'ZERO_RESULTS' }, AREA);
+      expect(await criar('chave').geocodificar(ENDERECO)).toBeNull();
+
+      responderEmSequencia({ status: 'ZERO_RESULTS' }, AREA);
+      expect(await criar('chave').geocodificarOrigem(ENDERECO)).toEqual({
+        lat: -15.83,
+        lng: -47.9,
+      });
+    });
+
+    it('localizarOrigem devolve o ponto aproximado com a precisao', async () => {
+      responderEmSequencia({ status: 'ZERO_RESULTS' }, AREA);
+      expect(await criar('chave').localizarOrigem(ENDERECO)).toMatchObject({
+        coordenada: { lat: -15.83, lng: -47.9 },
+        precisao: 'aproximado',
+      });
+    });
+
+    it('sem chave nao chama o Google', async () => {
+      const fetchSimulado = responder(200, AREA);
+      expect(await criar('').geocodificarOrigem(ENDERECO)).toBeNull();
+      expect(fetchSimulado).not.toHaveBeenCalled();
+    });
+
+    it('devolve null quando nada fica na regiao', async () => {
+      responderEmSequencia(
+        { status: 'ZERO_RESULTS' },
+        {
+          status: 'OK',
+          results: [
+            resultado(-15.83, 'Taguatinga', '72000', 'GEOMETRIC_CENTER'),
+          ],
+        },
+      );
+      expect(await criar('chave').geocodificarOrigem(ENDERECO)).toBeNull();
+    });
+  });
+
   describe('calcularRota', () => {
     it('pede so os campos usados e converte a duracao', async () => {
       const fetchSimulado = responder(200, {

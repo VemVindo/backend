@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Empresa } from '../generated/prisma/client';
+import { Coordenada } from '../mapa/geo';
 
 export interface DadosNovaEmpresa {
   nomeFantasia: string;
@@ -17,6 +18,7 @@ export interface DadosNovaEmpresa {
   uf: string;
   razaoSocial: string | null;
   senhaHash: string;
+  origem: Coordenada | null;
 }
 
 export type DadosCadastrais = Pick<
@@ -31,6 +33,7 @@ export type DadosCadastrais = Pick<
   | 'bairro'
   | 'cidade'
   | 'uf'
+  | 'origem'
 >;
 
 @Injectable()
@@ -79,6 +82,8 @@ export class EmpresaRepository {
         UF: dados.uf,
         razao_social: dados.razaoSocial,
         senha: dados.senhaHash,
+        origem_lat: dados.origem?.lat ?? null,
+        origem_lng: dados.origem?.lng ?? null,
       },
     });
   }
@@ -103,7 +108,7 @@ export class EmpresaRepository {
         cidade: dados.cidade,
         UF: dados.uf,
         cadastro_atualizado_em: agora,
-        ...(enderecoMudou ? { origem_lat: null, origem_lng: null } : {}),
+        ...origemAtualizada(dados.origem, enderecoMudou),
       },
     });
   }
@@ -137,4 +142,12 @@ export class EmpresaRepository {
       data: { sessao_versao: { increment: 1 } },
     });
   }
+}
+
+// O pino enviado vence; sem pino, endereco novo invalida a origem antiga.
+function origemAtualizada(origem: Coordenada | null, enderecoMudou: boolean) {
+  if (origem) {
+    return { origem_lat: origem.lat, origem_lng: origem.lng };
+  }
+  return enderecoMudou ? { origem_lat: null, origem_lng: null } : {};
 }

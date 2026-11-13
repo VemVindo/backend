@@ -6,6 +6,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { Cargo } from '../common/enums/cargo.enum';
 import { EmpresaRepository } from '../empresa/empresa.repository';
+import { MENSAGEM_PINO_INCOMPLETO } from '../empresa/pino-da-empresa';
 import { EntregadorRepository } from '../entregador/entregador.repository';
 import { AuthService } from './auth.service';
 import { CadastrarEmpresaDto } from './dto/cadastrar-empresa.dto';
@@ -126,6 +127,31 @@ describe('AuthService.cadastrarEmpresa', () => {
         senhaHash: 'hash',
       }),
     );
+  });
+
+  it('grava o pino marcado no mapa', async () => {
+    const { servico, empresas } = montar();
+    empresas.criar.mockResolvedValue({ id_empresa: 8, sessao_versao: 0 });
+
+    await servico.cadastrarEmpresa({
+      ...cadastro,
+      origemLat: -15.7801,
+      origemLng: -47.9292,
+    });
+
+    expect(empresas.criar).toHaveBeenCalledWith(
+      expect.objectContaining({ origem: { lat: -15.7801, lng: -47.9292 } }),
+    );
+  });
+
+  it('recusa o pino pela metade antes de consultar o banco', async () => {
+    const { servico, empresas } = montar();
+
+    await expect(
+      servico.cadastrarEmpresa({ ...cadastro, origemLng: -47.9292 }),
+    ).rejects.toThrow(new BadRequestException(MENSAGEM_PINO_INCOMPLETO));
+    expect(empresas.procurarPorEmail).not.toHaveBeenCalled();
+    expect(empresas.criar).not.toHaveBeenCalled();
   });
 
   it('converte corrida no unique do banco em 409', async () => {

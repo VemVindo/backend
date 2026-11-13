@@ -51,6 +51,12 @@ export class RotaDeCarroService {
     return this.maps.localizar(endereco);
   }
 
+  localizarOrigem(
+    endereco: EnderecoDoPedido,
+  ): Promise<EnderecoLocalizado | null> {
+    return this.maps.localizarOrigem(endereco);
+  }
+
   async distanciaParaFinalizar(idPedido: number): Promise<number | null> {
     const pedido = await this.localizacoes.procurarPorId(idPedido);
     if (!pedido) {
@@ -96,7 +102,10 @@ export class RotaDeCarroService {
     if (salva) {
       return salva;
     }
-    const origem = await this.maps.geocodificar({ ...empresa, uf: empresa.UF });
+    const origem = await this.maps.geocodificarOrigem({
+      ...empresa,
+      uf: empresa.UF,
+    });
     if (origem) {
       await this.localizacoes.salvarOrigem(idEmpresa, origem);
     }

@@ -56,6 +56,7 @@ interface Geocodificacao {
   chave: string;
   salva: Coordenada | null;
   endereco: EnderecoDoPedido;
+  geocodificar: (endereco: EnderecoDoPedido) => Promise<Coordenada | null>;
   gravar: (coordenada: Coordenada) => Promise<void>;
 }
 
@@ -208,6 +209,7 @@ export class LocalizacaoService {
         chave: chaveDoPedido(pedido.id_pedido),
         salva: destinoDoPedido(pedido),
         endereco: pedido,
+        geocodificar: (endereco) => this.maps.geocodificar(endereco),
         gravar: (coordenada) =>
           this.localizacoes.salvarDestino(pedido.id_pedido, coordenada),
       },
@@ -218,6 +220,7 @@ export class LocalizacaoService {
         chave: `empresa:${empresa.id_empresa}`,
         salva: origemDaEmpresa(pedido),
         endereco: { ...empresa, uf: empresa.UF },
+        geocodificar: (endereco) => this.maps.geocodificarOrigem(endereco),
         gravar: (coordenada) =>
           this.localizacoes.salvarOrigem(empresa.id_empresa, coordenada),
       },
@@ -227,7 +230,7 @@ export class LocalizacaoService {
   }
 
   private async geocodificarUmaVez(
-    { chave, salva, endereco, gravar }: Geocodificacao,
+    { chave, salva, endereco, geocodificar, gravar }: Geocodificacao,
     agora: Date,
   ): Promise<Coordenada | null> {
     if (salva || !this.maps.habilitado) {
@@ -241,7 +244,7 @@ export class LocalizacaoService {
       return null;
     }
     this.ultimaGeocodificacao.set(chave, agora.getTime());
-    const coordenada = await this.maps.geocodificar(endereco);
+    const coordenada = await geocodificar(endereco);
     if (coordenada) {
       await gravar(coordenada);
       this.ultimaGeocodificacao.delete(chave);
